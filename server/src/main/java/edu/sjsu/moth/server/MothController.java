@@ -1,18 +1,21 @@
 package edu.sjsu.moth.server;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.text.MessageFormat;
 import java.util.regex.Pattern;
+
+import static java.text.MessageFormat.format;
 
 @EnableMongoRepositories
 @RestController
 public class MothController {
 
+    public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
     @Autowired
     WebfingerRepository webfingerRepo;
 
@@ -28,40 +31,57 @@ public class MothController {
     }
 
     @GetMapping("/.well-known/webfinger")
-    public String webfinger(@RequestParam String resource) {
-        var pattern = Pattern.compile("acct:([^@]+)@(.+)");
-        var match = (pattern.matcher(resource));
+    public WebFinger webfinger(@RequestParam String resource) {
+        var match = (RESOURCE_PATTERN.matcher(resource));
         if (match.find()) {
             var user = match.group(1);
             var foundUser = webfingerRepo.findItemByName(user);
             if (foundUser != null) {
-                System.out.println(foundUser);
                 var host = match.group(2);
-                var result = MessageFormat.format("""
-                        '{'
-                          "subject": "acct:{0}@{1}",
-                          "aliases": [
-                            "https://{3}/@{2}",
-                            "https://{3}/users/{2}"
-                          ],
-                          "links": [
-                            '{'
-                              "rel": "http://webfinger.net/rel/profile-page",
-                              "type": "text/html",
-                              "href": "https://{3}/@{2}"
-                            '}',
-                            '{'
-                              "rel": "self",
-                              "type": "application/activity+json",
-                              "href": "https://{3}/users/{2}"
-                            '}'
-                          ]
-                        '}'""", user, host, foundUser.user, foundUser.host);
-                System.out.println(result);
-                return result;
+                var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
+                var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
+                return new WebFinger(resource, new String[] { textLink, activityLink },
+                        new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML, textLink),
+                                new FingerLink(RelType.SELF, MimeType.APPLICATION_ACTIVITY, activityLink) });
             }
         }
-        return "";
+        return null;
     }
+
+    /**
+     * simple helper class that will get serialize by jackson to a string value
+     */
+    static protected class StringType {
+        final private String str;
+
+        StringType(String str) {this.str = str;}
+
+        @JsonValue
+        public String toString() {return str;}
+    }
+
+    static public class RelType extends StringType {
+        static public final RelType SELF = new RelType("self");
+        static public final RelType PROFILE = new RelType("http://webfinger.net/rel/profile-page");
+
+        private RelType(String relType) {super(relType);}
+    }
+
+    static public class MimeType extends StringType {
+        static public final MimeType TEXT_HTML = new MimeType("text/html");
+        static public final MimeType APPLICATION_ACTIVITY = new MimeType("application/activity+json");
+
+        private MimeType(String mimeType) {super(mimeType);}
+    }
+
+    /**
+     * Structure representing the type of a webfinger link
+     */
+    public record FingerLink(RelType rel, MimeType type, String href) {}
+
+    /**
+     * Structure returned by a webfinger request
+     */
+    public record WebFinger(String subject, String[] aliases, FingerLink[] links) {}
 
 }
