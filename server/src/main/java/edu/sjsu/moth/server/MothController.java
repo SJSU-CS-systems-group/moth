@@ -1,12 +1,18 @@
 package edu.sjsu.moth.server;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import static java.text.MessageFormat.format;
@@ -84,4 +90,19 @@ public class MothController {
      */
     public record WebFinger(String subject, String[] aliases, FingerLink[] links) {}
 
+    @RequestMapping("/**")
+    public ResponseEntity<String> unexpected(
+            HttpServletRequest request
+    ) {
+        System.out.println(request.getMethod());
+        System.out.println(request.getRequestURI());
+        var map = request.getParameterMap();
+        if (map != null) map.entrySet().forEach(e -> System.out.println(e.getKey() + " = " + Arrays.toString(e.getValue())));
+        try {
+            var is = request.getInputStream();
+            System.out.println(new String(is.readAllBytes()));
+        } catch (IOException e) {
+        }
+        return new ResponseEntity<>("Sorry, not found :'(", HttpStatus.NOT_FOUND);
+    }
 }
