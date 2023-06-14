@@ -11,24 +11,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
 import java.util.Arrays;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.text.MessageFormat.format;
 
 @EnableMongoRepositories
 @RestController
 public class MothController {
-
     public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
+    Logger LOG = Logger.getLogger(MothController.class.getName());
     @Autowired
     WebfingerRepository webfingerRepo;
 
     @GetMapping("/")
-    public String index() {
-        return "hello";
-    }
+    public String index() {return "hello";}
 
     @GetMapping("/.alias")
     public String alias(@RequestParam String alias, @RequestParam String user, @RequestParam String host) {
@@ -52,6 +51,23 @@ public class MothController {
             }
         }
         return null;
+    }
+
+    /**
+     * catch the HTTP requests that aren't handled
+     */
+    @RequestMapping("/**")
+    public ResponseEntity<String> unexpected(HttpServletRequest request) {
+        var sb = new StringBuilder(request.getMethod());
+        sb.append(' ').append(request.getRequestURI());
+        if (request.getParameterMap().size() > 0) {
+            sb.append('?');
+            sb.append(request.getParameterMap().entrySet().stream().map(e -> e.getKey() + "=" + Arrays.toString(e.getValue())).collect(Collectors.joining(" ")));
+        }
+        sb.append("\n");
+        sb.append(Util.enumerationToStream(request.getHeaderNames()).map(name -> name + ": " + Util.enumerationToStream(request.getHeaders(name)).collect(Collectors.joining(","))).collect(Collectors.joining("\n")));
+        LOG.warning(sb.toString());
+        return new ResponseEntity<>("Sorry, not found :'(", HttpStatus.NOT_FOUND);
     }
 
     /**
@@ -89,20 +105,4 @@ public class MothController {
      * Structure returned by a webfinger request
      */
     public record WebFinger(String subject, String[] aliases, FingerLink[] links) {}
-
-    @RequestMapping("/**")
-    public ResponseEntity<String> unexpected(
-            HttpServletRequest request
-    ) {
-        System.out.println(request.getMethod());
-        System.out.println(request.getRequestURI());
-        var map = request.getParameterMap();
-        if (map != null) map.entrySet().forEach(e -> System.out.println(e.getKey() + " = " + Arrays.toString(e.getValue())));
-        try {
-            var is = request.getInputStream();
-            System.out.println(new String(is.readAllBytes()));
-        } catch (IOException e) {
-        }
-        return new ResponseEntity<>("Sorry, not found :'(", HttpStatus.NOT_FOUND);
-    }
 }
