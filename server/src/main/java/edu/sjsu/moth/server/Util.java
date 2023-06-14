@@ -18,6 +18,7 @@ public class Util {
      * @return a stream of the enumeration
      */
     public static <T> Stream<T> enumerationToStream(Enumeration<T> en) {
-        return StreamSupport.stream(Spliterators.spliterator(en.asIterator(), Long.MAX_VALUE, Spliterator.IMMUTABLE | Spliterator.NONNULL), false);
+        return StreamSupport.stream(Spliterators.spliterator(en.asIterator(), Long.MAX_VALUE,
+                Spliterator.IMMUTABLE | Spliterator.NONNULL), false);
     }
 }

@@ -25,11 +25,13 @@ public class UnexpectedException {
         for (var i = 0; i < 5 && i < stack.length; i++) {
             sb.append(stack[i]).append("\n");
         }
-        LOG.severe(MessageFormat.format("Unhandled exception: {0} {1}\n{2}", request.getDescription(true), exception.getMessage(), sb.toString()));
+        LOG.severe(MessageFormat.format("Unhandled exception: {0} {1}\n{2}", request.getDescription(true),
+                exception.getMessage(), sb.toString()));
         var headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
         var message = exception.getMessage();
         if (message == null) message = exception.toString();
-        return new ResponseEntity<>(MessageFormat.format("'{'\"error\":\"{0}\"'}'", message), headers, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(MessageFormat.format("'{'\"error\":\"{0}\"'}'", message), headers,
+                HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

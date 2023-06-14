@@ -7,6 +7,10 @@
       <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
       <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
       <option name="SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE" value="true" />
+      <option name="KEEP_SIMPLE_METHODS_IN_ONE_LINE" value="true" />
+      <option name="KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE" value="true" />
+      <option name="KEEP_SIMPLE_CLASSES_IN_ONE_LINE" value="true" />
+      <option name="WRAP_LONG_LINES" value="true" />
     </codeStyleSettings>
   </code_scheme>
 </component>

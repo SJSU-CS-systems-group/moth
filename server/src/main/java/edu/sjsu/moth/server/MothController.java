@@ -27,9 +27,7 @@ public class MothController {
     WebfingerRepository webfingerRepo;
 
     @GetMapping("/")
-    public String index() {
-        return "hello";
-    }
+    public String index() {return "hello";}
 
     @GetMapping("/.alias")
     public String alias(@RequestParam String alias, @RequestParam String user, @RequestParam String host) {
@@ -47,7 +45,9 @@ public class MothController {
                 var host = match.group(2);
                 var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
                 var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
-                return new WebFinger(resource, new String[] { textLink, activityLink }, new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML, textLink), new FingerLink(RelType.SELF, MimeType.APPLICATION_ACTIVITY, activityLink) });
+                return new WebFinger(resource, new String[] { textLink, activityLink },
+                        new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML, textLink),
+                                new FingerLink(RelType.SELF, MimeType.APPLICATION_ACTIVITY, activityLink) });
             }
         }
         return null;
@@ -76,43 +76,33 @@ public class MothController {
     static protected class StringType {
         final private String str;
 
-        StringType(String str) {
-            this.str = str;
-        }
+        StringType(String str) {this.str = str;}
 
         @JsonValue
-        public String toString() {
-            return str;
-        }
+        public String toString() {return str;}
     }
 
     static public class RelType extends StringType {
         static public final RelType SELF = new RelType("self");
         static public final RelType PROFILE = new RelType("http://webfinger.net/rel/profile-page");
 
-        private RelType(String relType) {
-            super(relType);
-        }
+        private RelType(String relType) {super(relType);}
     }
 
     static public class MimeType extends StringType {
         static public final MimeType TEXT_HTML = new MimeType("text/html");
         static public final MimeType APPLICATION_ACTIVITY = new MimeType("application/activity+json");
 
-        private MimeType(String mimeType) {
-            super(mimeType);
-        }
+        private MimeType(String mimeType) {super(mimeType);}
     }
 
     /**
      * Structure representing the type of a webfinger link
      */
-    public record FingerLink(RelType rel, MimeType type, String href) {
-    }
+    public record FingerLink(RelType rel, MimeType type, String href) {}
 
     /**
      * Structure returned by a webfinger request
      */
-    public record WebFinger(String subject, String[] aliases, FingerLink[] links) {
-    }
+    public record WebFinger(String subject, String[] aliases, FingerLink[] links) {}
 }
