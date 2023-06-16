@@ -59,7 +59,7 @@ public class MothController {
                 var host = match.group(2);
                 var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
                 var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
-                LOG.fine("finger directing " + user + " to " + activityLink);
+                LOG.info("finger directing " + user + " to " + activityLink);
                 return new WebFinger(resource, new String[] { textLink, activityLink },
                                      new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML,
                                                                        textLink), new FingerLink(RelType.SELF,
@@ -72,6 +72,7 @@ public class MothController {
 
     @GetMapping("/users/{id}")
     ResponseEntity<Object> getProfile(@PathVariable String id) {
+        System.out.println("profiles");
         LOG.fine("getting profile for " + id);
         var profileURL = BASE_URL + "/users/" + id;
         var name = id; // real name ?
@@ -83,11 +84,12 @@ public class MothController {
                 entry("@context", List.of("https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1")),
                 entry("type", "Person"), entry("id", profileURL), entry("following", profileURL + "/following"),
                 entry("followers", profileURL + "/followers"), entry("inbox", profileURL + "/inbox"),
-                entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "collections/featured"),
-                entry("featuredTags", profileURL + "collections/tags"), entry("preferredUsername", id),
+                entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "/collections/featured"),
+                entry("featuredTags", profileURL + "/collections/tags"), entry("preferredUsername", id),
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
                 entry("published", date), entry("publicKey", new PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new ProfileEndpoints(BASE_URL + "/inbox")));
+        System.out.println("profiles2");
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
     }
 
