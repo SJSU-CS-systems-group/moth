@@ -70,6 +70,8 @@ public class MothController {
         return null;
     }
 
+    // based on https://www.w3.org/TR/activitypub/#actor-objects
+    // https://w3id.org/security/v1 came from looking at an example response from a mastodon server
     @GetMapping("/users/{id}")
     ResponseEntity<Object> getProfile(@PathVariable String id) {
         LOG.fine("getting profile for " + id);
