@@ -59,7 +59,7 @@ public class MothController {
                 var host = match.group(2);
                 var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
                 var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
-                LOG.info("finger directing " + user + " to " + activityLink);
+                LOG.fine("finger directing " + user + " to " + activityLink);
                 return new WebFinger(resource, new String[] { textLink, activityLink },
                                      new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML,
                                                                        textLink), new FingerLink(RelType.SELF,
@@ -72,7 +72,6 @@ public class MothController {
 
     @GetMapping("/users/{id}")
     ResponseEntity<Object> getProfile(@PathVariable String id) {
-        System.out.println("profiles");
         LOG.fine("getting profile for " + id);
         var profileURL = BASE_URL + "/users/" + id;
         var name = id; // real name ?
@@ -89,7 +88,6 @@ public class MothController {
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
                 entry("published", date), entry("publicKey", new PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new ProfileEndpoints(BASE_URL + "/inbox")));
-        System.out.println("profiles2");
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
     }
 
