@@ -1,14 +1,18 @@
 package edu.sjsu.moth.server;
 
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.annotation.JsonValue;
+import edu.sjsu.moth.util.WebFingerUtils;
+import edu.sjsu.moth.util.WebFingerUtils.FingerLink;
+import edu.sjsu.moth.util.WebFingerUtils.MothMimeType;
+import edu.sjsu.moth.util.WebFingerUtils.RelType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.MimeType;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -50,7 +54,7 @@ public class MothController {
     }
 
     @GetMapping("/.well-known/webfinger")
-    public WebFinger webfinger(@RequestParam String resource) {
+    public WebFingerUtils.WebFinger webfinger(@RequestParam String resource) {
         var match = (RESOURCE_PATTERN.matcher(resource));
         if (match.find()) {
             var user = match.group(1);
@@ -60,11 +64,9 @@ public class MothController {
                 var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
                 var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
                 LOG.fine("finger directing " + user + " to " + activityLink);
-                return new WebFinger(resource, new String[] { textLink, activityLink },
-                                     new FingerLink[] { new FingerLink(RelType.PROFILE, MimeType.TEXT_HTML,
-                                                                       textLink), new FingerLink(RelType.SELF,
-                                                                                                 MimeType.APPLICATION_ACTIVITY,
-                                                                                                 activityLink) });
+                var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
+                                    new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
+                return new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links);
             }
         }
         return null;
@@ -76,7 +78,7 @@ public class MothController {
         var profileURL = BASE_URL + "/users/" + id;
         var name = id; // real name ?
         var headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_TYPE, MimeType.APPLICATION_ACTIVITY.toString());
+        headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
         var date = jsonDateFormat.format(new Date()); // i think this is supposed to be when created (or changed?)
         String summary = "i am " + name;
         var profile = Map.ofEntries(
@@ -86,8 +88,8 @@ public class MothController {
                 entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "collections/featured"),
                 entry("featuredTags", profileURL + "collections/tags"), entry("preferredUsername", id),
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
-                entry("published", date), entry("publicKey", new PublicKeyMessage(profileURL, publicKeyPEM)),
-                entry("endpoints", new ProfileEndpoints(BASE_URL + "/inbox")));
+                entry("published", date), entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
+                entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
     }
 
@@ -110,49 +112,4 @@ public class MothController {
         LOG.warning(sb.toString());
         return new ResponseEntity<>("Sorry, not found :'(", HttpStatus.NOT_FOUND);
     }
-
-    public record ProfileEndpoints(String sharedInbox) {}
-
-    @JsonPropertyOrder({ "id", "owner", "publicKeyPem" })
-    public record PublicKeyMessage(String owner, String publicKeyPem) {
-        public String getId() {
-            return owner + "#main-key";
-        }
-    }
-
-    /**
-     * simple helper class that will get serialize by jackson to a string value
-     */
-    static protected class StringType {
-        final private String str;
-
-        StringType(String str) {this.str = str;}
-
-        @JsonValue
-        public String toString() {return str;}
-    }
-
-    static public class RelType extends StringType {
-        static public final RelType SELF = new RelType("self");
-        static public final RelType PROFILE = new RelType("http://webfinger.net/rel/profile-page");
-
-        private RelType(String relType) {super(relType);}
-    }
-
-    static public class MimeType extends StringType {
-        static public final MimeType TEXT_HTML = new MimeType("text/html");
-        static public final MimeType APPLICATION_ACTIVITY = new MimeType("application/activity+json");
-
-        private MimeType(String mimeType) {super(mimeType);}
-    }
-
-    /**
-     * Structure representing the type of a webfinger link
-     */
-    public record FingerLink(RelType rel, MimeType type, String href) {}
-
-    /**
-     * Structure returned by a webfinger request
-     */
-    public record WebFinger(String subject, String[] aliases, FingerLink[] links) {}
 }

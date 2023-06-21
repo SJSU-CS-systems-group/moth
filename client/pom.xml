@@ -1,34 +1,33 @@
-<?xml version="1.0"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>edu.sjsu.moth</groupId>
         <artifactId>moth</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>moth-server</artifactId>
-    <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
-    <name>moth-server</name>
-    <url>http://maven.apache.org</url>
+
+    <artifactId>moth-client</artifactId>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
     <dependencies>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
-            <version>3.0.6</version>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli-spring-boot-starter</artifactId>
+            <version>4.7.4</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.0.6</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <version>3.0.6</version>
-            <scope>test</scope>
+            <artifactId>spring-boot-starter</artifactId>
+            <version>3.1.0</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>edu.sjsu.moth</groupId>
@@ -38,14 +37,14 @@
         </dependency>
     </dependencies>
     <build>
-        <finalName>moth-server</finalName>
+        <finalName>moth-client</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <executable>true</executable>
-                    <mainClass>edu.sjsu.moth.server.Main</mainClass>
+                    <mainClass>edu.sjsu.moth.client.Main</mainClass>
                 </configuration>
                 <executions>
                     <execution>
@@ -57,4 +56,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>
