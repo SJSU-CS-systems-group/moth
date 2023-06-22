@@ -23,5 +23,7 @@
 
   <modules>
     <module>server</module>
+    <module>client</module>
+    <module>util</module>
   </modules>
 </project>
