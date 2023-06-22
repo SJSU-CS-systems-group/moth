@@ -12,7 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.util.MimeType;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -54,7 +53,13 @@ public class MothController {
     }
 
     @GetMapping("/.well-known/webfinger")
-    public WebFingerUtils.WebFinger webfinger(@RequestParam String resource) {
+    public ResponseEntity<WebFingerUtils.WebFinger> webfinger(@RequestParam(required = false) String resource) {
+        if (resource == null) {
+            var headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
+            headers.add(HttpHeaders.VARY, HttpHeaders.ORIGIN);
+            return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
+        }
         var match = (RESOURCE_PATTERN.matcher(resource));
         if (match.find()) {
             var user = match.group(1);
@@ -66,7 +71,8 @@ public class MothController {
                 LOG.fine("finger directing " + user + " to " + activityLink);
                 var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
                                     new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
-                return new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links);
+                return new ResponseEntity<>(
+                        new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links), HttpStatus.OK);
             }
         }
         return null;
@@ -90,7 +96,8 @@ public class MothController {
                 entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "/collections/featured"),
                 entry("featuredTags", profileURL + "/collections/tags"), entry("preferredUsername", id),
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
-                entry("published", date), entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
+                entry("published", date),
+                entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
     }
