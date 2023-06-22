@@ -13,8 +13,9 @@ public class Main implements ApplicationRunner {
     public static void main(String[] args) {
         try {
             Configuration config;
-            if (args[0] == null) {
+            if (args[0].length() != 1) {
                 System.out.println("Configuration file needed.");
+                System.exit(1);
             }
             config = new Configuration(args[0]);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
