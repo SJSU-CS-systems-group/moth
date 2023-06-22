@@ -85,8 +85,8 @@ public class MothController {
                 entry("@context", List.of("https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1")),
                 entry("type", "Person"), entry("id", profileURL), entry("following", profileURL + "/following"),
                 entry("followers", profileURL + "/followers"), entry("inbox", profileURL + "/inbox"),
-                entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "collections/featured"),
-                entry("featuredTags", profileURL + "collections/tags"), entry("preferredUsername", id),
+                entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "/collections/featured"),
+                entry("featuredTags", profileURL + "/collections/tags"), entry("preferredUsername", id),
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
                 entry("published", date), entry("publicKey", new PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new ProfileEndpoints(BASE_URL + "/inbox")));
