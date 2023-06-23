@@ -14,7 +14,7 @@ public class Main implements ApplicationRunner {
         try {
             Configuration config;
             if (args.length != 1) {
-                System.out.println("Configuration file needed.");
+                System.out.println("Only one argument allowed: Configuration File.");
                 System.exit(1);
             }
             config = new Configuration(args[0]);
