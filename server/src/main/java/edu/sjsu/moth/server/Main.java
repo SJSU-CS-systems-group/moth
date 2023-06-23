@@ -13,8 +13,10 @@ public class Main implements ApplicationRunner {
     public static void main(String[] args) {
         try {
             MothConfiguration config;
-            if (args[0] == null) {
-                System.out.println("Configuration file needed.");
+            Configuration config;
+            if (args.length != 1) {
+                System.out.println("Only one argument allowed: Configuration File.");
+                System.exit(1);
             }
             config = new MothConfiguration(args[0]);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
