@@ -13,8 +13,10 @@ public class Main implements ApplicationRunner {
     public static void main(String[] args) {
         try {
             Configuration config;
-            if (args[0] == null) {
-                System.out.println("Configuration file needed.");
+            if (args.length != 1) {
+                System.out.println("Only one argument allowed: Configuration File.");
+                System.exit(1);
+
             }
             config = new Configuration(args[0]);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
