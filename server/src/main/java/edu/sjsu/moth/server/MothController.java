@@ -12,7 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.util.MimeType;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -31,7 +30,7 @@ import static java.util.Map.entry;
 public class MothController {
     public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
     // andre will set this from the commandline
-    final static String BASE_URL = "https://x360.homeofcode.com";
+    public static final String BASE_URL = "https://" + MothConfiguration.mothConfiguration.getServerName();
     final static SimpleDateFormat jsonDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
     // we need to generate the publickey
     final static String publicKeyPEM = "-----BEGIN PUBLIC " + "KEY" +

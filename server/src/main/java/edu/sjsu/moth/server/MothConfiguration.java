@@ -5,14 +5,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
-public class Configuration {
+public class MothConfiguration {
     private static final List<RequriedProperty> requriedPropertyList = List.of(
             new RequriedProperty("server.port", "server.port is the port to listen to on."),
             new RequriedProperty("server.name", "server.name is the host name of the server."),
             new RequriedProperty("db", "address of mongodb server"));
     private final Properties properties = new Properties();
 
-    public Configuration(String file) throws IOException {
+    public static MothConfiguration mothConfiguration;
+
+    public MothConfiguration(String file) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(file)) {
 
             properties.load(fileInputStream);
@@ -23,6 +25,7 @@ public class Configuration {
                     System.exit(1);
                 }
             });
+            mothConfiguration = this;
         }
     }
 
