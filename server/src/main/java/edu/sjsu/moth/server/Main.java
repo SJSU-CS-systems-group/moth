@@ -13,8 +13,7 @@ public class Main implements ApplicationRunner {
     public static void main(String[] args) {
         try {
             Configuration config;
-            if (args[0].length() <= 1) {
-                System.out.println(args[0]);
+            if (args.length != 1) {
                 System.out.println("Configuration file needed.");
                 System.exit(1);
             }
