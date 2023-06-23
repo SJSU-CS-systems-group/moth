@@ -13,7 +13,6 @@ public class Main implements ApplicationRunner {
     public static void main(String[] args) {
         try {
             MothConfiguration config;
-            Configuration config;
             if (args.length != 1) {
                 System.out.println("Only one argument allowed: Configuration File.");
                 System.exit(1);
