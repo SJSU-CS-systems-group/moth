@@ -16,6 +16,7 @@ public class Main implements ApplicationRunner {
             if (args.length != 1) {
                 System.out.println("Only one argument allowed: Configuration File.");
                 System.exit(1);
+
             }
             config = new Configuration(args[0]);
             HashMap<String, Object> defaults = new HashMap<String, Object>();

@@ -11,14 +11,62 @@ import org.springframework.http.MediaType;
 import org.springframework.util.MimeType;
 import org.springframework.web.client.RestTemplate;
 
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.text.MessageFormat;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static edu.sjsu.moth.util.WebFingerUtils.MothMimeType.*;
-
 public class WebFingerUtils {
+
+    static private final Pattern USER_URL_PATTERN = Pattern.compile("https://([^/]+).*/([^/]+)");
+
+    static public WebFinger finger(String user, String host) {
+        var temp = new RestTemplate();
+        var headers = new HttpHeaders();
+        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
+        var httpEntity = new HttpEntity<>(headers);
+        var uri = MessageFormat.format("https://{1}/.well-known/webfinger?resource=acct:{0}@{1}", user, host);
+        var rsp = temp.exchange(uri, HttpMethod.GET, httpEntity, WebFinger.class);
+        return rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
+    }
+
+    static public FingerAndAccount resolve(String userUrl) {
+        WebFinger finger = null;
+        JsonNode json = null;
+        var temp = new RestTemplate();
+        var headers = new HttpHeaders();
+        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
+        var httpEntity = new HttpEntity<>(headers);
+        var rsp = temp.exchange(userUrl, HttpMethod.GET, httpEntity, JsonNode.class);
+        json = rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
+
+        var match = USER_URL_PATTERN.matcher(userUrl);
+        if (match.find()) {
+            finger = finger(match.group(2), match.group(1));
+        }
+        return new FingerAndAccount(finger, json);
+    }
+
+    private static String PEMEncode(byte[] bytes, String armorLabel) {
+        return "-----BEGIN " + armorLabel + "-----\n" +
+                Base64.getMimeEncoder(72, new byte[] { '\n' }).encodeToString(bytes) +
+                "\n-----END " + armorLabel + "-----\n";
+    }
+
+    public static PubPrivKeyPEM genPubPrivKeyPem() {
+        try {
+            var keyGenerator = KeyPairGenerator.getInstance("RSA");
+            keyGenerator.initialize(2048);
+            var pair = keyGenerator.generateKeyPair();
+            return new PubPrivKeyPEM(PEMEncode(pair.getPublic().getEncoded(), "PUBLIC KEY"),
+                                     PEMEncode(pair.getPrivate().getEncoded(), "PRIVATE KEY"));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
 
     public record ProfileEndpoints(String sharedInbox) {}
 
@@ -45,7 +93,7 @@ public class WebFingerUtils {
         static public final RelType SELF = new RelType("self");
         static public final RelType PROFILE = new RelType("http://webfinger.net/rel/profile-page");
 
-        private RelType(String relType) { super(relType); }
+        private RelType(String relType) {super(relType);}
 
         @JsonCreator()
         static public RelType getInstance(String relType) {
@@ -61,7 +109,7 @@ public class WebFingerUtils {
 
     static public class MothMimeType {
         static public final MediaType APPLICATION_ACTIVITY = new MediaType("application", "activity+json");
-}
+    }
 
     /**
      * Structure representing the type of a webfinger link
@@ -73,33 +121,7 @@ public class WebFingerUtils {
      */
     public record WebFinger(String subject, List<String> aliases, List<FingerLink> links) {}
 
-    static public WebFinger finger(String user, String host) {
-        var temp = new RestTemplate();
-        var headers = new HttpHeaders();
-        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
-        var httpEntity = new HttpEntity<>(headers);
-        var uri = MessageFormat.format("https://{1}/.well-known/webfinger?resource=acct:{0}@{1}", user, host);
-        var rsp = temp.exchange(uri, HttpMethod.GET, httpEntity, WebFinger.class);
-        return rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
-    }
+    public record FingerAndAccount(WebFinger finger, JsonNode json) {}
 
-    public record FingerAndAccount (WebFinger finger, JsonNode json) {}
-
-    static private final Pattern USER_URL_PATTERN = Pattern.compile("https://([^/]+).*/([^/]+)");
-    static public FingerAndAccount resolve(String userUrl) {
-        WebFinger finger = null;
-        JsonNode json = null;
-        var temp = new RestTemplate();
-        var headers = new HttpHeaders();
-        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
-        var httpEntity = new HttpEntity<>(headers);
-        var rsp = temp.exchange(userUrl, HttpMethod.GET, httpEntity, JsonNode.class);
-        json = rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
-
-        var match = USER_URL_PATTERN.matcher(userUrl);
-        if (match.find()) {
-            finger = finger(match.group(2), match.group(1));
-        }
-        return new FingerAndAccount(finger, json);
-    }
+    public record PubPrivKeyPEM(String pubKey, String privKey) {}
 }

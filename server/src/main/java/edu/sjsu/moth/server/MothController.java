@@ -54,7 +54,13 @@ public class MothController {
     }
 
     @GetMapping("/.well-known/webfinger")
-    public WebFingerUtils.WebFinger webfinger(@RequestParam String resource) {
+    public ResponseEntity<WebFingerUtils.WebFinger> webfinger(@RequestParam(required = false) String resource) {
+        if (resource == null) {
+            var headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
+            headers.add(HttpHeaders.VARY, HttpHeaders.ORIGIN);
+            return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
+        }
         var match = (RESOURCE_PATTERN.matcher(resource));
         if (match.find()) {
             var user = match.group(1);
@@ -66,7 +72,8 @@ public class MothController {
                 LOG.fine("finger directing " + user + " to " + activityLink);
                 var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
                                     new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
-                return new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links);
+                return new ResponseEntity<>(
+                        new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links), HttpStatus.OK);
             }
         }
         return null;
