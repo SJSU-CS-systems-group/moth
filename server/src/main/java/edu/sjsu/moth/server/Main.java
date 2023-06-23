@@ -12,13 +12,12 @@ public class Main implements ApplicationRunner {
 
     public static void main(String[] args) {
         try {
-            Configuration config;
+            MothConfiguration config;
             if (args.length != 1) {
                 System.out.println("Only one argument allowed: Configuration File.");
                 System.exit(1);
-
             }
-            config = new Configuration(args[0]);
+            config = new MothConfiguration(args[0]);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
             defaults.put("server.port", config.getServerPort());
             defaults.put("server.name", config.getServerName());
