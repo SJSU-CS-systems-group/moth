@@ -13,9 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -31,7 +29,6 @@ public class MothController {
     public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
     // andre will set this from the commandline
     public static final String BASE_URL = "https://" + MothConfiguration.mothConfiguration.getServerName();
-    final static SimpleDateFormat jsonDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
     // we need to generate the publickey
     final static String publicKeyPEM = "-----BEGIN PUBLIC " + "KEY" +
             "-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3Bsn4p1MKY02l8499qRz" +
@@ -98,7 +95,7 @@ public class MothController {
         var name = id; // real name ?
         var headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
-        var date = jsonDateFormat.format(new Date()); // i think this is supposed to be when created (or changed?)
+        var date = Util.now(); // i think this is supposed to be when created (or changed?)
         String summary = "i am " + name;
         var profile = Map.ofEntries(
                 entry("@context", List.of("https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1")),
@@ -111,25 +108,5 @@ public class MothController {
                 entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
-    }
-
-    /**
-     * catch the HTTP requests that aren't handled
-     */
-    @RequestMapping("/**")
-    public ResponseEntity<String> unexpected(HttpServletRequest request) {
-        var sb = new StringBuilder(request.getMethod());
-        sb.append(' ').append(request.getRequestURI());
-        if (request.getParameterMap().size() > 0) {
-            sb.append('?');
-            sb.append(request.getParameterMap().entrySet().stream().map(
-                    e -> e.getKey() + "=" + Arrays.toString(e.getValue())).collect(Collectors.joining(" ")));
-        }
-        sb.append("\n");
-        sb.append(Util.enumerationToStream(request.getHeaderNames()).map(
-                name -> name + ": " + Util.enumerationToStream(request.getHeaders(name)).collect(
-                        Collectors.joining(","))).collect(Collectors.joining("\n")));
-        LOG.warning(sb.toString());
-        return new ResponseEntity<>("Sorry, not found :'(", HttpStatus.NOT_FOUND);
     }
 }
