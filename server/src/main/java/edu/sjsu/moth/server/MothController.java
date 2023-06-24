@@ -52,6 +52,17 @@ public class MothController {
         return "added";
     }
 
+    @GetMapping("/.well-known/host-meta")
+    public ResponseEntity<String> hostMeta() {
+        return new ResponseEntity<>("""
+                                            <?xml version="1.0" encoding="UTF-8"?>
+                                            <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+                                                <Link rel="lrdd" template="https://%s/.well-known/webfinger?resource={uri}"/>
+                                            </XRD>
+                                            """.formatted(MothConfiguration.mothConfiguration.getServerName()),
+                                    HttpStatus.OK);
+    }
+
     @GetMapping("/.well-known/webfinger")
     public ResponseEntity<WebFingerUtils.WebFinger> webfinger(@RequestParam(required = false) String resource) {
         if (resource == null) {
@@ -96,7 +107,8 @@ public class MothController {
                 entry("outbox", profileURL + "/outbox"), entry("featured", profileURL + "/collections/featured"),
                 entry("featuredTags", profileURL + "/collections/tags"), entry("preferredUsername", id),
                 entry("name", name), entry("summary", summary), entry("url", BASE_URL + "/@" + id),
-                entry("published", date), entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
+                entry("published", date),
+                entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
         return new ResponseEntity<>(profile, headers, HttpStatus.OK);
     }
