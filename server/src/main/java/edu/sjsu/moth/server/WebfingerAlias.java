@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document("webfinger")
 public class WebfingerAlias {
     @Id
-    private final String alias;
+    public final String alias;
     public String user;
     public String host;
 
