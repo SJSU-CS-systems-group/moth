@@ -7,6 +7,23 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class InstanceController {
+    public record Instance(String domain, String title, String version, String sourceUrl, String description,
+                           Usage usage, Thumbnail thumbnail, String[] languages, Configuration configuration,
+                           Registrations registrations, Contact contact, Rule[] rules) {
+
+        public static record Usage(int posts, int users) {}
+
+        public static record Thumbnail(String url, int width, int height) {}
+
+        public static record Configuration(boolean supportsStreaming) {}
+
+        public static record Registrations(boolean open) {}
+
+        public static record Contact(String email, String phoneNumber) {}
+
+        public static record Rule(String id, String text) {}
+    }
+
     @GetMapping("/api/v1/instance")
     public ResponseEntity<Object> getInfo() {
         // make api calls/retrieve data aka instance info
@@ -20,7 +37,7 @@ public class InstanceController {
         //^from nested class to give initial values for the corresponding properties of the Instance class!
 
         Instance instance = new Instance(
-                "mastodon.social",
+                "cheah.homeofcode.com",
                 "Moth",
                 "4.0.0rc1",
                 "https://github.com/mastodon/mastodon",
@@ -33,6 +50,6 @@ public class InstanceController {
                 contact,
                 rules
         );
-        return new ResponseEntity<>(instance, HttpStatus.OK); //serialized as JSON
+        return new ResponseEntity<>(instance, HttpStatus.OK); // serialized as JSON
     }
 }
