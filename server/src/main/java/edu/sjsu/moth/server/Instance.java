@@ -1,5 +1,4 @@
 package edu.sjsu.moth.server;
-import java.util.Arrays;
 
 public class Instance {
     private String domain;
@@ -168,7 +167,7 @@ public class Instance {
             this.height = height;
         }
 
-        //getter and setters
+        //getter and setters!
         public String getUrl() {
             return url;
         }
