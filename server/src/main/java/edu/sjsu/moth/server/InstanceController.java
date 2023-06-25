@@ -35,7 +35,7 @@ public class InstanceController {
                                                                 "admin@" + MothConfiguration.mothConfiguration.getServerName(),
                                                                 "0.0.1", URLSV1, STATSV1,
                                                                 FilesController.instanceFileURL("thumbnail.png"),
-                                                                new String[] { "en" }, false, false, true,
+                                                                new String[] { "en" }, true, false, true,
                                                                 CONFIGURATIONV1,
                                                                 CONTACT_ACCOUNT, RULESV1);
 

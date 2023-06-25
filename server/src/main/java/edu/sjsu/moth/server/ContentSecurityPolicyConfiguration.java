@@ -19,7 +19,12 @@ class ContentSecurityPolicyConfiguration {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.headers().contentSecurityPolicy(POLICY_DIRECTIVES);
+        // i don't think we want this security policy, but we did see it used by other
+        // server. we should circle back to this
+        // http.headers().contentSecurityPolicy(POLICY_DIRECTIVES);
+        // since almost all our requests are not coming from a web page, we need to turn
+        // off CSRF
+        http.csrf().disable();
         return http.build();
     }
 
