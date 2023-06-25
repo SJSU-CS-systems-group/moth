@@ -1,5 +1,7 @@
 package edu.sjsu.moth.server;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -21,4 +23,8 @@ public class Util {
         return StreamSupport.stream(Spliterators.spliterator(en.asIterator(), Long.MAX_VALUE,
                 Spliterator.IMMUTABLE | Spliterator.NONNULL), false);
     }
+
+    public static final SimpleDateFormat jsonDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+
+    public static String now() { return jsonDateFormat.format(new Date()); }
 }
