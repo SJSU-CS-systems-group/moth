@@ -1,7 +1,10 @@
 package edu.sjsu.moth.server;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
+// Definition is https://docs.joinmastodon.org/entities/Account/
+@Document("account")
 public class Account {
     @Id
     private final String id;
@@ -15,22 +18,26 @@ public class Account {
     private final String header;
     private final String header_static;
     private final boolean locked;
-    private final String[] fields;
-    private final String[] emojis;
+    private final AccountField[] fields;
+    private final CustomEmoji[] emojis;
     private final boolean bot;
     private final boolean group;
     private final boolean discoverable;
+    private final boolean noIndex;
+    private final boolean moved;
+    private final boolean suspended;
+    private final boolean limited;
     private final String created_at;
     private final String last_status_at;
-
-    //private int statuses_count;
-    //private int followers_count;
-    //private int following_count;
+    private final int statuses_count;
+    private final int followers_count;
+    private final int following_count;
 
     public Account(String id, String username, String acct, String url, String display_name, String note,
                    String avatar, String avatar_static, String header, String header_static, boolean locked,
-                   String[] fields, String[] emojis, boolean bot, boolean group, boolean discoverable,
-                   String created_at, String last_status_at) {
+                   AccountField[] fields, CustomEmoji[] emojis, boolean bot, boolean group, boolean discoverable,
+                   boolean noIndex, boolean moved, boolean suspended, boolean limited, String created_at,
+                   String last_status_at, int statuses_count, int followers_count, int following_count) {
         this.id = id;
         this.username = username;
         this.acct = acct;
@@ -47,7 +54,14 @@ public class Account {
         this.bot = bot;
         this.group = group;
         this.discoverable = discoverable;
+        this.noIndex = noIndex;
+        this.moved = moved;
+        this.suspended = suspended;
+        this.limited = limited;
         this.created_at = created_at;
         this.last_status_at = last_status_at;
+        this.statuses_count = statuses_count;
+        this.followers_count = followers_count;
+        this.following_count = following_count;
     }
 }

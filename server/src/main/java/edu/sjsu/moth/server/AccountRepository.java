@@ -5,5 +5,5 @@ import org.springframework.data.mongodb.repository.Query;
 
 public interface AccountRepository extends MongoRepository<Account, String> {
     @Query("{id:'?0'}")
-    Account findItemById(String id);
+    Account findItemByAcct(String acct);
 }
