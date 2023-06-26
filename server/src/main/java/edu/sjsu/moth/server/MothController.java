@@ -5,6 +5,7 @@ import edu.sjsu.moth.util.WebFingerUtils.FingerLink;
 import edu.sjsu.moth.util.WebFingerUtils.MothMimeType;
 import edu.sjsu.moth.util.WebFingerUtils.RelType;
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.tomcat.util.http.parser.Authorization;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.util.MimeType;
+
+
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -31,7 +34,7 @@ import static java.util.Map.entry;
 public class MothController {
     public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
     // andre will set this from the commandline
-    final static String BASE_URL = "https://x360.homeofcode.com";
+    final static String BASE_URL = "https://andre.homeofcode.com";
     final static SimpleDateFormat jsonDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
     // we need to generate the publickey
     final static String publicKeyPEM = "-----BEGIN PUBLIC " + "KEY" +
@@ -52,6 +55,9 @@ public class MothController {
         webfingerRepo.save(new WebfingerAlias(alias, user, host));
         return "added";
     }
+
+
+
 
     @GetMapping("/.well-known/webfinger")
     public WebFingerUtils.WebFinger webfinger(@RequestParam String resource) {

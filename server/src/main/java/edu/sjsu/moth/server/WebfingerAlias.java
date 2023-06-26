@@ -15,4 +15,7 @@ public class WebfingerAlias {
         this.user = user;
         this.host = host;
     }
+
+
+
 }

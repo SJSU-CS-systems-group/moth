@@ -1,37 +1,27 @@
 package edu.sjsu.moth.server;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import java.util.HashMap;
-
 @SpringBootApplication
 public class Main implements ApplicationRunner {
+    @Value("${config}")
+    private String configFile;
 
     public static void main(String[] args) {
-        try {
-            Configuration config;
-            if (args[0] == null) {
-                System.out.println("Configuration file needed.");
-            }
-            config = new Configuration(args[0]);
-            HashMap<String, Object> defaults = new HashMap<String, Object>();
-            defaults.put("server.port", config.getServerPort());
-            defaults.put("server.name", config.getServerName());
-            defaults.put("spring.data.mongodb.host", config.getDBServer());
-
-            SpringApplication moth = new SpringApplication(Main.class);
-            moth.setDefaultProperties(defaults);
-            moth.run(args);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        SpringApplication.run(Main.class, args);
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        try {
+            Configuration config = new Configuration(configFile);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
     }
 }
