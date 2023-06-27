@@ -1,15 +1,12 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.controller;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
 
@@ -26,28 +23,22 @@ public class FilesController implements WebMvcConfigurer {
 
     @GetMapping("/files/instance/{file}")
     public ResponseEntity<byte[]> getInstanceFile(@PathVariable String file) throws IOException {
-        final var headers = new HttpHeaders();
-        headers.setContentType(MediaType.IMAGE_PNG);
         try (var is = FilesController.class.getResourceAsStream("/static/moth/cyber-moth-avatar.png")) {
-            return new ResponseEntity<>(is.readAllBytes(), headers, HttpStatus.OK);
+            return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(is.readAllBytes());
         }
     }
 
     @GetMapping("/files/users/{user}/{file}")
     public ResponseEntity<byte[]> getUserFile(@PathVariable String user, @PathVariable String file) throws IOException {
-        final var headers = new HttpHeaders();
-        headers.setContentType(MediaType.IMAGE_PNG);
         try (var is = FilesController.class.getResourceAsStream("/static/moth/cyber-moth-avatar.png")) {
-            return new ResponseEntity<>(is.readAllBytes(), headers, HttpStatus.OK);
+            return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(is.readAllBytes());
         }
     }
 
     @GetMapping("/favicon.ico")
     public ResponseEntity<byte[]> getFavicon() throws IOException {
-        var headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_PNG_VALUE);
         try (var is = FilesController.class.getResourceAsStream("/static/moth/favicon.png")) {
-            return new ResponseEntity<>(is.readAllBytes(), headers, HttpStatus.OK);
+            return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(is.readAllBytes());
         }
     }
 }

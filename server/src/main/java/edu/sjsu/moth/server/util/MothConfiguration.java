@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.util;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -10,9 +10,8 @@ public class MothConfiguration {
             new RequriedProperty("server.port", "server.port is the port to listen to on."),
             new RequriedProperty("server.name", "server.name is the host name of the server."),
             new RequriedProperty("db", "address of mongodb server"));
-    public final Properties properties = new Properties();
-
     public static MothConfiguration mothConfiguration;
+    public final Properties properties = new Properties();
 
     public MothConfiguration(String file) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(file)) {

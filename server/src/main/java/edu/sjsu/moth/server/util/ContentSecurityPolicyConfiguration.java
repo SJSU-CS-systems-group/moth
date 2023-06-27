@@ -1,5 +1,6 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.util;
 
+import edu.sjsu.moth.server.controller.MothController;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;

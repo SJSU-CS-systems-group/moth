@@ -4,7 +4,7 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Mono;
 
-public interface UserPasswordRepository extends ReactiveMongoRepository<UserPassword, String> {
-    @Query("{user:'?0'}")
-    Mono<UserPassword> findItemByUser(String user);
+public interface WebfingerRepository extends ReactiveMongoRepository<WebfingerAlias, String> {
+    @Query("{alias:'?0'}")
+    Mono<WebfingerAlias> findItemByName(String alias);
 }

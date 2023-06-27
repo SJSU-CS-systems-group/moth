@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.db;
 
 public class AccountField {
     private String name;

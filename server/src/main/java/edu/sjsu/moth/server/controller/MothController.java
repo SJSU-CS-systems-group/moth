@@ -1,24 +1,26 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.controller;
 
+import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.WebFingerUtils;
 import edu.sjsu.moth.util.WebFingerUtils.FingerLink;
 import edu.sjsu.moth.util.WebFingerUtils.MothMimeType;
 import edu.sjsu.moth.util.WebFingerUtils.RelType;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.text.MessageFormat.format;
 import static java.util.Map.entry;
@@ -29,6 +31,8 @@ public class MothController {
     public static final Pattern RESOURCE_PATTERN = Pattern.compile("acct:([^@]+)@(.+)");
     // andre will set this from the commandline
     public static final String BASE_URL = "https://" + MothConfiguration.mothConfiguration.getServerName();
+    public static final String HOSTNAME = MothConfiguration.mothConfiguration.getServerName();
+
     // we need to generate the publickey
     final static String publicKeyPEM = "-----BEGIN PUBLIC " + "KEY" +
             "-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3Bsn4p1MKY02l8499qRz" +
@@ -43,45 +47,37 @@ public class MothController {
     @GetMapping("/")
     public String index() {return "hello";}
 
-    @GetMapping("/.alias")
-    public String alias(@RequestParam String alias, @RequestParam String user, @RequestParam String host) {
-        webfingerRepo.save(new WebfingerAlias(alias, user, host));
-        return "added";
-    }
-
     @GetMapping("/.well-known/host-meta")
     public ResponseEntity<String> hostMeta() {
-        return new ResponseEntity<>("""
-                                            <?xml version="1.0" encoding="UTF-8"?>
-                                            <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
-                                                <Link rel="lrdd" template="https://%s/.well-known/webfinger?resource={uri}"/>
-                                            </XRD>
-                                            """.formatted(MothConfiguration.mothConfiguration.getServerName()),
-                                    HttpStatus.OK);
+        return ResponseEntity.ok("""
+                                         <?xml version="1.0" encoding="UTF-8"?>
+                                         <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+                                             <Link rel="lrdd" template="https://%s/.well-known/webfinger?resource={uri}"/>
+                                         </XRD>
+                                         """.formatted(MothConfiguration.mothConfiguration.getServerName()));
     }
 
     @GetMapping("/.well-known/webfinger")
-    public ResponseEntity<WebFingerUtils.WebFinger> webfinger(@RequestParam(required = false) String resource) {
+    public Mono<ResponseEntity<WebFingerUtils.WebFinger>> webfinger(@RequestParam(required = false) String resource) {
         if (resource == null) {
-            var headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
-            headers.add(HttpHeaders.VARY, HttpHeaders.ORIGIN);
-            return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
+            return Mono.just(ResponseEntity.badRequest().contentType(MothMimeType.APPLICATION_ACTIVITY).build());
         }
         var match = (RESOURCE_PATTERN.matcher(resource));
         if (match.find()) {
             var user = match.group(1);
-            var foundUser = webfingerRepo.findItemByName(user);
-            if (foundUser != null) {
-                var host = match.group(2);
-                var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
-                var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
-                LOG.fine("finger directing " + user + " to " + activityLink);
-                var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
-                                    new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
-                return new ResponseEntity<>(
-                        new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links), HttpStatus.OK);
-            }
+            return webfingerRepo.findItemByName(user).map(foundUser -> {
+                if (foundUser != null) {
+                    var host = match.group(2);
+                    var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
+                    var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
+                    LOG.fine("finger directing " + user + " to " + activityLink);
+                    var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
+                                        new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
+                    return ResponseEntity.ok(
+                            new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links));
+                }
+                return null;
+            });
         }
         return null;
     }
@@ -93,8 +89,6 @@ public class MothController {
         LOG.fine("getting profile for " + id);
         var profileURL = BASE_URL + "/users/" + id;
         var name = id; // real name ?
-        var headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_TYPE, MothMimeType.APPLICATION_ACTIVITY.toString());
         var date = Util.now(); // i think this is supposed to be when created (or changed?)
         String summary = "i am " + name;
         var profile = Map.ofEntries(
@@ -107,6 +101,6 @@ public class MothController {
                 entry("published", date),
                 entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
-        return new ResponseEntity<>(profile, headers, HttpStatus.OK);
+        return ResponseEntity.ok(profile);
     }
 }

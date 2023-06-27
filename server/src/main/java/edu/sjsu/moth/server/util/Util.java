@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.util;
 
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
