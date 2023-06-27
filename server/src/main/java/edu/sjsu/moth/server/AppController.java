@@ -61,7 +61,7 @@ public class AppController {
     /**
      * base64 URL encode a nonce of byteCount random bytes.
      */
-    static private String genNonce(int byteCount) {
+    static String genNonce(int byteCount) {
         byte[] bytes = new byte[byteCount];
         nonceRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().encodeToString(bytes);
@@ -75,6 +75,23 @@ public class AppController {
             if (v.createDate.isBefore(expireTime)) toDelete.add(k);
         });
         toDelete.forEach(k -> registrations.remove(k));
+    }
+
+    //https://docs.joinmastodon.org/methods/accounts/#create
+    @PostMapping("/api/v1/accounts")
+    public ResponseEntity<Object> registerAccount(@RequestHeader("Authorization") String authorization,
+                                                  @RequestBody RegistrationRequest request) throws RegistrationException, RateLimitException{
+        //validate authorization header with bearer token authentication
+        //authorization token has to be valid before registering
+        String accessToken = MastodonRegistration.registerUser(request);
+        //send confirmation email to the user (more work needed?)
+        sendConfirmationEmail(request.email);
+        //generate and return TokenResponse with access token
+        return ResponseEntity.ok(new TokenResponse(accessToken, "*"));
+    }
+
+    private void sendConfirmationEmail(String email) {
+        //add implementation for sending confirmation email here!!!!
     }
 
     @PostMapping("/api/v1/apps")
@@ -159,4 +176,35 @@ public class AppController {
                            String client_secret, String vapid_key) {}
 
     record AppRegistrationEntry(AppRegistration registration, LocalDateTime createDate, String scopes) {}
+    public static class RegistrationException extends RuntimeException {
+        private final Object details;
+
+        public RegistrationException(String message) {
+            this(message, null);
+        }
+
+        public RegistrationException(String message, Object details) {
+            super(message);
+            this.details = details;
+        }
+
+        public Object getDetails() {
+            return details;
+        }
+    }
+
+    public static class RateLimitException extends RuntimeException {
+        public RateLimitException(String message) {
+            super(message);
+        }
+    }
+
+    record RegistrationRequest(String username, String email, String password, boolean agreement, String locale, String reason) {
+    }
+    record ErrorResponse(String error, Object details) {
+        public ErrorResponse(String error) {
+            this(error, null);
+        }
+    }
+
 }
