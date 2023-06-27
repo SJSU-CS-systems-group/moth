@@ -17,7 +17,19 @@
             max-width: 20vw;
         }
 
+
+        img {
+            border-radius: 50%;
+            border: 5px solid white;
+            margin-top: 15vh;
+            margin-bottom: 12vh;
+            max-height: 20vh;
+            max-width: 20vw;
+        }
+
+
         body {
+            font-size: 4vw;
             position: absolute;
             background: #282c37;
             padding: 0;
@@ -36,11 +48,13 @@
         }
 
         input {
+            font-size: 4vw;
             margin: 2vh;
             padding: 2vh;
         }
 
         input[type="submit" i] {
+            font-size: 4vw;
             font-family: inherit;
             color: black;
         }
@@ -60,13 +74,13 @@
     <img src="/static/moth/cyber-moth.png" alt="Moth Logo">
 </div>
 <form action="/oauth/login">
-    Who are you?<br/>
+    Email<br/>
     <input name="user"/><br/>
-    Why are you here?<br/>
+    Password<br/>
     <input name="password"/><br/>
     <input name="client_id" type="hidden" value="client_id_value"/>
     <input name="redirect_uri" type="hidden" value="redirect_uri_value"/>
-    <input type="submit" value="let me in!"/>
+    <input type="submit" value="Sign In"/>
 </form>
 </body>
 </html>
