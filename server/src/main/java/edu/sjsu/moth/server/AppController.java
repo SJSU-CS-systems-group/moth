@@ -1,6 +1,8 @@
 package edu.sjsu.moth.server;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import edu.sjsu.moth.server.db.UserPasswordRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +41,9 @@ import java.util.regex.Pattern;
 // spec found in https://docs.joinmastodon.org/methods/apps/
 @RestController
 public class AppController {
+    @Autowired
+    UserPasswordRepository userPasswordRepository;
+
     static private final Logger LOG = Logger.getLogger(AppController.class.getName());
     final static private Random nonceRandom = new SecureRandom();
     // from config file
@@ -86,22 +91,30 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri) throws IOException {
+    String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
+                             @RequestParam(required = false, defaultValue = "") String error) throws IOException {
         var authorizePage = new String(
                 AppController.class.getResourceAsStream("/static/oauth/authorize.html").readAllBytes());
         authorizePage = authorizePage.replace("client_id_value", client_id);
         authorizePage = authorizePage.replace("redirect_uri_value", redirect_uri);
+        authorizePage = authorizePage.replace("authorize_error", error);
         return authorizePage;
     }
 
     @GetMapping("/oauth/login")
     ResponseEntity<String> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
                                          @RequestParam String user, @RequestParam String password) throws URISyntaxException {
-        if (!alphaNumeric.matcher(password).matches()) {
-            return new ResponseEntity<>("Sorry! bad name", HttpStatus.BAD_REQUEST);
+        var userPassword = userPasswordRepository.findItemByUser(user);
+        if (userPassword == null) {
+            var uri = new URI(
+                    "/oauth/authorize?client_id=" + client_id + "&redirect_uri=" + redirect_uri + "&error=Bad+user");
+            return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build();
         }
-        if (!password.equals("bang")) {
-            return new ResponseEntity<>("Sorry! bad password!", HttpStatus.FORBIDDEN);
+        if (!Util.checkPassword(password, userPassword.saltedPassword)) {
+            var uri = new URI(
+                    "/oauth/authorize?client_id=" + client_id + "&redirect_uri=" + redirect_uri + "&error=Bad" +
+                            "+password");
+            return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build();
         }
         var code = genNonce(33);
         code2User.put(code, user);
