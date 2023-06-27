@@ -32,6 +32,7 @@
             font-size: 4vw;
             position: absolute;
             background: #282c37;
+            color: red;
             padding: 0;
             justify-content: center;
             align-items: center;
@@ -66,18 +67,18 @@
         .spin img:hover {
             transform: rotate(360deg) translateZ(0);
         }
-
     </style>
 </head>
 <body>
 <div class="spin">
-    <img src="/static/moth/cyber-moth.png" alt="Moth Logo">
+    <img alt="Moth Logo" src="/moth/cyber-moth.png">
 </div>
+<h2>authorize_error</h2>
 <form action="/oauth/login">
     Email<br/>
     <input name="user"/><br/>
     Password<br/>
-    <input name="password"/><br/>
+    <input name="password" type="password"/><br/>
     <input name="client_id" type="hidden" value="client_id_value"/>
     <input name="redirect_uri" type="hidden" value="redirect_uri_value"/>
     <input type="submit" value="Sign In"/>

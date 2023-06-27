@@ -1,5 +1,7 @@
 package edu.sjsu.moth.server;
 
+import edu.sjsu.moth.server.db.UserPassword;
+import edu.sjsu.moth.server.db.UserPasswordRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,9 @@ public class TestAliasController {
 
     @Autowired
     WebfingerRepository webs;
+
+    @Autowired
+    UserPasswordRepository userPasswordRepository;
 
     @GetMapping("/aliases")
     public ResponseEntity<String> getAliases() {
@@ -42,5 +47,11 @@ public class TestAliasController {
     public ResponseEntity<String> deleteAlias(@RequestParam String del) {
         webs.delete(webs.findItemByName(del));
         return new ResponseEntity<>("Delete: " + del, HttpStatus.OK);
+    }
+
+    @GetMapping("/passwd/set")
+    public ResponseEntity<String> setPassword(@RequestParam String user, @RequestParam String password) {
+        userPasswordRepository.save(new UserPassword(user, Util.encodePassword(password)));
+        return ResponseEntity.ok("Set password for " + user);
     }
 }
