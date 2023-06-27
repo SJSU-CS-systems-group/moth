@@ -7,31 +7,31 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document("account")
 public class Account {
     @Id
-    private final String id;
-    private final String username;
-    private final String acct;
-    private final String url;
-    private final String display_name;
-    private final String note;
-    private final String avatar;
-    private final String avatar_static;
-    private final String header;
-    private final String header_static;
-    private final boolean locked;
-    private final AccountField[] fields;
-    private final CustomEmoji[] emojis;
-    private final boolean bot;
-    private final boolean group;
-    private final boolean discoverable;
-    private final boolean noIndex;
-    private final boolean moved;
-    private final boolean suspended;
-    private final boolean limited;
-    private final String created_at;
-    private final String last_status_at;
-    private final int statuses_count;
-    private final int followers_count;
-    private final int following_count;
+    private String id;
+    private String username;
+    private String acct;
+    private String url;
+    private String display_name;
+    private String note;
+    private String avatar;
+    private String avatar_static;
+    private String header;
+    private String header_static;
+    private boolean locked;
+    private AccountField[] fields;
+    private CustomEmoji[] emojis;
+    private boolean bot;
+    private boolean group;
+    private boolean discoverable;
+    private boolean noIndex;
+    private boolean moved;
+    private boolean suspended;
+    private boolean limited;
+    private String created_at;
+    private String last_status_at;
+    private int statuses_count;
+    private int followers_count;
+    private int following_count;
 
     public Account(String id, String username, String acct, String url, String display_name, String note,
                    String avatar, String avatar_static, String header, String header_static, boolean locked,
