@@ -1,13 +1,18 @@
 package edu.sjsu.moth.server.controller;
 
+import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.server.util.Util;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 @RestController
 public class InstanceController {
+    @Autowired
+    AccountRepository accountRepo;
     private static final URLsV1 URLSV1 = new URLsV1("wss://" + MothConfiguration.mothConfiguration.getServerName());
     private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
     private static final StatusesV1 STATUSESV1 = new StatusesV1(500, 4, 23);
@@ -21,23 +26,8 @@ public class InstanceController {
     private static final PollsV1 POLLSV1 = new PollsV1(4, 50, 5 * 60, 7 * 24 * 60 * 60);
     private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSESV1, MEDIA_ATTACHEMENTSV1,
                                                                                POLLSV1);
-    private static final AccountV1 CONTACT_ACCOUNT = new AccountV1("1", "admin", "admin", "Admin", false, false, true,
-                                                                   false, Util.now(), "admin",
-                                                                   MothController.BASE_URL + "/@admin",
-                                                                   FilesController.userFileURL("admin", "avatar.png"),
-                                                                   FilesController.userFileURL("admin", "avatar.png"),
-                                                                   FilesController.userFileURL("admin", "header.png"),
-                                                                   FilesController.userFileURL("admin", "header.png"),
-                                                                   0, 0, 0, Util.now(), new String[0], new FieldV1[0]);
+    private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
     private static final RuleV1[] RULESV1 = new RuleV1[] { new RuleV1("1", "Be excellent to each other.") };
-    private static final InstanceV1 INSTANCEV1 = new InstanceV1(MothConfiguration.mothConfiguration.getServerName(),
-                                                                MothConfiguration.mothConfiguration.getServerName(),
-                                                                "Simple Moth Server", "Experimental Simple Moth Server",
-                                                                "admin@" + MothConfiguration.mothConfiguration.getServerName(),
-                                                                "0.0.1", URLSV1, STATSV1,
-                                                                FilesController.instanceFileURL("thumbnail.png"),
-                                                                new String[] { "en" }, true, false, true,
-                                                                CONFIGURATIONV1, CONTACT_ACCOUNT, RULESV1);
 
     @GetMapping("/api/v2/instance")
     public ResponseEntity<Object> getV2Instance() {
@@ -58,7 +48,27 @@ public class InstanceController {
     }
 
     @GetMapping("/api/v1/instance")
-    public ResponseEntity<InstanceV1> getV1Instance() {return ResponseEntity.ok(INSTANCEV1);}
+    public Mono<ResponseEntity<InstanceV1>> getV1Instance() {
+        return getContactAccount().map(c ->ResponseEntity.ok(new InstanceV1(MothConfiguration.mothConfiguration.getServerName(),
+                                                MothConfiguration.mothConfiguration.getServerName(),
+                                                "Simple Moth Server", "Experimental Simple Moth Server",
+                                                "admin@" + MothConfiguration.mothConfiguration.getServerName(),
+                                                "0.0.1", URLSV1, STATSV1,
+                                                FilesController.instanceFileURL("thumbnail.png"),
+                                                new String[] { "en" }, true, false, true,
+                                                CONFIGURATIONV1, c, RULESV1)));
+    }
+
+    public Mono<AccountV1> getContactAccount() {
+        var acct = CONTACT_ACCOUNT;
+        System.out.println(acct);
+        return accountRepo.findItemByAcct(acct)
+                .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot,
+                                                           a.discoverable, a.group, a.created_at, a.note, a.url,
+                                                           a.avatar, a.avatar_static, a.header, a.header_static,
+                                                           a.followers_count, a.following_count, a.statuses_count,
+                                                           a.last_status_at, new String[0], new FieldV1[0]));
+    }
 
     // this might be V2...
     public record Instance(String domain, String title, String version, String sourceUrl, String description,
@@ -83,13 +93,13 @@ public class InstanceController {
                       boolean registrations, boolean approval_required, boolean invites_enabled,
                       ConfigurationV1 configuration, AccountV1 contact_account, RuleV1[] rules) {}
 
-    record AccountV1(String id, String username, String acct, String display_name, boolean locked, boolean bot,
-                     boolean discoverable, boolean group, String created_at, String note, String url, String avatar,
-                     String avatar_static, String header, String header_static, int followers_count,
-                     int following_count, int statuses_count, String last_status_at, String[] emojis,
-                     FieldV1[] fields) {}
+    public record AccountV1(String id, String username, String acct, String display_name, boolean locked, boolean bot,
+                            boolean discoverable, boolean group, String created_at, String note, String url, String avatar,
+                            String avatar_static, String header, String header_static, int followers_count,
+                            int following_count, int statuses_count, String last_status_at, String[] emojis,
+                            FieldV1[] fields) {}
 
-    record FieldV1(String name, String value, String verified_at) {}
+    public record FieldV1(String name, String value, String verified_at) {}
 
     record RuleV1(String id, String text) {}
 
