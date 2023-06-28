@@ -1,10 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import edu.sjsu.moth.server.db.UserPassword;
-import edu.sjsu.moth.server.db.UserPasswordRepository;
-import edu.sjsu.moth.server.db.WebfingerAlias;
-import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.db.*;
 import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -61,8 +58,9 @@ public class AppController {
      * restart.
      */ AtomicInteger appCounter = new AtomicInteger();
     ConcurrentHashMap<String, AppRegistrationEntry> registrations = new ConcurrentHashMap<>();
-    // this needs to be a DB table!
-    HashMap<String, String> code2User = new HashMap<>();
+
+    @Autowired
+    TokenRepository tokenRepository;
 
     /**
      * base64 URL encode a nonce of byteCount random bytes.
@@ -73,12 +71,11 @@ public class AppController {
         return Base64.getUrlEncoder().encodeToString(bytes);
     }
 
-    private String generateAccessToken(String username) {
+    private Mono<String> generateAccessToken(String username) {
         //generate access token for user
         //need to put these in a database to map them to a user
-        var token = genNonce(33);
-        code2User.put(token, username);
-        return token;
+        final var token = genNonce(33);
+        return tokenRepository.save(new Token(token, username, LocalDateTime.now())).thenReturn(token);
     }
 
     // Expire everything older than 10 minutes
@@ -104,7 +101,8 @@ public class AppController {
                 .map(userPassword -> userPassword == null ? Mono.error(ERR_TAKEN) : userPasswordRepository.save(
                         new UserPassword(request.username, request.password))).then(webfingerRepository.save(
                         new WebfingerAlias(request.username, request.username, MothController.HOSTNAME)))
-                .then(Mono.just(ResponseEntity.ok(new TokenResponse(generateAccessToken(request.username), "*"))));
+                .then(generateAccessToken(request.username))
+                .map(token -> ResponseEntity.ok(new TokenResponse(token, "*")));
     }
 
     @PostMapping("/api/v1/apps")
@@ -135,7 +133,7 @@ public class AppController {
     @GetMapping("/oauth/login")
     Mono<ResponseEntity<String>> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
                                                @RequestParam String user, @RequestParam String password) {
-        return userPasswordRepository.findItemByUser(user).map(userPassword -> {
+        return userPasswordRepository.findItemByUser(user).flatMap(userPassword -> {
             try {
                 URI uri;
                 if (userPassword == null) {
@@ -148,10 +146,11 @@ public class AppController {
                                     + "+password");
                 } else {
                     var code = genNonce(33);
-                    code2User.put(code, user);
                     uri = new URI(redirect_uri + "?code=" + code);
+                    return tokenRepository.save(new Token(code, user))
+                            .thenReturn(ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
                 }
-                return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build();
+                return Mono.just(ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
             } catch (URISyntaxException e) {
                 throw new RuntimeException("Bad URI", e);
             }
