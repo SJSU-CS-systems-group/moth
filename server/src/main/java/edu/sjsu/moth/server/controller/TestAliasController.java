@@ -16,11 +16,11 @@ import reactor.core.publisher.Mono;
 public class TestAliasController {
 
     static private final String ADD_FORM = """
-            </form><form action=/aliases/adding>
-            <label for=\\"alias\\">Alias:</label><br><input type=\\"text\\" name=\\"alias\\"><br><br>
-            <label for=\\"user\\">User:</label><br><input type=\\"text\\" name=\\"user\\"><br><br>
-            <label for=\\"host\\">Host:</label><br><input type=\\"text\\" name=\\"host\\"><br><br>
-            <input type=\\"submit\\" value=\\"Add\\"><br>
+            </table><input type=\"submit\" value=\"Delete\"><br></form><form action=/aliases/adding>
+            <label for=\"alias\">Alias:</label><br><input type=\"text\" name=\"alias\"><br><br>
+            <label for=\"user\">User:</label><br><input type=\"text\" name=\"user\"><br><br>
+            <label for=\"host\">Host:</label><br><input type=\"text\" name=\"host\"><br><br>
+            <input type=\"submit\" value=\"Add\"><br>
             </form><br>
             """;
     static private final String ALIAS_ROW =
@@ -33,8 +33,8 @@ public class TestAliasController {
     @GetMapping("/aliases")
     public Mono<ResponseEntity<String>> getAliases() {
         return webfingerRepository.findAll().collect(StringBuilder::new, (sb, a) -> sb.append(
-                        ALIAS_ROW.formatted(a.alias, a.alias, a.user, a.host)))
-                .map(sb -> ResponseEntity.ok("<form action=/aliases/delete><table>" + sb + ADD_FORM));
+                ALIAS_ROW.formatted(a.alias, a.alias, a.user, a.host)))
+                .map(sb -> ResponseEntity.ok("<form action=/aliases/delete><table>" + sb.toString() + ADD_FORM));
     }
 
     @GetMapping("/.alias")
