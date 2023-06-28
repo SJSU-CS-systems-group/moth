@@ -7,31 +7,33 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document("account")
 public class Account {
     @Id
-    private String id;
-    private String username;
-    private String acct;
-    private String url;
-    private String display_name;
-    private String note;
-    private String avatar;
-    private String avatar_static;
-    private String header;
-    private String header_static;
-    private boolean locked;
-    private AccountField[] fields;
-    private CustomEmoji[] emojis;
-    private boolean bot;
-    private boolean group;
-    private boolean discoverable;
-    private boolean noIndex;
-    private boolean moved;
-    private boolean suspended;
-    private boolean limited;
-    private String created_at;
-    private String last_status_at;
-    private int statuses_count;
-    private int followers_count;
-    private int following_count;
+    public String id;
+    public String username;
+    public String acct;
+    public String url;
+    public String display_name;
+    public String note;
+    public String avatar;
+    public String avatar_static;
+    public String header;
+    public String header_static;
+    public boolean locked;
+    public AccountField[] fields;
+    public CustomEmoji[] emojis;
+    public boolean bot;
+    public boolean group;
+    public boolean discoverable;
+    public boolean noIndex;
+    public boolean moved;
+    public boolean suspended;
+    public boolean limited;
+    public String created_at;
+    public String last_status_at;
+    public int statuses_count;
+    public int followers_count;
+    public int following_count;
+
+    public Account() { }
 
     public Account(String id, String username, String acct, String url, String display_name, String note,
                    String avatar, String avatar_static, String header, String header_static, boolean locked,
