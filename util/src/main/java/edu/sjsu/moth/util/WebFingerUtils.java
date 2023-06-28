@@ -109,12 +109,13 @@ public class WebFingerUtils {
 
     static public class MothMimeType {
         static public final MediaType APPLICATION_ACTIVITY = new MediaType("application", "activity+json");
+        static public final String APPLICATION_ACTIVITY_VALUE = "application/activity+json";
     }
 
     /**
      * Structure representing the type of a webfinger link
      */
-    public record FingerLink(RelType rel, MimeType type, String href) {}
+    public record FingerLink(RelType rel, String type, String href) {}
 
     /**
      * Structure returned by a webfinger request

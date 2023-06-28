@@ -71,8 +71,8 @@ public class MothController {
                     var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
                     var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
                     LOG.fine("finger directing " + user + " to " + activityLink);
-                    var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML, textLink),
-                                        new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY, activityLink));
+                    var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML_VALUE, textLink),
+                                        new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY_VALUE, activityLink));
                     return ResponseEntity.ok(
                             new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links));
                 }
