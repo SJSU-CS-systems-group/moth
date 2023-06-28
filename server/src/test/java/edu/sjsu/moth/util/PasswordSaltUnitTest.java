@@ -1,5 +1,6 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.util;
 
+import edu.sjsu.moth.server.util.Util;
 import org.junit.Assert;
 import org.junit.Test;
 

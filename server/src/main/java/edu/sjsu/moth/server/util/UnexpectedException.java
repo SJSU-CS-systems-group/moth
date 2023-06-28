@@ -1,7 +1,5 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.util;
 
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -26,12 +24,10 @@ public class UnexpectedException {
             sb.append(stack[i]).append("\n");
         }
         LOG.severe(MessageFormat.format("Unhandled exception: {0} {1}\n{2}", request.getDescription(true),
-                exception.getMessage(), sb.toString()));
-        var headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                                        exception.getMessage(), sb.toString()));
         var message = exception.getMessage();
         if (message == null) message = exception.toString();
-        return new ResponseEntity<>(MessageFormat.format("'{'\"error\":\"{0}\"'}'", message), headers,
-                HttpStatus.INTERNAL_SERVER_ERROR);
+        return ResponseEntity.internalServerError().contentType(MediaType.APPLICATION_JSON)
+                .body(MessageFormat.format("'{'\"error\":\"{0}\"'}'", message));
     }
 }

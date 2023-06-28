@@ -1,6 +1,7 @@
-package edu.sjsu.moth.server;
+package edu.sjsu.moth.server.controller;
 
-import org.springframework.http.HttpStatus;
+import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.util.Util;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,8 +37,7 @@ public class InstanceController {
                                                                 "0.0.1", URLSV1, STATSV1,
                                                                 FilesController.instanceFileURL("thumbnail.png"),
                                                                 new String[] { "en" }, true, false, true,
-                                                                CONFIGURATIONV1,
-                                                                CONTACT_ACCOUNT, RULESV1);
+                                                                CONFIGURATIONV1, CONTACT_ACCOUNT, RULESV1);
 
     @GetMapping("/api/v2/instance")
     public ResponseEntity<Object> getV2Instance() {
@@ -54,13 +54,11 @@ public class InstanceController {
         Instance instance = new Instance("cheah.homeofcode.com", "Moth", "4.0.0rc1",
                                          "https://github.com/mastodon/mastodon", "ANYTHINGGGGGGGG", usage, thumbnail,
                                          languages, configuration, registrations, contact, rules);
-        return new ResponseEntity<>(instance, HttpStatus.OK); // serialized as JSON
+        return ResponseEntity.ok(instance);
     }
 
     @GetMapping("/api/v1/instance")
-    public ResponseEntity<InstanceV1> getV1Instance() {
-        return new ResponseEntity<>(INSTANCEV1, HttpStatus.OK);
-    }
+    public ResponseEntity<InstanceV1> getV1Instance() {return ResponseEntity.ok(INSTANCEV1);}
 
     // this might be V2...
     public record Instance(String domain, String title, String version, String sourceUrl, String description,

@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server;
 
+import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
