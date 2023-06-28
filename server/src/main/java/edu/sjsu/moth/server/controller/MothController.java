@@ -101,7 +101,6 @@ public class MothController {
                 entry("published", date),
                 entry("publicKey", new WebFingerUtils.PublicKeyMessage(profileURL, publicKeyPEM)),
                 entry("endpoints", new WebFingerUtils.ProfileEndpoints(BASE_URL + "/inbox")));
-        System.out.println("called");
         return ResponseEntity.ok(profile);
     }
 }
