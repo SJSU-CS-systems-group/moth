@@ -1,10 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import edu.sjsu.moth.server.db.UserPassword;
-import edu.sjsu.moth.server.db.UserPasswordRepository;
-import edu.sjsu.moth.server.db.WebfingerAlias;
-import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.db.*;
 import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -15,6 +12,7 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.Principal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -117,6 +115,19 @@ public class AppController {
                           new AppRegistrationEntry(registration, LocalDateTime.now(), req.scopes));
         LOG.fine("postApps returning " + registration);
         return ResponseEntity.ok(registration);
+    }
+
+    @Autowired
+    AccountRepository accountRepository;
+    //to verify using the user token and retrieve credential account
+    //source: https://docs.joinmastodon.org/methods/accounts/#verify_credentials
+    @GetMapping("/api/v1/accounts/verify_credentials")
+    public Mono<ResponseEntity<Object>> verifyCredentials(Principal user, @RequestHeader("Authorization") String authorizationHeader) {
+        if (user != null) {
+            return accountRepository.findItemByAcct(user.getName()).map(ResponseEntity::ok);
+        } else {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
     }
 
     @GetMapping("/oauth/authorize")
