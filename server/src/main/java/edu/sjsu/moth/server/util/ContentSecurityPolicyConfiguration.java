@@ -4,6 +4,7 @@ import edu.sjsu.moth.server.controller.MothController;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.text.MessageFormat;
@@ -26,7 +27,7 @@ class ContentSecurityPolicyConfiguration {
         // since almost all our requests are not coming from a web page, we need to turn
         // off CSRF
         http.csrf().disable();
+        http.oauth2ResourceServer(OAuth2ResourceServerConfigurer::opaqueToken);
         return http.build();
     }
-
 }

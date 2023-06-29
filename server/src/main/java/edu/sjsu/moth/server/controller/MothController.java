@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -45,7 +46,7 @@ public class MothController {
     WebfingerRepository webfingerRepo;
 
     @GetMapping("/")
-    public String index() {return "hello";}
+    public String index(Principal user) {return "hello sub %s".formatted(user == null ? null : user.getName());}
 
     @GetMapping("/.well-known/host-meta")
     public ResponseEntity<String> hostMeta() {
