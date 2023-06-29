@@ -13,6 +13,8 @@ public class Token {
     // https://www.baeldung.com/mongodb-java-date-operations recommends LocatDateTime
     public LocalDateTime created_at;
 
+    public Token() {}
+
     public Token(String token, String user, LocalDateTime created_at) {
         this.token = token;
         this.user = user;
