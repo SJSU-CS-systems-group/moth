@@ -6,6 +6,7 @@ import de.flapdoodle.embed.mongo.transitions.Mongod;
 import de.flapdoodle.embed.mongo.transitions.RunningMongodProcess;
 import de.flapdoodle.reverse.TransitionWalker;
 import de.flapdoodle.reverse.transitions.Start;
+import edu.sjsu.moth.controllers.IntegrationTestController;
 import edu.sjsu.moth.server.Main;
 import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
@@ -19,11 +20,12 @@ import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataM
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import java.io.IOException;
-
 @AutoConfigureDataMongo
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = Main.class)
+// not sure why i need to pass IntegrationTestController here, i thought it would autodetect...
+@SpringBootTest(classes = { Main.class, IntegrationTestController.class }, webEnvironment =
+        SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class IntegrationTest {
+    public static final String TOKEN_TEST_ENDPOINT = "/token/test";
     // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
     // embedded mongodb
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
@@ -32,12 +34,16 @@ public class IntegrationTest {
     @Autowired
     TokenRepository tokenRepository;
 
-    {
+    static {
         try {
-            System.out.println(new MothConfiguration("/home/bcr33d/.config/moth.cfg").properties);
-        } catch (IOException e) {
-            e.printStackTrace();
+            var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
+            // we need to fake out MothConfiguration
+            System.out.println(new MothConfiguration(fullname).properties);
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            System.exit(2);
         }
+
     }
 
     @AfterAll
@@ -64,8 +70,7 @@ public class IntegrationTest {
     @Test
     public void testHelloBearerToken() {
         // Since there is no bearer token, the user should be null
-        var body = webTestClient.get()
-                .uri("/")
+        var body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT)
                 .exchange()
                 .expectStatus()
                 .isOk()
@@ -76,8 +81,7 @@ public class IntegrationTest {
 
         // Now try with a token that we put in the database, we should see the user dude
         tokenRepository.save(new Token("XXXX", "dude")).block();
-        body = webTestClient.get()
-                .uri("/")
+        body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT)
                 .header("Authorization", "Bearer XXXX")
                 .exchange()
                 .expectStatus()
@@ -88,6 +92,11 @@ public class IntegrationTest {
         Assertions.assertEquals("hello sub dude", new String(body));
 
         // Now try with a token not in the database
-        webTestClient.get().uri("/").header("Authorization", "Bearer YYYY").exchange().expectStatus().isUnauthorized();
+        webTestClient.get()
+                .uri(TOKEN_TEST_ENDPOINT)
+                .header("Authorization", "Bearer YYYY")
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
     }
 }
