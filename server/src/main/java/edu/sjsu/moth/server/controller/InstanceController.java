@@ -60,9 +60,7 @@ public class InstanceController {
     }
 
     public Mono<AccountV1> getContactAccount() {
-        var acct = CONTACT_ACCOUNT;
-        System.out.println(acct);
-        return accountRepo.findItemByAcct(acct)
+        return accountRepo.findItemByAcct(CONTACT_ACCOUNT)
                 .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot,
                                                            a.discoverable, a.group, a.created_at, a.note, a.url,
                                                            a.avatar, a.avatar_static, a.header, a.header_static,
