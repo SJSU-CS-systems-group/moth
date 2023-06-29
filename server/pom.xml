@@ -65,6 +65,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>3.1.1</version>
                 <configuration>
                     <executable>true</executable>
                     <mainClass>edu.sjsu.moth.server.Main</mainClass>
