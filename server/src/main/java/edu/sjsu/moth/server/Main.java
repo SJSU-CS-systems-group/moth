@@ -4,6 +4,7 @@ import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.util.Arrays;
@@ -32,6 +33,7 @@ public class Main implements ApplicationRunner {
             System.out.println(defaults);
             SpringApplication moth = new SpringApplication(Main.class);
             moth.setDefaultProperties(defaults);
+            moth.setWebApplicationType(WebApplicationType.REACTIVE);
             moth.run(Arrays.copyOfRange(args, 1, args.length));
         } catch (Exception e) {
             e.printStackTrace();

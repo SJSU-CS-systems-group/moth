@@ -1,33 +1,37 @@
 package edu.sjsu.moth.server.util;
 
-import edu.sjsu.moth.server.controller.MothController;
+import edu.sjsu.moth.server.db.TokenRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
-import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.oauth2.core.DefaultOAuth2AuthenticatedPrincipal;
+import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
+import org.springframework.security.oauth2.server.resource.introspection.BadOpaqueTokenException;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.core.publisher.Mono;
 
-import java.text.MessageFormat;
+import java.util.Map;
+import java.util.Set;
 
 @Configuration
+@EnableWebFluxSecurity
 class ContentSecurityPolicyConfiguration {
-    private static final String POLICY_DIRECTIVES = MessageFormat.format(
-            "base-uri 'none'; default-src 'none'; frame-ancestors 'none'; font-src 'self' {0}; img-src 'self' https: " +
-                    "data: blob: {0}; style-src 'self' {0} 'nonce-ZmE1OSpB3aQzc4hfGwKPZw=='; media-src 'self' https: " +
-                    "data: {0}; frame-src 'self' https:; manifest-src 'self' {0}; form-action 'self'; connect-src " +
-                    "'self' data: blob: {0} wss://{1}; script-src 'self' {0} 'wasm-unsafe-eval'; child-src 'self' " +
-                    "blob: {0}; worker-src 'self' blob: {0}",
-            MothController.BASE_URL, MothConfiguration.mothConfiguration.getServerName());
+    @Autowired
+    TokenRepository tokenRepository;
+
+    public Mono<OAuth2AuthenticatedPrincipal> introspect(String token) {
+        return tokenRepository.findItemByToken(token)
+                .switchIfEmpty(Mono.error(new BadOpaqueTokenException("unknown token")))
+                .map(t -> new DefaultOAuth2AuthenticatedPrincipal(t.user, Map.of("sub", t.user, "src", "oauth"),
+                                                                  Set.of()));
+    }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // i don't think we want this security policy, but we did see it used by other
-        // server. we should circle back to this
-        // http.headers().contentSecurityPolicy(POLICY_DIRECTIVES);
-        // since almost all our requests are not coming from a web page, we need to turn
-        // off CSRF
+    public SecurityWebFilterChain filterChain(ServerHttpSecurity http) {
         http.csrf().disable();
-        http.oauth2ResourceServer(OAuth2ResourceServerConfigurer::opaqueToken);
+        http.oauth2ResourceServer().opaqueToken().introspector(this::introspect);
         return http.build();
     }
 }
