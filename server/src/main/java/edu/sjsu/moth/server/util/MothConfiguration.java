@@ -9,7 +9,8 @@ public class MothConfiguration {
     private static final List<RequriedProperty> requriedPropertyList = List.of(
             new RequriedProperty("server.port", "server.port is the port to listen to on."),
             new RequriedProperty("server.name", "server.name is the host name of the server."),
-            new RequriedProperty("db", "address of mongodb server"));
+            new RequriedProperty("db", "address of mongodb server"),
+            new RequriedProperty("account", "account of user"));
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
 
@@ -28,7 +29,9 @@ public class MothConfiguration {
         }
     }
 
-    public int getServerPort() {return Integer.parseInt(properties.getProperty("server.port"));}
+    public int getServerPort() {
+        return Integer.parseInt(properties.getProperty("server.port"));
+    }
 
     public String getServerName() {
         return properties.getProperty("server.name");
@@ -36,6 +39,10 @@ public class MothConfiguration {
 
     public String getDBServer() {
         return properties.getProperty("db");
+    }
+
+    public String getAccountName() {
+        return properties.getProperty("account");
     }
 
     record RequriedProperty(String name, String description) {}
