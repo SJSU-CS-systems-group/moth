@@ -20,6 +20,8 @@ import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataM
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import java.util.Random;
+
 @AutoConfigureDataMongo
 // not sure why i need to pass IntegrationTestController here, i thought it would autodetect...
 @SpringBootTest(classes = { Main.class, IntegrationTestController.class }, webEnvironment =
@@ -46,6 +48,7 @@ public class IntegrationTest {
 
     }
 
+    static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
     @AfterAll
     static void clean() {
         eMongod.close();
@@ -56,9 +59,10 @@ public class IntegrationTest {
         String ip = "localhost";
         int port = 27017;
         eMongod = Mongod.builder()
-                .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(27017)))
+                .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT)))
                 .build()
                 .start(Version.Main.PRODUCTION);
+        System.setProperty("spring.data.mongodb.port", Integer.toString(RAND_MONGO_PORT));
     }
 
     @Test
