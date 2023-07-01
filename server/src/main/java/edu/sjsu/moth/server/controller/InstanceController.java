@@ -2,7 +2,6 @@ package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
-import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,11 +60,11 @@ public class InstanceController {
 
     public Mono<AccountV1> getContactAccount() {
         return accountRepo.findItemByAcct(CONTACT_ACCOUNT)
-                .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot,
-                                                           a.discoverable, a.group, a.created_at, a.note, a.url,
-                                                           a.avatar, a.avatar_static, a.header, a.header_static,
-                                                           a.followers_count, a.following_count, a.statuses_count,
-                                                           a.last_status_at, new String[0], new FieldV1[0]));
+                .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.discoverable,
+                                        a.group, a.created_at, a.note, a.url, a.avatar, a.avatar_static, a.header,
+                                        a.header_static, a.followers_count, a.following_count, a.statuses_count,
+                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, new String[0],
+                                        new FieldV1[0]));
     }
 
     // this might be V2...
