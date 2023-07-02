@@ -16,7 +16,7 @@ public class InstanceController {
     private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
     private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
     private static final Statuses STATUSES = new Statuses(500, 4, 23);
-    private static final MediaAttachments MEDIA_ATTACHEMENTSV1 = new MediaAttachments(
+    private static final MediaAttachments MEDIA_ATTACHMENTSV1 = new MediaAttachments(
             new String[] { "image/jpeg", "image/png", "image/gif", "image/webp", "video/webm", "video/mp4",
                     "video" + "/quicktime", "video/ogg", "audio/wave", "audio/wav", "audio/x-wav", "audio/x-pn-wave",
                     "audio" + "/vnd.wave", "audio/ogg", "audio/vorbis", "audio/mpeg", "audio/mp3", "audio/webm",
@@ -24,11 +24,11 @@ public class InstanceController {
             },
             10485760, 16777216, 41943040, 60, 2304000);
     private static final Polls POLLS = new Polls(4, 50, 5 * 60, 7 * 24 * 60 * 60);
-    private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSES, MEDIA_ATTACHEMENTSV1, POLLS);
+    private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSES, MEDIA_ATTACHMENTSV1, POLLS);
     private static final Accounts ACCOUNTS = new Accounts(10);
     private static final Translation TRANSLATION = new Translation(true);
     private static final ConfigurationV2 CONFIGURATIONV2 = new ConfigurationV2(URLS, ACCOUNTS, STATUSES,
-                                                                               MEDIA_ATTACHEMENTSV1, POLLS,
+                                                                               MEDIA_ATTACHMENTSV1, POLLS,
                                                                                TRANSLATION);
     private static final Rule[] RULES = new Rule[] { new Rule("1", "Be excellent to each other.") };
     @Autowired
