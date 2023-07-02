@@ -66,7 +66,7 @@ public class InstanceController {
                 .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.discoverable,
                                         a.group, a.created_at, a.note, a.url, a.avatar, a.avatar_static, a.header,
                                         a.header_static, a.followers_count, a.following_count, a.statuses_count,
-                                        a.last_status_at, a.emojis, a.fields));
+                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.emojis, a.fields));
     }
 
     public Mono<AccountV2> getContactAccountV2() {
@@ -74,7 +74,7 @@ public class InstanceController {
                 .map(a -> new AccountV2(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.discoverable,
                                         a.group, a.created_at, a.note, a.url, a.avatar, a.avatar_static, a.header,
                                         a.header_static, a.followers_count, a.following_count, a.statuses_count,
-                                        a.last_status_at, a.noindex, //ADDED THIS FOR V2
+                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.noindex, //ADDED THIS FOR V2
                                         a.emojis, a.fields));
     }
 

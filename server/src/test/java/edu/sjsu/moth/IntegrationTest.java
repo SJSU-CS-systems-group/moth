@@ -4,6 +4,7 @@ import de.flapdoodle.embed.mongo.config.Net;
 import de.flapdoodle.embed.mongo.distribution.Version;
 import de.flapdoodle.embed.mongo.transitions.Mongod;
 import de.flapdoodle.embed.mongo.transitions.RunningMongodProcess;
+import de.flapdoodle.embed.process.io.ProcessOutput;
 import de.flapdoodle.reverse.TransitionWalker;
 import de.flapdoodle.reverse.transitions.Start;
 import edu.sjsu.moth.controllers.IntegrationTestController;
@@ -31,10 +32,6 @@ public class IntegrationTest {
     // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
     // embedded mongodb
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
-    @Autowired
-    WebTestClient webTestClient;
-    @Autowired
-    TokenRepository tokenRepository;
 
     static {
         try {
@@ -49,16 +46,19 @@ public class IntegrationTest {
     }
 
     static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
+    @Autowired
+    WebTestClient webTestClient;
+    @Autowired
+    TokenRepository tokenRepository;
+
     @AfterAll
     static void clean() {
         eMongod.close();
     }
 
     @BeforeAll
-    static void setup() throws Exception {
-        String ip = "localhost";
-        int port = 27017;
-        eMongod = Mongod.builder()
+    static void setup() {
+        eMongod = Mongod.builder().processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
                 .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT)))
                 .build()
                 .start(Version.Main.PRODUCTION);
@@ -74,7 +74,8 @@ public class IntegrationTest {
     @Test
     public void testHelloBearerToken() {
         // Since there is no bearer token, the user should be null
-        var body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT)
+        var body = webTestClient.get()
+                .uri(TOKEN_TEST_ENDPOINT)
                 .exchange()
                 .expectStatus()
                 .isOk()
@@ -85,7 +86,8 @@ public class IntegrationTest {
 
         // Now try with a token that we put in the database, we should see the user dude
         tokenRepository.save(new Token("XXXX", "dude")).block();
-        body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT)
+        body = webTestClient.get()
+                .uri(TOKEN_TEST_ENDPOINT)
                 .header("Authorization", "Bearer XXXX")
                 .exchange()
                 .expectStatus()
