@@ -1,6 +1,8 @@
 package edu.sjsu.moth.server.controller;
 
+import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.CustomEmoji;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -75,7 +77,7 @@ public class InstanceController {
                                         a.discoverable, a.group, a.created_at, a.note, a.url,
                                         a.avatar, a.avatar_static, a.header, a.header_static,
                                         a.followers_count, a.following_count, a.statuses_count,
-                                        a.last_status_at, new String[0], new Field[0]));
+                                        a.last_status_at, a.emojis, a.fields));
     }
 
     public Mono<AccountV2> getContactAccountV2() {
@@ -101,8 +103,8 @@ public class InstanceController {
                         a.statuses_count,
                         a.last_status_at,
                         a.noindex, //ADDED THIS FOR V2
-                        new String[0],
-                        new Field[0]
+                        a.emojis,
+                        a.fields
                 ));
     }
 
@@ -143,14 +145,14 @@ public class InstanceController {
     public record AccountV1(String id, String username, String acct, String display_name, boolean locked, boolean bot,
                             boolean discoverable, boolean group, String created_at, String note, String url, String avatar,
                             String avatar_static, String header, String header_static, int followers_count,
-                            int following_count, int statuses_count, String last_status_at, String[] emojis,
-                            Field[] fields) {}
+                            int following_count, int statuses_count, String last_status_at, CustomEmoji[] emojis,
+                            AccountField[] fields) {}
 
     public record AccountV2(String id, String username, String acct, String display_name, boolean locked, boolean bot,
                             boolean discoverable, boolean group, String created_at, String note, String url, String avatar,
                             String avatar_static, String header, String header_static, int followers_count,
-                            int following_count, int statuses_count, String last_status_at, boolean noindex, String[] emojis,
-                            Field[] fields) {}
+                            int following_count, int statuses_count, String last_status_at, boolean noindex, CustomEmoji[] emojis,
+                            AccountField[] fields) {}
 
     public record Usage(Users users) {}
 
