@@ -32,6 +32,7 @@ public class Account {
     public int statuses_count;
     public int followers_count;
     public int following_count;
+    public boolean noindex; //added for V2
 
     public Account() { }
 
