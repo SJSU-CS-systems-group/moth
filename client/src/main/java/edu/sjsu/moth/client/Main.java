@@ -17,17 +17,26 @@ import java.util.Arrays;
 public class Main implements CommandLineRunner, ExitCodeGenerator {
     private int exitCode;
 
+    public static void main(String[] args) {
+        var app = new SpringApplication(Main.class);
+        app.setWebApplicationType(WebApplicationType.NONE);
+        app.run(args);
+    }
+
+    @Override
+    public void run(String... args) {
+        exitCode = new CommandLine(new Cli()).execute(args);
+    }
+
+    @Override
+    public int getExitCode() {
+        return exitCode;
+    }
+
     record UserHost(String user, String host) {}
 
     @Command(name = "moth-client", description = "utilities to help admin a moth server.")
     static private class Cli {
-        @Command(description = "webfinger a user@host", mixinStandardHelpOptions = true)
-        int webfinger(@CommandLine.Parameters(paramLabel = "user@host") String userAtHost) {
-            UserHost userHost = extractUserHost(userAtHost);
-            System.out.println(WebFingerUtils.finger(userHost.user, userHost.host));
-            return 0;
-        }
-
         private static UserHost extractUserHost(String userAtHost) {
             if (userAtHost.startsWith("@")) userAtHost = userAtHost.substring(1);
             var parts = userAtHost.split("@", 2);
@@ -36,15 +45,23 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
             return userhost;
         }
 
+        @Command(description = "webfinger a user@host", mixinStandardHelpOptions = true)
+        int webfinger(@CommandLine.Parameters(paramLabel = "user@host") String userAtHost) {
+            UserHost userHost = extractUserHost(userAtHost);
+            System.out.println(WebFingerUtils.finger(userHost.user, userHost.host).block());
+            return 0;
+        }
+
         @Command(description = "find account for user@host", mixinStandardHelpOptions = true)
         int resolve(@CommandLine.Parameters(paramLabel = "user@host") String userAtHost) {
             var userHost = extractUserHost(userAtHost);
-            var finger = WebFingerUtils.finger(userHost.user, userHost.host);
-            for (var link: finger.links()) {
+            var finger = WebFingerUtils.finger(userHost.user, userHost.host).block();
+            for (var link : finger.links()) {
                 if (link.rel() == WebFingerUtils.RelType.SELF) {
-                    var result = WebFingerUtils.resolve(link.href());
+                    var result = WebFingerUtils.resolve(link.href()).block();
                     try {
-                        System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(result.json()));
+                        System.out.println(
+                                new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(result.json()));
                     } catch (JsonProcessingException e) {
                         e.printStackTrace();
                     }
@@ -53,20 +70,5 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
             }
             return 0;
         }
-    }
-    @Override
-    public void run(String...args) {
-        exitCode = new CommandLine(new Cli()).execute(args);
-    }
-
-    public static void main(String[] args) {
-        var app = new SpringApplication(Main.class);
-        app.setWebApplicationType(WebApplicationType.NONE);
-        app.run(args);
-    }
-
-    @Override
-    public int getExitCode() {
-        return exitCode;
     }
 }

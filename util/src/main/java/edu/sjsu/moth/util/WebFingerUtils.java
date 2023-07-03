@@ -4,56 +4,52 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.util.MimeType;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
+import javax.xml.crypto.URIReferenceException;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.text.MessageFormat;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class WebFingerUtils {
 
+    public static final Map<String, String> CONTENT_TYPE_HEADERS = Map.of("Content-type",
+                                                                          MothMimeType.APPLICATION_ACTIVITY_VALUE);
     static private final Pattern USER_URL_PATTERN = Pattern.compile("https://([^/]+).*/([^/]+)");
 
-    static public WebFinger finger(String user, String host) {
-        var temp = new RestTemplate();
-        var headers = new HttpHeaders();
-        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
-        var httpEntity = new HttpEntity<>(headers);
-        var uri = MessageFormat.format("https://{1}/.well-known/webfinger?resource=acct:{0}@{1}", user, host);
-        var rsp = temp.exchange(uri, HttpMethod.GET, httpEntity, WebFinger.class);
-        return rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
+    static private <T> Mono<T> createGetClient(String uri, Map<String, String> headers, Class<T> clazz) {
+        var client = WebClient.create().get().uri(uri);
+        if (headers != null) headers.forEach(client::header);
+        return client.retrieve().bodyToMono(clazz);
     }
 
-    static public FingerAndAccount resolve(String userUrl) {
-        WebFinger finger = null;
-        JsonNode json = null;
-        var temp = new RestTemplate();
-        var headers = new HttpHeaders();
-        headers.setAccept(Collections.singletonList(MothMimeType.APPLICATION_ACTIVITY));
-        var httpEntity = new HttpEntity<>(headers);
-        var rsp = temp.exchange(userUrl, HttpMethod.GET, httpEntity, JsonNode.class);
-        json = rsp.getStatusCode().is2xxSuccessful() ? rsp.getBody() : null;
+    static public Mono<WebFinger> finger(String user, String host) {
+        var uri = MessageFormat.format("https://{1}/.well-known/webfinger?resource=acct:{0}@{1}", user, host);
+        return createGetClient(uri, CONTENT_TYPE_HEADERS, WebFinger.class);
+    }
 
+    static public Mono<FingerAndAccount> resolve(String userUrl) {
+        WebFinger finger = null;
         var match = USER_URL_PATTERN.matcher(userUrl);
-        if (match.find()) {
-            finger = finger(match.group(2), match.group(1));
+        if (!match.find()) {
+            Mono.error(new URIReferenceException(String.format(userUrl, USER_URL_PATTERN.pattern())));
         }
-        return new FingerAndAccount(finger, json);
+        return finger(match.group(2), match.group(1)).flatMap(f -> {
+            return createGetClient(userUrl, CONTENT_TYPE_HEADERS, JsonNode.class).map(a -> {
+                return new FingerAndAccount(f, a);
+            });
+        });
     }
 
     private static String PEMEncode(byte[] bytes, String armorLabel) {
-        return "-----BEGIN " + armorLabel + "-----\n" +
-                Base64.getMimeEncoder(72, new byte[] { '\n' }).encodeToString(bytes) +
-                "\n-----END " + armorLabel + "-----\n";
+        return "-----BEGIN " + armorLabel + "-----\n" + Base64.getMimeEncoder(72, new byte[] { '\n' })
+                .encodeToString(bytes) + "\n-----END " + armorLabel + "-----\n";
     }
 
     public static PubPrivKeyPEM genPubPrivKeyPem() {
