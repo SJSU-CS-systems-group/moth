@@ -27,7 +27,7 @@ public class InboxController {
     }
 
     @PostMapping("/users/{id}/inbox")
-    public Mono<String> test(@PathVariable String id, @RequestBody String payload) {
+    public Mono<String> EditFollowers(@PathVariable String id, @RequestBody String payload) {
         try {
             // read JSON to Java Object, then construct the ID
             JsonNode inboxNode = mappedLoad.readTree(payload);
@@ -49,7 +49,7 @@ public class InboxController {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
+        return Mono.empty();
     }
 
     public Mono<String> addFollower(String id, String newFollower) {
