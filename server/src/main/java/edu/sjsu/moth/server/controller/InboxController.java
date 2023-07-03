@@ -46,7 +46,8 @@ public class InboxController {
             if (inboxNode.get("type").asText().equals("Undo")) {
                 return removeFollower(id, followerUser.toString());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return null;
     }
