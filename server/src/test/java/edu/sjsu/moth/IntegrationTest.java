@@ -21,6 +21,7 @@ import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataM
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import java.io.IOException;
 import java.util.Random;
 
 @AutoConfigureDataMongo
@@ -29,6 +30,7 @@ import java.util.Random;
         SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class IntegrationTest {
     public static final String TOKEN_TEST_ENDPOINT = "/token/test";
+    static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
     // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
     // embedded mongodb
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
@@ -45,7 +47,6 @@ public class IntegrationTest {
 
     }
 
-    static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
     @Autowired
     WebTestClient webTestClient;
     @Autowired
@@ -58,7 +59,8 @@ public class IntegrationTest {
 
     @BeforeAll
     static void setup() {
-        eMongod = Mongod.builder().processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
+        eMongod = Mongod.builder()
+                .processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
                 .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT)))
                 .build()
                 .start(Version.Main.PRODUCTION);
@@ -69,6 +71,15 @@ public class IntegrationTest {
     public void checkAutoWires() {
         Assertions.assertNotNull(webTestClient);
         Assertions.assertNotNull(tokenRepository);
+    }
+
+    @Test
+    public void checkAssets() throws IOException {
+        var body = webTestClient.get().uri("/favicon.ico").exchange().expectBody().returnResult().getResponseBody();
+        try (var is = IntegrationTest.class.getResourceAsStream("/static/moth/favicon.png")) {
+            Assertions.assertNotNull(is);
+            Assertions.assertArrayEquals(is.readAllBytes(), body);
+        }
     }
 
     @Test
