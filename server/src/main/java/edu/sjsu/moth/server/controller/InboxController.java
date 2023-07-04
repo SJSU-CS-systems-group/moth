@@ -27,7 +27,7 @@ public class InboxController {
     }
 
     @PostMapping("/users/{id}/inbox")
-    public Mono<String> EditFollowers(@PathVariable String id, @RequestBody String payload) {
+    public Mono<String> usersInbox(@PathVariable String id, @RequestBody String payload) {
         try {
             // read JSON to Java Object, then construct the ID
             JsonNode inboxNode = mappedLoad.readTree(payload);
