@@ -48,6 +48,7 @@ public class InboxController {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return Mono.error(e);
         }
         return Mono.empty();
     }
