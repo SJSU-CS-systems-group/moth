@@ -30,9 +30,15 @@ public class InstanceController {
     private static final ConfigurationV2 CONFIGURATIONV2 = new ConfigurationV2(URLS, ACCOUNTS, STATUSES,
                                                                                MEDIA_ATTACHMENTSV1, POLLS,
                                                                                TRANSLATION);
-    private static final Rule[] RULES = new Rule[] { new Rule("1", "Be excellent to each other.") };
+    private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
+
     @Autowired
     private AccountRepository accountRepo;
+
+    @GetMapping("/rules")
+    public Rule[] getRules() {
+         return RULES ;
+    }
 
     @GetMapping("/api/v1/instance")
     public Mono<ResponseEntity<InstanceV1>> getV1Instance() {
