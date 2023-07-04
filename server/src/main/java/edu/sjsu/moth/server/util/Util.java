@@ -56,4 +56,12 @@ public class Util {
             return false;
         }
     }
+
+    public static String stripQuotes(String part) {
+        if (part.length() < 2) return part;
+        int start = part.charAt(0) == '"' ? 1 : 0;
+        int end = part.length();
+        if (part.charAt(end - 1) == '"') end--;
+        return part.substring(start, end);
+    }
 }

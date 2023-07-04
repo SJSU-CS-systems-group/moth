@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 public class WebFingerUtils {
 
     public static final Map<String, String> CONTENT_TYPE_HEADERS = Map.of("Content-type",
+                                                                          MothMimeType.APPLICATION_ACTIVITY_VALUE,
+                                                                          "Accept",
                                                                           MothMimeType.APPLICATION_ACTIVITY_VALUE);
     static private final Pattern USER_URL_PATTERN = Pattern.compile("https://([^/]+).*/([^/]+)");
 
@@ -40,11 +42,9 @@ public class WebFingerUtils {
         if (!match.find()) {
             Mono.error(new URIReferenceException(String.format(userUrl, USER_URL_PATTERN.pattern())));
         }
-        return finger(match.group(2), match.group(1)).flatMap(f -> {
-            return createGetClient(userUrl, CONTENT_TYPE_HEADERS, JsonNode.class).map(a -> {
-                return new FingerAndAccount(f, a);
-            });
-        });
+        return finger(match.group(2), match.group(1)).flatMap(
+                f -> createGetClient(userUrl, CONTENT_TYPE_HEADERS, JsonNode.class).map(
+                        a -> new FingerAndAccount(f, a)));
     }
 
     private static String PEMEncode(byte[] bytes, String armorLabel) {
