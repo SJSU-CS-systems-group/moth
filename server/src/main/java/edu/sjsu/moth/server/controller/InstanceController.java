@@ -28,8 +28,7 @@ public class InstanceController {
     private static final Accounts ACCOUNTS = new Accounts(10);
     private static final Translation TRANSLATION = new Translation(true);
     private static final ConfigurationV2 CONFIGURATIONV2 = new ConfigurationV2(URLS, ACCOUNTS, STATUSES,
-                                                                               MEDIA_ATTACHMENTSV1, POLLS,
-                                                                               TRANSLATION);
+                                                                               MEDIA_ATTACHMENTSV1, POLLS, TRANSLATION);
     private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
 
     @Autowired
@@ -37,7 +36,7 @@ public class InstanceController {
 
     @GetMapping("/rules")
     public Rule[] getRules() {
-         return RULES ;
+        return RULES;
     }
 
     @GetMapping("/api/v1/instance")
@@ -72,7 +71,8 @@ public class InstanceController {
                 .map(a -> new AccountV1(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.discoverable,
                                         a.group, a.created_at, a.note, a.url, a.avatar, a.avatar_static, a.header,
                                         a.header_static, a.followers_count, a.following_count, a.statuses_count,
-                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.emojis, a.fields));
+                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.emojis,
+                                        a.fields));
     }
 
     public Mono<AccountV2> getContactAccountV2() {
@@ -80,7 +80,8 @@ public class InstanceController {
                 .map(a -> new AccountV2(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.discoverable,
                                         a.group, a.created_at, a.note, a.url, a.avatar, a.avatar_static, a.header,
                                         a.header_static, a.followers_count, a.following_count, a.statuses_count,
-                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.noindex, //ADDED THIS FOR V2
+                                        a.last_status_at.isBlank() ? a.created_at : a.last_status_at, a.noindex,
+                                        //ADDED THIS FOR V2
                                         a.emojis, a.fields));
     }
 
