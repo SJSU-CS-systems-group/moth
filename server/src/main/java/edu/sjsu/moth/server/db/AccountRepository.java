@@ -5,6 +5,5 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Mono;
 
 public interface AccountRepository extends ReactiveMongoRepository<Account, String> {
-    @Query("{id:'?0'}")
     Mono<Account> findItemByAcct(String acct);
 }
