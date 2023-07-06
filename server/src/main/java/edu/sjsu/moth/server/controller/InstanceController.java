@@ -121,7 +121,7 @@ public class InstanceController {
     public record Statuses(int max_characters, int max_media_attachments, int characters_reserved_per_url) {}
 
     public record MediaAttachments(String[] supported_mime_types, int image_size_limit, int image_matrix_limit,
-                                   int video_size_limit, int video_frame_limit, int video_matrix_limit) {}
+                                   int video_size_limit, int video_frame_rate_limit, int video_matrix_limit) {}
 
     public record Polls(int max_options, int max_characters_per_option, int min_expiration, int max_expiration) {}
 
