@@ -70,10 +70,8 @@ public class TestAccountController {
     public Mono<ResponseEntity<String>> addAccount(@RequestParam String id, @RequestParam String username,
                                                    @RequestParam String acct,
                                                    @RequestParam String url) {
-        AccountField[] af = new AccountField[1];
-        CustomEmoji[] ce = new CustomEmoji[1];
         return accountRepository.save(new Account(id, username, acct, url, "", "", "", "", "", "",
-                                                  false, af, ce, false, false, false, false, false,
+                                                  false, new AccountField[0], new CustomEmoji[0], false, false, false, false, false,
                                                   false, false, "", "", 0, 0, 0))
                 .thenReturn(ResponseEntity.ok("Added: " + id + " " + username + acct + url));
     }
