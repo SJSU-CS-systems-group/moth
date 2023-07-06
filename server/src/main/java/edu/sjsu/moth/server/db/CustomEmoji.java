@@ -1,16 +1,16 @@
 package edu.sjsu.moth.server.db;
 
-public class CustomEmoji {
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-    private String shortcode;
-    private String url;
-    private String static_url;
-    private boolean visible_in_picker;
-
-    public CustomEmoji(String shortcode, String url, String static_url, boolean visible_in_picker) {
-        this.shortcode = shortcode;
-        this.url = url;
-        this.static_url = static_url;
-        this.visible_in_picker = visible_in_picker;
-    }
+//https://docs.joinmastodon.org/entities/CustomEmoji/
+@Document(collection = "custom_emojis")
+public record CustomEmoji(
+        @Id String id,
+        String shortcode,
+        String url,
+        String staticUrl,
+        boolean visibleInPicker,
+        String category
+) {
 }
