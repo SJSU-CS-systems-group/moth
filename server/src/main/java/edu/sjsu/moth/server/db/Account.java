@@ -23,7 +23,7 @@ public class Account {
     public boolean bot;
     public boolean group;
     public boolean discoverable;
-    public boolean noIndex;
+    public boolean noindex;
     public boolean moved;
     public boolean suspended;
     public boolean limited;
@@ -32,14 +32,13 @@ public class Account {
     public int statuses_count;
     public int followers_count;
     public int following_count;
-    public boolean noindex; //added for V2
 
-    public Account() { }
+    public Account() {}
 
     public Account(String id, String username, String acct, String url, String display_name, String note,
                    String avatar, String avatar_static, String header, String header_static, boolean locked,
                    AccountField[] fields, CustomEmoji[] emojis, boolean bot, boolean group, boolean discoverable,
-                   boolean noIndex, boolean moved, boolean suspended, boolean limited, String created_at,
+                   boolean noindex, boolean moved, boolean suspended, boolean limited, String created_at,
                    String last_status_at, int statuses_count, int followers_count, int following_count) {
         this.id = id;
         this.username = username;
@@ -57,7 +56,7 @@ public class Account {
         this.bot = bot;
         this.group = group;
         this.discoverable = discoverable;
-        this.noIndex = noIndex;
+        this.noindex = noindex;
         this.moved = moved;
         this.suspended = suspended;
         this.limited = limited;
