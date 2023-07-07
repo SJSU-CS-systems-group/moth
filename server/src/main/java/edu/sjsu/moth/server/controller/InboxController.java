@@ -6,13 +6,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.net.URL;
-import java.util.Collections;
+
 
 @RestController
 public class InboxController {
@@ -27,10 +25,8 @@ public class InboxController {
     }
 
     @PostMapping("/users/{id}/inbox")
-    public Mono<String> usersInbox(@PathVariable String id, @RequestBody String payload) {
+    public Mono<String> usersInbox(@PathVariable String id, @RequestBody JsonNode inboxNode) {
         try {
-            // read JSON to Java Object, then look at request Type
-            JsonNode inboxNode = mappedLoad.readTree(payload);
             String requestType = inboxNode.get("type").asText();
             // follow or unfollow requests
             if (requestType.equals("Follow") || requestType.equals("Undo")) {
