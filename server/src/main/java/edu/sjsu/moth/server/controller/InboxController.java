@@ -6,13 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.net.URL;
-import java.util.Collections;
 
 @RestController
 public class InboxController {
@@ -27,46 +22,30 @@ public class InboxController {
     }
 
     @PostMapping("/users/{id}/inbox")
-    public Mono<String> usersInbox(@PathVariable String id, @RequestBody String payload) {
-        try {
-            // read JSON to Java Object, then construct the ID
-            JsonNode inboxNode = mappedLoad.readTree(payload);
-            String payloadActor = inboxNode.get("actor").asText();
-            URL newFollowerURL = new URL(payloadActor);
-            StringBuilder followerUser = new StringBuilder();
-            // truncate the last slash, then find the position of the next-to-last one, then +1 to index to grab
-            // substring
-            String truncatedURL = newFollowerURL.getPath().replaceAll("/$", "");
-            int lastSlash = truncatedURL.lastIndexOf('/');
-            followerUser.append(truncatedURL.substring(lastSlash + 1) + "@" + newFollowerURL.getHost());
-            //if "type: Follow", then construct and append follower to collection. if "type = Undo", remove from doc.
-            if (inboxNode.get("type").asText().equals("Follow")) {
-                return addFollower(id, followerUser.toString());
-            }
-            if (inboxNode.get("type").asText().equals("Undo")) {
-                return removeFollower(id, followerUser.toString());
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Mono.error(e);
-        }
+    public Mono<String> usersInbox(@PathVariable String id, @RequestBody JsonNode inboxNode) {
+        String requestType = inboxNode.get("type").asText();
+        // follow or unfollow requests
+        if (requestType.equals("Follow") || requestType.equals("Undo"))
+            return followerHandler(id, inboxNode, requestType);
         return Mono.empty();
     }
 
-    public Mono<String> addFollower(String id, String newFollower) {
-        return followersRepository.findItemById(id).flatMap(followedUser -> {
-            ArrayList<String> userFollowers = followedUser.getFollowers();
-            userFollowers.add(newFollower);
-            return followersRepository.save(followedUser).thenReturn("done");
-        });
-    }
-
-    public Mono<String> removeFollower(String id, String followerToRemove) {
-        return followersRepository.findItemById(id).flatMap(followedUser -> {
-            ArrayList<String> userFollowers = followedUser.getFollowers();
-            int index = Collections.binarySearch(userFollowers, followerToRemove);
-            userFollowers.remove(index);
-            return followersRepository.save(followedUser).thenReturn("done");
-        });
+    public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
+        String follower = inboxNode.get("actor").asText();
+        if (requestType.equals("Follow")) {
+            // find id, grab arraylist, append
+            return followersRepository.findItemById(id).flatMap(followedUser -> {
+                followedUser.getFollowers().add(follower);
+                return followersRepository.save(followedUser).thenReturn("done");
+            });
+        }
+        if (requestType.equals("Undo")) {
+            // find id, grab arraylist, remove
+            return followersRepository.findItemById(id).flatMap(followedUser -> {
+                followedUser.getFollowers().remove(follower);
+                return followersRepository.save(followedUser).thenReturn("done");
+            });
+        }
+        return Mono.empty();
     }
 }
