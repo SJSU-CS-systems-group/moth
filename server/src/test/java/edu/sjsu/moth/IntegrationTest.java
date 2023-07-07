@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Random;
 
 @AutoConfigureDataMongo
@@ -96,7 +97,7 @@ public class IntegrationTest {
         Assertions.assertEquals("hello sub null", new String(body));
 
         // Now try with a token that we put in the database, we should see the user dude
-        tokenRepository.save(new Token("XXXX", "dude")).block();
+        tokenRepository.save(new Token("XXXX", "dude", "app", "web", LocalDateTime.now())).block();
         body = webTestClient.get()
                 .uri(TOKEN_TEST_ENDPOINT)
                 .header("Authorization", "Bearer XXXX")
