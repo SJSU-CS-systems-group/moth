@@ -8,6 +8,7 @@ import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.util.Util;
+import edu.sjsu.moth.server.util.Util.TTLHashMap;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -24,13 +25,11 @@ import java.io.IOException;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -66,7 +65,7 @@ public class AppController {
     final static private Random nonceRandom = new SecureRandom();
     // from config file
     static String VAPID_KEY = genNonce(33);
-    private final HashMap<String, String> code2User = new HashMap<>();
+    private final TTLHashMap<String, String> code2User = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     AccountService accountService;
     /*
@@ -74,7 +73,7 @@ public class AppController {
      * temporarily cached in memory. i'm not sure how big of a deal it is if they get lost on
      * restart.
      */ AtomicInteger appCounter = new AtomicInteger();
-    ConcurrentHashMap<String, AppRegistrationEntry> registrations = new ConcurrentHashMap<>();
+    TTLHashMap<String, AppRegistrationEntry> registrations = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     TokenRepository tokenRepository;
 
@@ -92,16 +91,6 @@ public class AppController {
         //need to put these in a database to map them to a user
         final var token = genNonce(33);
         return tokenRepository.save(new Token(token, username, appName, appWebsite, LocalDateTime.now()));
-    }
-
-    // Expire everything older than 10 minutes
-    void checkExpirations() {
-        var toDelete = new ArrayList<String>();
-        var expireTime = LocalDateTime.now().minusMinutes(10);
-        registrations.forEach((k, v) -> {
-            if (v.createDate.isBefore(expireTime)) toDelete.add(k);
-        });
-        toDelete.forEach(k -> registrations.remove(k));
     }
 
     //https://docs.joinmastodon.org/methods/accounts/#create
@@ -134,7 +123,6 @@ public class AppController {
         var registration = new AppRegistration(appCounter.getAndIncrement(), req.client_name, req.redirect_uris,
                                                req.website, genNonce(33), genNonce(33), VAPID_KEY);
         // we should have a scheduled thread to clean up expired registrations, but for now we will do it on the fly
-        checkExpirations();
         registrations.put(registration.client_id,
                           new AppRegistrationEntry(registration, LocalDateTime.now(), req.scopes));
         LOG.fine("postApps returning " + registration);
@@ -199,6 +187,8 @@ public class AppController {
     Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
         var registration = registrations.get(req.client_id);
         String scopes;
+        String name = "";
+        String website = "";
         if (registration == null) {
             scopes = req.scope;
         } else {
@@ -206,11 +196,12 @@ public class AppController {
                 throw new RuntimeException("bad client_secret");
             }
             scopes = registration.scopes;
+            name = registration.registration.name;
+            website = registration.registration.website;
         }
         var user = code2User.getOrDefault(req.code, "");
         // generate an empty token, we'll fill it in with a real user later
-        return generateAccessToken(user, registration.registration.name, registration.registration.website).map(
-                t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
+        return generateAccessToken(user, name, website).map(t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
     }
 
     record AppsRequest(String client_name, String redirect_uris, String scopes, String website) {}
