@@ -18,7 +18,7 @@ PREAMBLE="
 
 BASEDIR=$(dirname $(readlink -f "$0"))
 
-DESTDIR=server/src/main/java/edu/sjsu/moth/generated
+DESTDIR=server/src/main/java
 if [ $# -ne 1 ]
 then
     echo "USAGE: $0 filename"
@@ -41,7 +41,7 @@ fi
 
 mkdir staged
 
-java -jar "$BASEDIR/jsonschema2pojo-fat-1.2.1.jar" -s "$1" -t staged -T JSON -tv 1.17 -dg -ds -p edu.sjsu.moth.generated
+java -jar "$BASEDIR/jsonschema2pojo-fat-1.2.1.jar" -s "$1" -t staged -T JSON -tv 1.17 -c -dg -ds -p edu.sjsu.moth.generated
 
 echo generated java files
 
@@ -58,11 +58,15 @@ CHANGESPRESENT=0
 # check for changes
 for f in $(find staged -type f -print)
 do
-    if diff -u "$BASEDIR/../$DESTDIR/${f#staged/}" "$f"
+    OTHERDIR="$BASEDIR/../$DESTDIR/${f#staged/}"
+    if [ -f "$OTHERDIR" ]
     then
-        true # this doesn't do anything bue we can't have an empty then
-    else
-        CHANGESPRESENT=1
+        if diff -u "$OTHERDIR" "$f" 
+        then
+            true # this doesn't do anything bue we can't have an empty then
+        else
+            CHANGESPRESENT=1
+        fi
     fi
 done
 
@@ -83,9 +87,9 @@ then
     do
         DST="$BASEDIR/../$DESTDIR/${f#staged/}"
         mkdir -p "$(dirname $DST)"
-        mv "$f" "$DEST"
+        mv "$f" "$DST"
     done
-    rmdir staged
+    rm -r staged
     echo files moved
 else
     echo files left in staged

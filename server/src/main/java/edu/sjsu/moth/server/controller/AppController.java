@@ -1,21 +1,35 @@
 package edu.sjsu.moth.server.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import edu.sjsu.moth.server.db.*;
+import edu.sjsu.moth.generated.CredentialAccount;
+import edu.sjsu.moth.generated.Source;
+import edu.sjsu.moth.server.db.Account;
+import edu.sjsu.moth.server.db.Token;
+import edu.sjsu.moth.server.db.TokenRepository;
+import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.util.Util;
+import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -37,6 +51,8 @@ import java.util.logging.Logger;
  * 8) call /api/v1/accounts/verify
  */
 // spec found in https://docs.joinmastodon.org/methods/apps/
+
+@CommonsLog
 @RestController
 public class AppController {
     public static final RegistrationException ERR_TAKEN = new RegistrationException("Username or email already taken",
@@ -45,21 +61,20 @@ public class AppController {
                                                                                                           "ERR_TAKEN",
                                                                                                           "description",
                                                                                                           "username or email already taken"))));
+    public static final String LOGIN_ERR_FORMAT = "/oauth/authorize?client_id=%s&redirect_uri=%s&error=%s";
     static private final Logger LOG = Logger.getLogger(AppController.class.getName());
     final static private Random nonceRandom = new SecureRandom();
     // from config file
-    static String VAPID_KEY = "";
+    static String VAPID_KEY = genNonce(33);
+    private final HashMap<String, String> code2User = new HashMap<>();
     @Autowired
-    UserPasswordRepository userPasswordRepository;
-    @Autowired
-    WebfingerRepository webfingerRepository;
+    AccountService accountService;
     /*
      * i think we may be able to get away with making these memory only since they are only
      * temporarily cached in memory. i'm not sure how big of a deal it is if they get lost on
      * restart.
      */ AtomicInteger appCounter = new AtomicInteger();
     ConcurrentHashMap<String, AppRegistrationEntry> registrations = new ConcurrentHashMap<>();
-
     @Autowired
     TokenRepository tokenRepository;
 
@@ -72,11 +87,11 @@ public class AppController {
         return Base64.getUrlEncoder().encodeToString(bytes);
     }
 
-    private Mono<String> generateAccessToken(String username) {
+    private Mono<Token> generateAccessToken(String username, String appName, String appWebsite) {
         //generate access token for user
         //need to put these in a database to map them to a user
         final var token = genNonce(33);
-        return tokenRepository.save(new Token(token, username, LocalDateTime.now())).thenReturn(token);
+        return tokenRepository.save(new Token(token, username, appName, appWebsite, LocalDateTime.now()));
     }
 
     // Expire everything older than 10 minutes
@@ -93,17 +108,25 @@ public class AppController {
     @PostMapping("/api/v1/accounts")
     public Mono<ResponseEntity<Object>> registerAccount(@RequestHeader("Authorization") String authorization,
                                                         @RequestBody RegistrationRequest request) throws RegistrationException, RateLimitException {
+        var appName = "";
+        var appWebsite = "";
+
         //validate authorization header with bearer token authentication
         //authorization token has to be valid before registering
         MastodonRegistration.validateRegistrationRequest(request);
         //TODO: send confirmation email to the user
         //generate and return TokenResponse with access token
-        return userPasswordRepository.findItemByUser(request.username)
-                .map(userPassword -> userPassword == null ? Mono.error(ERR_TAKEN) : userPasswordRepository.save(
-                        new UserPassword(request.username, request.password))).then(webfingerRepository.save(
-                        new WebfingerAlias(request.username, request.username, MothController.HOSTNAME)))
-                .then(generateAccessToken(request.username))
-                .map(token -> ResponseEntity.ok(new TokenResponse(token, "*")));
+        return accountService.getAccount(request.username)
+                .map(a -> Mono.error(ERR_TAKEN))
+                .then(accountService.createAccount(request.username, request.password))
+                .then(generateAccessToken(request.username, appName, appWebsite))
+                .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
+    }
+
+    @PostMapping("/api/v1/emails/confirmations")
+    String emailsConfirmations() {
+        // we don't use email verification... YET!
+        return "{}";
     }
 
     @PostMapping("/api/v1/apps")
@@ -118,17 +141,29 @@ public class AppController {
         return ResponseEntity.ok(registration);
     }
 
-    @Autowired
-    AccountRepository accountRepository;
     //to verify using the user token and retrieve credential account
     //source: https://docs.joinmastodon.org/methods/accounts/#verify_credentials
+    //note that the CredentialAccount has the same info but a different format that Account :'(
     @GetMapping("/api/v1/accounts/verify_credentials")
-    public Mono<ResponseEntity<Object>> verifyCredentials(Principal user, @RequestHeader("Authorization") String authorizationHeader) {
+    public Mono<ResponseEntity<CredentialAccount>> verifyCredentials(Principal user,
+                                                                     @RequestHeader("Authorization") String authorizationHeader) {
         if (user != null) {
-            return accountRepository.findItemByAcct(user.getName()).map(ResponseEntity::ok);
+            return accountService.getAccount(user.getName())
+                    .map(this::convertAccount2CredentialAccount)
+                    .map(ResponseEntity::ok)
+                    .switchIfEmpty(
+                            Mono.fromRunnable(() -> log.error("couldn't find " + user.getName())).then(Mono.empty()));
         } else {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
+    }
+
+    private CredentialAccount convertAccount2CredentialAccount(Account a) {
+        var source = new Source("public", false, "", a.note, List.of(a.fields), 0);
+        return new CredentialAccount(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.created_at, a.note,
+                                     a.url, a.avatar, a.avatar_static, a.header, a.header_static, a.followers_count,
+                                     a.following_count, a.statuses_count, a.last_status_at, source, List.of(a.emojis),
+                                     List.of(a.fields));
     }
 
     @GetMapping("/oauth/authorize")
@@ -147,48 +182,35 @@ public class AppController {
     @GetMapping("/oauth/login")
     Mono<ResponseEntity<String>> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
                                                @RequestParam String user, @RequestParam String password) {
-        return userPasswordRepository.findItemByUser(user).flatMap(userPassword -> {
-            try {
-                URI uri;
-                if (userPassword == null) {
-                    uri = new URI(
-                            "/oauth/authorize?client_id=" + client_id + "&redirect_uri=" + redirect_uri + "&error=Bad"
-                                    + "+user");
-                } else if (!Util.checkPassword(password, userPassword.saltedPassword)) {
-                    uri = new URI(
-                            "/oauth/authorize?client_id=" + client_id + "&redirect_uri=" + redirect_uri + "&error=Bad"
-                                    + "+password");
-                } else {
+        return accountService.checkPassword(user, password)
+                .then(Mono.fromCallable(() -> {
                     var code = genNonce(33);
-                    uri = new URI(redirect_uri + "?code=" + code);
-                    return tokenRepository.save(new Token(code, user))
-                            .thenReturn(ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
-                }
-                return Mono.just(ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
-            } catch (URISyntaxException e) {
-                throw new RuntimeException("Bad URI", e);
-            }
-        });
+                    code2User.put(code, user);
+                    return code;
+                }))
+                .flatMap(code -> Util.getMonoURI(redirect_uri + "?code=" + code))
+                .onErrorResume(t -> Util.getMonoURI(
+                        LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(t.getMessage()))))
+                .map(uri -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
     }
 
     // implemented according to https://docs.joinmastodon.org/methods/oauth/#token
     @PostMapping("/oauth/token")
-    ResponseEntity<Object> postOauthToken(@RequestBody TokenRequest req) {
+    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
         var registration = registrations.get(req.client_id);
-        String code;
         String scopes;
         if (registration == null) {
-            // this is probably the case of signing up a new user
-            code = genNonce(33);
             scopes = req.scope;
         } else {
             if (!registration.registration.client_secret.equals(req.client_secret)) {
                 throw new RuntimeException("bad client_secret");
             }
-            code = registration.registration.client_secret;
             scopes = registration.scopes;
         }
-        return ResponseEntity.ok(new TokenResponse(code, scopes));
+        var user = code2User.getOrDefault(req.code, "");
+        // generate an empty token, we'll fill it in with a real user later
+        return generateAccessToken(user, registration.registration.name, registration.registration.website).map(
+                t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
     }
 
     record AppsRequest(String client_name, String redirect_uris, String scopes, String website) {}

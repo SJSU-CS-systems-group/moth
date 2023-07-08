@@ -1,7 +1,12 @@
 package edu.sjsu.moth.server.util;
 
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
+import reactor.core.publisher.Mono;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Enumeration;
@@ -43,6 +48,24 @@ public class Util {
      */
     public static String encodePassword(String password) {
         return PASSWORD_ENCODER.encode(password);
+    }
+
+    /*
+     * simple helper method to encapsulate the annoying exception handling with Mono and URI
+     */
+    public static Mono<URI> getMonoURI(String uri) {
+        try {
+            return Mono.just(new URI(uri));
+        } catch (URISyntaxException e) {
+            return Mono.error(e);
+        }
+    }
+
+    /*
+     * URL encode a parameter
+     */
+    public static String URLencode(String str) {
+        return URLEncoder.encode(str, StandardCharsets.UTF_8);
     }
 
     /**
