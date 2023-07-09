@@ -199,7 +199,7 @@ public class AppController {
             name = registration.registration.name;
             website = registration.registration.website;
         }
-        var user = code2User.getOrDefault(req.code, "");
+        var user = req.code == null ? "" : code2User.getOrDefault(req.code, "");
         // generate an empty token, we'll fill it in with a real user later
         return generateAccessToken(user, name, website).map(t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
     }
