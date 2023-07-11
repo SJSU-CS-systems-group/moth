@@ -35,12 +35,18 @@ public class MothConfiguration {
 
     public InstanceController.Rule[] getRules() {
         ArrayList<InstanceController.Rule> rules = new ArrayList<InstanceController.Rule>();
-        rules.add(new InstanceController.Rule("1", "Be kind and excellent to each other."));
-        rules.add(new InstanceController.Rule("2",
-                                              "Please be mindful of the content you share to protect your personal " + "information."));
-        rules.add(new InstanceController.Rule("3",
-                                              "Avoid using offensive or vulgar language. Please be mindful of your " + "language when engaging in discussions or commenting on posts."));
-        rules.add(new InstanceController.Rule("4", "Be yourself and have fun!"));
+        String r = "instance.rule.";
+        String index = "1";
+
+        while (properties.getProperty(r + index) != null) {
+            rules.add(new InstanceController.Rule(index, properties.getProperty(r + index)));
+            index = Integer.toString(Integer.parseInt(index) + 1);
+        }
+
+        if (rules.size() == 0) {
+            rules.add(new InstanceController.Rule("1", "Be yourself and have fun!"));
+        }
+      
         return rules.toArray(new InstanceController.Rule[0]);
     }
 
