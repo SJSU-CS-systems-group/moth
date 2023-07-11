@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.util;
 
 import edu.sjsu.moth.server.controller.InstanceController;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ public class MothConfiguration {
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
 
-    public MothConfiguration(String file) throws IOException {
+    public MothConfiguration(File file) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(file)) {
 
             properties.load(fileInputStream);
@@ -45,7 +46,7 @@ public class MothConfiguration {
         if (rules.size() == 0) {
             rules.add(new InstanceController.Rule("1", "Be yourself and have fun!"));
         }
-
+      
         return rules.toArray(new InstanceController.Rule[0]);
     }
 
