@@ -11,6 +11,7 @@ import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.server.util.Util.TTLHashMap;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -76,6 +78,9 @@ public class AppController {
     TTLHashMap<String, AppRegistrationEntry> registrations = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     TokenRepository tokenRepository;
+    // required for i18n
+    @Autowired
+    private MessageSource messageSource;
 
     /**
      * base64 URL encode a nonce of byteCount random bytes.
@@ -156,12 +161,20 @@ public class AppController {
 
     @GetMapping("/oauth/authorize")
     String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
-                             @RequestParam(required = false, defaultValue = "") String error) throws IOException {
+                             @RequestParam(required = false, defaultValue = "") String error, @RequestHeader("Accept" +
+            "-Language") String acceptLanguage) throws IOException {
         try (var is = AppController.class.getResourceAsStream("/static/oauth/authorize.html")) {
             var authorizePage = new String(is.readAllBytes());
             authorizePage = authorizePage.replace("client_id_value", client_id);
             authorizePage = authorizePage.replace("redirect_uri_value", redirect_uri);
-            authorizePage = authorizePage.replace("authorize_error", error);
+            // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
+            // request packet.
+            Locale userLocale = Locale.forLanguageTag(acceptLanguage);
+            authorizePage = authorizePage.replace("authorize_error",
+                                                  messageSource.getMessage("authorizeError", null, userLocale));
+            authorizePage = authorizePage.replace("Email", messageSource.getMessage("email", null, userLocale));
+            authorizePage = authorizePage.replace("Password", messageSource.getMessage("password", null, userLocale));
+            authorizePage = authorizePage.replace("Sign In", messageSource.getMessage("signIn", null, userLocale));
             //noinspection ReassignedVariable
             return authorizePage;
         }
