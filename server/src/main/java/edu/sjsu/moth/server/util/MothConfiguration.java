@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.util;
 
 import edu.sjsu.moth.server.controller.InstanceController;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ public class MothConfiguration {
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
 
-    public MothConfiguration(String file) throws IOException {
+    public MothConfiguration(File file) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(file)) {
 
             properties.load(fileInputStream);
@@ -36,11 +37,9 @@ public class MothConfiguration {
         ArrayList<InstanceController.Rule> rules = new ArrayList<InstanceController.Rule>();
         rules.add(new InstanceController.Rule("1", "Be kind and excellent to each other."));
         rules.add(new InstanceController.Rule("2",
-                                              "Please be mindful of the content you share to protect your personal " +
-                                                      "information."));
+                                              "Please be mindful of the content you share to protect your personal " + "information."));
         rules.add(new InstanceController.Rule("3",
-                                              "Avoid using offensive or vulgar language. Please be mindful of your " +
-                                                      "language when engaging in discussions or commenting on posts."));
+                                              "Avoid using offensive or vulgar language. Please be mindful of your " + "language when engaging in discussions or commenting on posts."));
         rules.add(new InstanceController.Rule("4", "Be yourself and have fun!"));
         return rules.toArray(new InstanceController.Rule[0]);
     }
