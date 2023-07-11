@@ -106,7 +106,7 @@ public class AppController {
         //TODO: send confirmation email to the user
         //generate and return TokenResponse with access token
         return accountService.getAccount(request.username)
-                .map(a -> Mono.error(ERR_TAKEN))
+                .flatMap(a -> Mono.error(ERR_TAKEN))
                 .then(accountService.createAccount(request.username, request.password))
                 .then(generateAccessToken(request.username, appName, appWebsite))
                 .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
