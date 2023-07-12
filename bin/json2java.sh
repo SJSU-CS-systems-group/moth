@@ -16,7 +16,7 @@ PREAMBLE="
 //   * NONE SO FAR
 "
 
-BASEDIR=$(dirname $(readlink -f "$0"))
+BASEDIR=$(dirname "$0")
 
 DESTDIR=server/src/main/java
 if [ $# -ne 1 ]
