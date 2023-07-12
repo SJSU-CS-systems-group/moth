@@ -3,15 +3,16 @@ package edu.sjsu.moth.server;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 import picocli.CommandLine;
 
 @SpringBootApplication
+@ComponentScan(basePackages = "edu.sjsu.moth.controllers")
 public class Main implements ApplicationRunner {
 
-    private static MothCommandLine mothCli;
+    private static MothCommandLine mothCli = new MothCommandLine();
 
     public static void main(String[] args) {
-        mothCli = new MothCommandLine();
         System.exit(new CommandLine(mothCli).execute(args));
     }
 

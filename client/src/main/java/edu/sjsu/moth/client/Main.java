@@ -8,12 +8,14 @@ import org.springframework.boot.ExitCodeGenerator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
 import java.util.Arrays;
 
 @SpringBootApplication
+@ComponentScan(basePackages = "edu.sjsu.moth.controllers")
 public class Main implements CommandLineRunner, ExitCodeGenerator {
     private int exitCode;
 
