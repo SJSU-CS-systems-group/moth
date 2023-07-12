@@ -17,7 +17,7 @@ import java.util.Set;
 
 @Configuration
 @EnableWebFluxSecurity
-class ContentSecurityPolicyConfiguration {
+public class ContentSecurityPolicyConfiguration {
     @Autowired
     TokenRepository tokenRepository;
 
