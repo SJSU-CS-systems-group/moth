@@ -1,6 +1,6 @@
-package edu.sjsu.moth.server.util;
+package edu.sjsu.moth.server;
 
-import edu.sjsu.moth.server.Main;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import picocli.CommandLine.Command;
@@ -8,10 +8,12 @@ import picocli.CommandLine.Parameters;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.concurrent.CountDownLatch;
 
 @Command(name = "moth-command", mixinStandardHelpOptions = true)
 public class MothCommandLine implements Runnable {
 
+    CountDownLatch finishLatch = new CountDownLatch(1);
     @Parameters(index = "0", description = "Config file")
     private File configFile;
 
@@ -39,7 +41,13 @@ public class MothCommandLine implements Runnable {
             moth.run(springArgs == null ? new String[0] : springArgs);
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            finishLatch.countDown();
         }
+    }
+
+    public void awaitTermination() throws InterruptedException {
+        finishLatch.await();
     }
 }
 
