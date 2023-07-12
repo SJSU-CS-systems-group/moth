@@ -21,7 +21,6 @@ import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataM
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Random;
@@ -41,7 +40,7 @@ public class IntegrationTest {
         try {
             var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
             // we need to fake out MothConfiguration
-            System.out.println(new MothConfiguration(new File(fullname)).properties);
+            System.out.println(new MothConfiguration(fullname).properties);
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(2);
