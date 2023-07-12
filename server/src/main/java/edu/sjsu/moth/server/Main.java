@@ -8,10 +8,9 @@ import picocli.CommandLine;
 @SpringBootApplication
 public class Main implements ApplicationRunner {
 
-    private static MothCommandLine mothCli;
+    private static final MothCommandLine mothCli = new MothCommandLine();
 
     public static void main(String[] args) {
-        mothCli = new MothCommandLine();
         System.exit(new CommandLine(mothCli).execute(args));
     }
 

@@ -13,7 +13,7 @@ import java.util.concurrent.CountDownLatch;
 @Command(name = "moth-command", mixinStandardHelpOptions = true)
 public class MothCommandLine implements Runnable {
 
-    CountDownLatch finishLatch = new CountDownLatch(1);
+    CountDownLatch finishLatch = new CountDownLatch(0);
     @Parameters(index = "0", description = "Config file")
     private File configFile;
 
@@ -24,7 +24,7 @@ public class MothCommandLine implements Runnable {
         final var prefix = "spring.";
         try {
             MothConfiguration config;
-
+            finishLatch = new CountDownLatch(1);
             config = new MothConfiguration(configFile);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
             defaults.put("server.port", config.getServerPort());
