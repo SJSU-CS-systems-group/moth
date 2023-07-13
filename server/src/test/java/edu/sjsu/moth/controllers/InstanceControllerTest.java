@@ -5,24 +5,20 @@ import edu.sjsu.moth.server.controller.InstanceController;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.util.ContentSecurityPolicyConfiguration;
-import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.util.MothTestInitializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import java.io.File;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @WebFluxTest()
-@ContextConfiguration(classes = { Main.class, ContentSecurityPolicyConfiguration.class, InstanceController.class}, initializers = { InstanceControllerTest.MothTestInitializer.class })
+@ContextConfiguration(classes = { Main.class, ContentSecurityPolicyConfiguration.class, InstanceController.class}, initializers = { MothTestInitializer.class })
 public class InstanceControllerTest {
 
     @MockBean
@@ -47,20 +43,5 @@ public class InstanceControllerTest {
                     assertNotNull(rules);
                     //add more assertions if needed
                 });
-    }
-
-    public static class MothTestInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            try {
-                var fullName = InstanceControllerTest.class.getResource("/test.cfg").getFile();
-                System.out.println(fullName);
-                MothConfiguration mothConfiguration = new MothConfiguration(new File(fullName));
-                applicationContext.getBeanFactory().registerSingleton("mothConfiguration", mothConfiguration);
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
-                System.exit(2);
-            }
-        }
     }
 }
