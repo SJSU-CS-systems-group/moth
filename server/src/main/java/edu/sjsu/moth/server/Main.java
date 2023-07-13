@@ -10,7 +10,7 @@ import picocli.CommandLine;
 @ComponentScan(basePackages = "edu.sjsu.moth.controllers")
 public class Main implements ApplicationRunner {
 
-    private static MothCommandLine mothCli = new MothCommandLine();
+    private static final MothCommandLine mothCli = new MothCommandLine();
 
     public static void main(String[] args) {
         System.exit(new CommandLine(mothCli).execute(args));
