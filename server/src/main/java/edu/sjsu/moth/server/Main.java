@@ -3,6 +3,7 @@ package edu.sjsu.moth.server;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 import picocli.CommandLine;
 
 @SpringBootApplication

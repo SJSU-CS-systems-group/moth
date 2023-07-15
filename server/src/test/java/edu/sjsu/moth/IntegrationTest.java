@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataMongo;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.File;
@@ -30,6 +31,7 @@ import java.util.Random;
 // not sure why i need to pass IntegrationTestController here, i thought it would autodetect...
 @SpringBootTest(classes = { Main.class, IntegrationTestController.class }, webEnvironment =
         SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ComponentScan(basePackageClasses = Main.class)
 public class IntegrationTest {
     public static final String TOKEN_TEST_ENDPOINT = "/token/test";
     static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
