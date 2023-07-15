@@ -15,7 +15,6 @@ import picocli.CommandLine.Command;
 import java.util.Arrays;
 
 @SpringBootApplication
-@ComponentScan(basePackages = "edu.sjsu.moth.controllers")
 public class Main implements CommandLineRunner, ExitCodeGenerator {
     private int exitCode;
 

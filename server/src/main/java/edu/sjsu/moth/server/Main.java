@@ -7,7 +7,6 @@ import org.springframework.context.annotation.ComponentScan;
 import picocli.CommandLine;
 
 @SpringBootApplication
-@ComponentScan(basePackages = "edu.sjsu.moth.controllers")
 public class Main implements ApplicationRunner {
 
     private static final MothCommandLine mothCli = new MothCommandLine();
