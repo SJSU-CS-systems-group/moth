@@ -1,10 +1,8 @@
 package edu.sjsu.moth.controllers;
 
-import edu.sjsu.moth.server.Main;
 import edu.sjsu.moth.server.controller.InstanceController;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
-import edu.sjsu.moth.server.db.UserPasswordRepository;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.util.ContentSecurityPolicyConfiguration;
 import edu.sjsu.moth.util.MothTestInitializer;
@@ -20,7 +18,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @WebFluxTest()
-@ContextConfiguration(classes = { InstanceController.class, ContentSecurityPolicyConfiguration.class }, initializers = MothTestInitializer.class)
+@ContextConfiguration(classes = { InstanceController.class, ContentSecurityPolicyConfiguration.class }, initializers
+        = MothTestInitializer.class)
 public class InstanceControllerTest {
 
     @MockBean
