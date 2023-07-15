@@ -24,4 +24,7 @@ public class Token {
         this.appWebsite = appWebsite;
         this.created_at = created_at;
     }
+    public String getToken() {
+        return token;
+    }
 }

@@ -7,4 +7,7 @@ import reactor.core.publisher.Mono;
 public interface TokenRepository extends ReactiveMongoRepository<Token, String> {
     @Query("{token:'?0'}")
     Mono<Token> findItemByToken(String token);
+
+    @Query("{user : ?1}")
+    Mono<Token> findItemByUser(String username);
 }
