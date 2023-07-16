@@ -8,7 +8,7 @@ import de.flapdoodle.embed.process.io.ProcessOutput;
 import de.flapdoodle.reverse.TransitionWalker;
 import de.flapdoodle.reverse.transitions.Start;
 import edu.sjsu.moth.controllers.IntegrationTestController;
-import edu.sjsu.moth.server.Main;
+import edu.sjsu.moth.server.MothServerMain;
 import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
@@ -29,9 +29,9 @@ import java.util.Random;
 
 @AutoConfigureDataMongo
 // not sure why i need to pass IntegrationTestController here, i thought it would autodetect...
-@SpringBootTest(classes = { Main.class, IntegrationTestController.class }, webEnvironment =
+@SpringBootTest(classes = { MothServerMain.class, IntegrationTestController.class }, webEnvironment =
         SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ComponentScan(basePackageClasses = Main.class)
+@ComponentScan(basePackageClasses = MothServerMain.class)
 public class IntegrationTest {
     public static final String TOKEN_TEST_ENDPOINT = "/token/test";
     static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
