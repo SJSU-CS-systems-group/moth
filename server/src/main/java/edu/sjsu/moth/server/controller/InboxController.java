@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
+import edu.sjsu.moth.server.db.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -16,6 +17,8 @@ import java.util.ArrayList;
 public class InboxController {
     @Autowired
     FollowersRepository followersRepository;
+    @Autowired
+    AccountRepository accountRepository;
 
     //required to map payload from JSON to a Java Object for data access
     ObjectMapper mappedLoad;
@@ -36,12 +39,19 @@ public class InboxController {
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
+            // check id
+            if (accountRepository.findItemByAcct(id)==null) {
+                return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
+            }
             // find id, grab arraylist, append
-            return followersRepository.findItemById(id).switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
-                    .flatMap(followedUser -> {
-                followedUser.getFollowers().add(follower);
-                return followersRepository.save(followedUser).thenReturn("done");
-            });
+            else {
+                return followersRepository.findItemById(id)
+                        .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                        .flatMap(followedUser -> {
+                            followedUser.getFollowers().add(follower);
+                            return followersRepository.save(followedUser).thenReturn("done");
+                        });
+            }
         }
         if (requestType.equals("Undo")) {
             // find id, grab arraylist, remove
