@@ -31,8 +31,12 @@ public class InstanceController {
                                                                                MEDIA_ATTACHMENTSV1, POLLS, TRANSLATION);
     private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
 
+
+
     @Autowired
     private AccountRepository accountRepo;
+
+
 
     @GetMapping("/rules")
     public Rule[] getRules() {
@@ -140,4 +144,6 @@ public class InstanceController {
     public record StatsV1(int user_count, int status_count, int domain_count) {}
 
     public record RegistrationsV2(boolean enabled, boolean approvalRequired, String message) {}
+
+
 }

@@ -33,6 +33,7 @@ public class MothConfiguration {
         }
     }
 
+
     public InstanceController.Rule[] getRules() {
         ArrayList<InstanceController.Rule> rules = new ArrayList<InstanceController.Rule>();
         String r = "instance.rule.";
