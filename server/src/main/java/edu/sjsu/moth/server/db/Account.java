@@ -1,5 +1,7 @@
 package edu.sjsu.moth.server.db;
 
+import edu.sjsu.moth.server.controller.MothController;
+import edu.sjsu.moth.server.util.Util;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -65,5 +67,11 @@ public class Account {
         this.statuses_count = statuses_count;
         this.followers_count = followers_count;
         this.following_count = following_count;
+    }
+
+    public Account(String username) {
+        this(username, username, username, MothController.BASE_URL + "/@" + username, "", "", "", "", "", "", false,
+             new AccountField[0], new CustomEmoji[0], false, false, false, false, false, false, false, Util.now(),
+             Util.now(), 0, 0, 0);
     }
 }
