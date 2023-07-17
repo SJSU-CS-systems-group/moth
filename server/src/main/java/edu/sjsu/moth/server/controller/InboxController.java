@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -8,6 +9,8 @@ import reactor.core.publisher.Mono;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
 
 @RestController
 public class InboxController {
@@ -34,7 +37,9 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // find id, grab arraylist, append
-            return followersRepository.findItemById(id).flatMap(followedUser -> {
+            return followersRepository.findItemById(id)
+                    .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                    .flatMap(followedUser -> {
                 followedUser.getFollowers().add(follower);
                 return followersRepository.save(followedUser).thenReturn("done");
             });
