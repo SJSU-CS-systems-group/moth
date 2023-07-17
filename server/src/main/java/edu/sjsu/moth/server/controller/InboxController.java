@@ -37,8 +37,7 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // find id, grab arraylist, append
-            return followersRepository.findItemById(id)
-                    .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+            return followersRepository.findItemById(id).switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
                     .flatMap(followedUser -> {
                 followedUser.getFollowers().add(follower);
                 return followersRepository.save(followedUser).thenReturn("done");
