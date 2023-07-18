@@ -112,11 +112,20 @@ public class AppController {
                 .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
     }
 
+    @GetMapping("/api/v1/accounts/lookup")
+    public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String username) {
+        return accountService.getAccount(username)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/api/v1/emails/confirmations")
     String emailsConfirmations() {
         // we don't use email verification... YET!
         return "{}";
     }
+
+
 
     @PostMapping("/api/v1/apps")
     ResponseEntity<Object> postApps(@RequestBody AppsRequest req) {
