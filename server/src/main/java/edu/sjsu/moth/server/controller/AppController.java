@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
+import static edu.sjsu.moth.server.controller.i18nController.getExceptionMessage;
+
 /**
  * This code handles first contact and oauth outh with the client.
  * The flow seems to be:
@@ -160,7 +162,7 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize(@RequestHeader("Accept" + "-Language") String acceptLanguage) {
+    public String getOauthAuthorize(@RequestHeader("Accept-Language") String acceptLanguage) {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet.
         Locale userLocale = Locale.forLanguageTag(acceptLanguage);
@@ -185,7 +187,8 @@ public class AppController {
 
     // implemented according to https://docs.joinmastodon.org/methods/oauth/#token
     @PostMapping("/oauth/token")
-    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
+    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req,
+                                                @RequestHeader("Accept-Language") String acceptLanguage) {
         var registration = registrations.get(req.client_id);
         String scopes;
         String name = "";
@@ -194,7 +197,8 @@ public class AppController {
             scopes = req.scope;
         } else {
             if (!registration.registration.client_secret.equals(req.client_secret)) {
-                throw new RuntimeException("bad client_secret");
+                throw new RuntimeException(
+                        getExceptionMessage("clientSecretException", Locale.forLanguageTag(acceptLanguage)));
             }
             scopes = registration.scopes;
             name = registration.registration.name;

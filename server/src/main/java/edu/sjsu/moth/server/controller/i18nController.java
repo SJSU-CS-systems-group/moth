@@ -7,8 +7,16 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import org.thymeleaf.spring5.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
+import java.util.Locale;
+import java.util.ResourceBundle;
+
 @Configuration
 public class i18nController {
+    //from baeldung
+    public static String getExceptionMessage(String key, Locale locale) {
+        return ResourceBundle.getBundle("messages", locale).getString(key);
+    }
+
     @Bean
     // message source is responsible for retrieving messages based on current locale. it loads different message sets
     // and
