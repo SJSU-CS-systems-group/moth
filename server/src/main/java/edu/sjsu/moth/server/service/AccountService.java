@@ -47,6 +47,10 @@ public class AccountService {
         return accountRepository.findItemByAcct(username);
     }
 
+    public Mono<Account> getAccountById(String id) {
+        return accountRepository.findById(id);
+    }
+
     public Mono<Void> checkPassword(String user, String password) {
         return userPasswordRepository.findItemByUser(user)
                 .switchIfEmpty(Mono.error(new AuthenticationException(user + " not registered")))
@@ -64,4 +68,5 @@ public class AccountService {
         }
         return mono;
     }
+
 }
