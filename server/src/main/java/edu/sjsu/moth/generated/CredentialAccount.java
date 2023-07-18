@@ -9,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import edu.sjsu.moth.server.db.AccountField;
-import edu.sjsu.moth.server.db.CustomEmoji;
 
 import java.util.ArrayList;
 import java.util.List;

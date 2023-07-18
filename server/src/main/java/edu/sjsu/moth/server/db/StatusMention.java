@@ -16,4 +16,6 @@ public class StatusMention {
         this.acct = acct;
     }
 
+    public StatusMention() {}
+
 }
