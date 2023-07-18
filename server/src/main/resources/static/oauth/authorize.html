@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <link rel="icon" type="image/png" sizes="32x32" href="/moth/favicon.png">
     <meta charset="UTF-8">
@@ -73,15 +73,18 @@
 <div class="spin">
     <img alt="Moth Logo" src="/moth/cyber-moth.png">
 </div>
-<h2>authorize_error</h2>
+<h2 th:text="#{authorizeError}">authError</h2>
 <form action="/oauth/login">
-    Email<br/>
-    <input name="user"/><br/>
-    Password<br/>
+    <span th:text="#{email}">Email</span>
+    <br/>
+    <input name="user"/>
+    <br/>
+    <span th:text="#{password}">Password</span>
+    <br/>
     <input name="password" type="password"/><br/>
     <input name="client_id" type="hidden" value="client_id_value"/>
     <input name="redirect_uri" type="hidden" value="redirect_uri_value"/>
-    <input type="submit" value="Sign In"/>
+    <input type="submit" value="#{signIn}" th:value="#{signIn}"/>
 </form>
 </body>
 </html>
