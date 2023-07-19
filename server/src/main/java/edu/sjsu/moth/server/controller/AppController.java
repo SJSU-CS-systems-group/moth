@@ -125,8 +125,6 @@ public class AppController {
         return "{}";
     }
 
-
-
     @PostMapping("/api/v1/apps")
     ResponseEntity<Object> postApps(@RequestBody AppsRequest req) {
         var registration = new AppRegistration(appCounter.getAndIncrement(), req.client_name, req.redirect_uris,
