@@ -6,9 +6,10 @@ import org.springframework.boot.WebApplicationType;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
-
+import java.io.FileInputStream;
 import java.io.File;
 import java.util.HashMap;
+import java.util.Properties;
 
 @Command(name = "moth-server", mixinStandardHelpOptions = true)
 public class MothCommandLine implements Runnable {
@@ -17,6 +18,11 @@ public class MothCommandLine implements Runnable {
 
     @Parameters(index = "1..*", description = "extra spring arguments")
     private String[] springArgs;
+
+    @CommandLine.Option(names = {"-v","--verify"} ,description = "verify")
+    private boolean verification;
+
+    public final Properties properties = new Properties();
 
     public static void main(String[] args) {
         var rc = new CommandLine(new MothCommandLine()).execute(args);
@@ -30,6 +36,25 @@ public class MothCommandLine implements Runnable {
     public void run() {
         final var prefix = "spring.";
         try {
+
+            if(verification){
+                File f = new File(configFile.toURI());
+                if(f.isFile()) {
+
+                    FileInputStream fileInputStream = new FileInputStream(f);
+                    properties.load(fileInputStream);
+                    System.out.println("VERIFIED");
+
+                    System.exit(1);
+                }
+                else
+                {
+                    System.out.println("File not found, Please input proper configuration file");
+                    System.exit(1);
+                }
+            }
+
+
             MothConfiguration config;
             config = new MothConfiguration(configFile);
             HashMap<String, Object> defaults = new HashMap<String, Object>();
