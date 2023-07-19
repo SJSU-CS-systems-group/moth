@@ -2,18 +2,22 @@ package edu.sjsu.moth.server.controller;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
 import edu.sjsu.moth.server.db.Following;
 import edu.sjsu.moth.server.db.FollowingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
-import org.springframework.data.repository.Repository;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -110,7 +114,9 @@ public class InboxController {
         return followers.subList(startIndex, endIndex);
     }
 
-    public record UsersFollowResponse(String id, String type, int totalItems, @JsonInclude(JsonInclude.Include.NON_NULL) String first, @JsonInclude(JsonInclude.Include.NON_NULL) String next, @JsonInclude(JsonInclude.Include.NON_NULL) String partOf, @JsonInclude(JsonInclude.Include.NON_NULL) List<String> orderedItems) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonPropertyOrder({"@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems"})
+    public record UsersFollowResponse(String id, String type, int totalItems, String first, String next, String partOf, List<String> orderedItems) {
         @JsonProperty("@context")
         public String getContext() {
             return "https://www.w3.org/ns/activitystreams";
