@@ -72,34 +72,44 @@ public class InboxController {
     }
 
     @GetMapping("/users/{id}/following")
-    public Mono<UsersFollowResponse> usersFollowing(@PathVariable String id, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+    public Mono<UsersFollowResponse> usersFollowing(@PathVariable String id,
+                                                    @RequestParam(required = false) Integer page,
+                                                    @RequestParam(required = false) Integer limit) {
         return usersFollow(id, page, limit, "following");
     }
 
     @GetMapping("/users/{id}/followers")
-    public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+    public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id,
+                                                    @RequestParam(required = false) Integer page,
+                                                    @RequestParam(required = false) Integer limit) {
         return usersFollow(id, page, limit, "followers");
     }
 
-    public Mono<UsersFollowResponse> usersFollow(String id,@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit, String followType) {
-        var items = followType.equals("following") ? followingRepository.findItemById(id).map(Following::getFollowing) : followersRepository.findItemById(id).map(Followers::getFollowers);
+    public Mono<UsersFollowResponse> usersFollow(String id, @RequestParam(required = false) Integer page,
+                                                 @RequestParam(required = false) Integer limit, String followType) {
+        var items = followType.equals("following") ? followingRepository.findItemById(id)
+                .map(Following::getFollowing) : followersRepository.findItemById(id).map(Followers::getFollowers);
         String returnID = MothController.BASE_URL + "/users/" + id + followType;
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
-        if(page == null) {
+        if (page == null) {
             String first = returnID + "?page=1";
-            return items.map(v -> new UsersFollowResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
+            return items.map(
+                    v -> new UsersFollowResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
         } else { // page number is given
             int pageNum = page < 1 ? 1 : page;
             return items.map(v -> {
-                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID + "?page=" + page;
-                if(pageNum*pageSize >= v.size()) { // no next page
-                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID, paginateFollowers(v, pageNum, pageSize));
+                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID +
+                        "?page=" + page;
+                if (pageNum * pageSize >= v.size()) { // no next page
+                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID,
+                                                   paginateFollowers(v, pageNum, pageSize));
                 } else {
-                    String next = returnID + "?page=" + (pageNum+1);
-                    if(limit != null) {
+                    String next = returnID + "?page=" + (pageNum + 1);
+                    if (limit != null) {
                         next += "&limit=" + limit;
                     }
-                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID, paginateFollowers(v, pageNum, pageSize));
+                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID,
+                                                   paginateFollowers(v, pageNum, pageSize));
                 }
             });
         }
@@ -115,8 +125,9 @@ public class InboxController {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems"})
-    public record UsersFollowResponse(String id, String type, int totalItems, String first, String next, String partOf, List<String> orderedItems) {
+    @JsonPropertyOrder({ "@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems" })
+    public record UsersFollowResponse(String id, String type, int totalItems, String first, String next, String partOf,
+                                      List<String> orderedItems) {
         @JsonProperty("@context")
         public String getContext() {
             return "https://www.w3.org/ns/activitystreams";
