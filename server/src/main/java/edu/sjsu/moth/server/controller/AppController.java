@@ -147,11 +147,11 @@ public class AppController {
     }
 
     private CredentialAccount convertAccount2CredentialAccount(Account a) {
-        var source = new Source("public", false, "", a.note, List.of(a.fields), 0);
+        var source = new Source("public", false, "", a.note, a.fields, 0);
         return new CredentialAccount(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.created_at, a.note,
                                      a.url, a.avatar, a.avatar_static, a.header, a.header_static, a.followers_count,
                                      a.following_count, a.statuses_count, a.last_status_at, source, List.of(a.emojis),
-                                     List.of(a.fields));
+                                     a.fields);
     }
 
     @GetMapping("/oauth/authorize")
