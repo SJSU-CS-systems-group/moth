@@ -10,7 +10,4 @@ public interface FollowersRepository extends ReactiveMongoRepository<Followers, 
     @Query("{id:'?0'}")
     Mono<Followers> findItemById(String id);
 
-    @Query("{id:'?0'}")
-    Flux<Followers> findItemByIdAndPage(String id, Pageable pageable);
-
 }

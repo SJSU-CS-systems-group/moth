@@ -1,7 +1,10 @@
 package edu.sjsu.moth.server.controller;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +22,7 @@ import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZ
 public class InboxController {
     @Autowired
     FollowersRepository followersRepository;
+
 
     //required to map payload from JSON to a Java Object for data access
     ObjectMapper mappedLoad;
@@ -40,11 +44,10 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // find id, grab arraylist, append
-            return followersRepository.findItemById(id).switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
-                    .flatMap(followedUser -> {
-                        followedUser.getFollowers().add(follower);
-                        return followersRepository.save(followedUser).thenReturn("done");
-                    });
+            return followersRepository.findItemById(id).flatMap(followedUser -> {
+                followedUser.getFollowers().add(follower);
+                return followersRepository.save(followedUser).thenReturn("done");
+            });
         }
         if (requestType.equals("Undo")) {
             // find id, grab arraylist, remove
@@ -57,25 +60,30 @@ public class InboxController {
     }
 
     @GetMapping("/users/{id}/followers")
-    public Mono<?> usersFollowers(@PathVariable String id, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
-        var context = getContext();
+    public Mono<UsersFollowersResponse> usersFollowers(@PathVariable String id, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
         var items = followersRepository.findItemById(id).map(Followers::getFollowers);
         String returnID = MothController.BASE_URL + "/users/" + id + "/followers";
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
         if(page == null) {
             String first = returnID + "?page=1";
-            return items.map(v -> new Response1(context, returnID, "OrderedCollection", v.size(), first));
+            return items.map(v -> new UsersFollowersResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
         } else { // page number is given
+            int pageNum = page < 1 ? 1 : page;
             return items.map(v -> {
-                if(page*pageSize >= v.size()) { // no next page
-                    return new Response2(context, returnID, "OrderedCollectionPage", v.size(), returnID, paginateFollowers(v, page, pageSize));
+                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID + "?page=" + page;
+                if(pageNum*pageSize >= v.size()) { // no next page
+                    return new UsersFollowersResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID, paginateFollowers(v, pageNum, pageSize));
                 } else {
-                    String next = returnID + "?page=" + (page+1);
-                    return new Response3(context, returnID, "OrderedCollectionPage", v.size(), next, returnID, paginateFollowers(v, page, pageSize));
+                    String next = returnID + "?page=" + (pageNum+1);
+                    if(limit != null) {
+                        next += "&limit=" + limit;
+                    }
+                    return new UsersFollowersResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID, paginateFollowers(v, pageNum, pageSize));
                 }
             });
         }
     }
+
 
     public List<String> paginateFollowers(ArrayList<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
@@ -83,21 +91,18 @@ public class InboxController {
         if (startIndex >= followers.size()) {
             return Collections.emptyList();
         }
-        endIndex = Math.min(endIndex, followers.size());
         return followers.subList(startIndex, endIndex);
     }
 
-    public record Response1(String context, String id, String type, int totalItems, String first) {}
-
-    // if a page number is given
-    public record Response2(String context, String id, String type, int totalItems, String partOf, List<String> orderedItems) {}
-
     // if there is a next follower page
-    public record Response3(String context, String id, String type, int totalItems, String next, String partOf, List<String> orderedItems) {}
-
-    @JsonProperty("@context")
-    public String getContext() {
-        return "https://www.w3.org/ns/activitystreams";
+    @JsonPropertyOrder({"@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems"})
+    public record UsersFollowersResponse(String id, String type, int totalItems, @JsonInclude(JsonInclude.Include.NON_NULL) String first, @JsonInclude(JsonInclude.Include.NON_NULL) String next, @JsonInclude(JsonInclude.Include.NON_NULL) String partOf, @JsonInclude(JsonInclude.Include.NON_NULL) List<String> orderedItems) {
+        @JsonProperty("@context")
+        public String getContext() {
+            return "https://www.w3.org/ns/activitystreams";
+        }
     }
+
+
 
 }
