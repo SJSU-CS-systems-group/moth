@@ -28,6 +28,7 @@ import java.util.List;
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 import java.util.ArrayList;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -37,7 +38,7 @@ import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZ
 public class InboxController {
     @Autowired
     FollowersRepository followersRepository;
-  
+
     @Autowired
     FollowingRepository followingRepository;
 
@@ -63,11 +64,19 @@ public class InboxController {
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
+            // check id
+            if (accountRepository.findItemByAcct(id)==null) {
+                return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
+            }
             // find id, grab arraylist, append
-            return followersRepository.findItemById(id).flatMap(followedUser -> {
-                followedUser.getFollowers().add(follower);
-                return followersRepository.save(followedUser).thenReturn("done");
-            });
+            else {
+                return followersRepository.findItemById(id)
+                        .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                        .flatMap(followedUser -> {
+                            followedUser.getFollowers().add(follower);
+                            return followersRepository.save(followedUser).thenReturn("done");
+                        });
+            }
         }
         if (requestType.equals("Undo")) {
             // find id, grab arraylist, remove
