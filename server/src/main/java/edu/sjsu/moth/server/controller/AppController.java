@@ -169,10 +169,13 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize() {
+    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri) {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet. resolved via the WebFilterChain.
-        return templateEngine.process("authorize", new Context(LocaleContextHolder.getLocale()));
+        Context context = new Context(LocaleContextHolder.getLocale());
+        context.setVariable("clientId", client_id);
+        context.setVariable("redirectUri", redirect_uri);
+        return templateEngine.process("authorize", context);
     }
 
     @GetMapping("/oauth/login")
