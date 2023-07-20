@@ -165,8 +165,7 @@ public class AppController {
     public String getOauthAuthorize() {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet. resolved via the WebFilterChain.
-        Context context = new Context(LocaleContextHolder.getLocale());
-        return templateEngine.process("authorize", context);
+        return templateEngine.process("authorize", new Context(LocaleContextHolder.getLocale()));
     }
 
     @GetMapping("/oauth/login")
