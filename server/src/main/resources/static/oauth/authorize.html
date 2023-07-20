@@ -82,8 +82,8 @@
     <span th:text="#{password}">Password</span>
     <br/>
     <input name="password" type="password"/><br/>
-    <input name="client_id" type="hidden" value="client_id_value"/>
-    <input name="redirect_uri" type="hidden" value="redirect_uri_value"/>
+    <input th:value="${clientId}" name="client_id" type="hidden" value="client_id_value"/>
+    <input th:value="${redirectUri}" name="redirect_uri" type="hidden" value="redirect_uri_value"/>
     <input type="submit" value="#{signIn}" th:value="#{signIn}"/>
 </form>
 </body>
