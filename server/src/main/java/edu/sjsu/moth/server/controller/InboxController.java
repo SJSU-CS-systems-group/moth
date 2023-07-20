@@ -4,13 +4,28 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.sjsu.moth.server.db.AccountRepository;
+
 import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
-import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.Following;
+import edu.sjsu.moth.server.db.FollowingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 import java.util.ArrayList;
 
@@ -23,9 +38,12 @@ import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZ
 public class InboxController {
     @Autowired
     FollowersRepository followersRepository;
+
+    @Autowired
+    FollowingRepository followingRepository;
+
     @Autowired
     AccountRepository accountRepository;
-
 
     //required to map payload from JSON to a Java Object for data access
     ObjectMapper mappedLoad;
@@ -70,31 +88,49 @@ public class InboxController {
         return Mono.empty();
     }
 
+    @GetMapping("/users/{id}/following")
+    public Mono<UsersFollowResponse> usersFollowing(@PathVariable String id,
+                                                    @RequestParam(required = false) Integer page,
+                                                    @RequestParam(required = false) Integer limit) {
+        return usersFollow(id, page, limit, "following");
+    }
+
     @GetMapping("/users/{id}/followers")
-    public Mono<UsersFollowersResponse> usersFollowers(@PathVariable String id, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
-        var items = followersRepository.findItemById(id).map(Followers::getFollowers);
-        String returnID = MothController.BASE_URL + "/users/" + id + "/followers";
+    public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id,
+                                                    @RequestParam(required = false) Integer page,
+                                                    @RequestParam(required = false) Integer limit) {
+        return usersFollow(id, page, limit, "followers");
+    }
+
+    public Mono<UsersFollowResponse> usersFollow(String id, @RequestParam(required = false) Integer page,
+                                                 @RequestParam(required = false) Integer limit, String followType) {
+        var items = followType.equals("following") ? followingRepository.findItemById(id)
+                .map(Following::getFollowing) : followersRepository.findItemById(id).map(Followers::getFollowers);
+        String returnID = MothController.BASE_URL + "/users/" + id + followType;
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
-        if(page == null) {
+        if (page == null) {
             String first = returnID + "?page=1";
-            return items.map(v -> new UsersFollowersResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
+            return items.map(
+                    v -> new UsersFollowResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
         } else { // page number is given
             int pageNum = page < 1 ? 1 : page;
             return items.map(v -> {
-                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID + "?page=" + page;
-                if(pageNum*pageSize >= v.size()) { // no next page
-                    return new UsersFollowersResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID, paginateFollowers(v, pageNum, pageSize));
+                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID +
+                        "?page=" + page;
+                if (pageNum * pageSize >= v.size()) { // no next page
+                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID,
+                                                   paginateFollowers(v, pageNum, pageSize));
                 } else {
-                    String next = returnID + "?page=" + (pageNum+1);
-                    if(limit != null) {
+                    String next = returnID + "?page=" + (pageNum + 1);
+                    if (limit != null) {
                         next += "&limit=" + limit;
                     }
-                    return new UsersFollowersResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID, paginateFollowers(v, pageNum, pageSize));
+                    return new UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID,
+                                                   paginateFollowers(v, pageNum, pageSize));
                 }
             });
         }
     }
-
 
     public List<String> paginateFollowers(ArrayList<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
@@ -106,14 +142,12 @@ public class InboxController {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems"})
-    public record UsersFollowersResponse(String id, String type, int totalItems, String first, String next, String partOf, List<String> orderedItems) {
+    @JsonPropertyOrder({ "@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems" })
+    public record UsersFollowResponse(String id, String type, int totalItems, String first, String next, String partOf,
+                                      List<String> orderedItems) {
         @JsonProperty("@context")
         public String getContext() {
             return "https://www.w3.org/ns/activitystreams";
         }
     }
-
-
-
 }
