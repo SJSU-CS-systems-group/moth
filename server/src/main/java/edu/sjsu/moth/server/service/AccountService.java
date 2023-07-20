@@ -2,9 +2,7 @@ package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
-import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.CustomEmoji;
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.UserPassword;
@@ -38,12 +36,7 @@ public class AccountService {
 
     public Mono<Void> createAccount(String username, String password) {
         var pubPriv = WebFingerUtils.genPubPrivKeyPem();
-        return accountRepository.save(
-                        new Account(username, username, username, MothController.BASE_URL + "/@" + username, "", "",
-                                    "", "", "",
-                                    "", false, new AccountField[0], new CustomEmoji[0], false, false, false, false,
-                                    false,
-                                    false, false, Util.now(), Util.now(), 0, 0, 0))
+        return accountRepository.save(new Account(username))
                 .then(userPasswordRepository.save(new UserPassword(username, Util.encodePassword(password))))
                 .then(webfingerRepository.save(new WebfingerAlias(username, username, MothController.HOSTNAME)))
                 .then(pubKeyPairRepository.save(new PubKeyPair(username, pubPriv.pubKey(), pubPriv.privKey())))
@@ -52,6 +45,10 @@ public class AccountService {
 
     public Mono<Account> getAccount(String username) {
         return accountRepository.findItemByAcct(username);
+    }
+
+    public Mono<Account> getAccountById(String id) {
+        return accountRepository.findById(id);
     }
 
     public Mono<Void> checkPassword(String user, String password) {
@@ -71,4 +68,5 @@ public class AccountService {
         }
         return mono;
     }
+
 }

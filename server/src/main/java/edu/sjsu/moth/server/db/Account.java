@@ -1,8 +1,13 @@
 package edu.sjsu.moth.server.db;
 
+import com.querydsl.core.annotations.QueryEntity;
+import edu.sjsu.moth.generated.CustomEmoji;
+import edu.sjsu.moth.server.controller.MothController;
+import edu.sjsu.moth.server.util.Util;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+@QueryEntity
 // Definition is https://docs.joinmastodon.org/entities/Account/
 @Document("account")
 public class Account {
@@ -24,7 +29,6 @@ public class Account {
     public boolean group;
     public boolean discoverable;
     public boolean noindex;
-    public boolean moved;
     public boolean suspended;
     public boolean limited;
     public String created_at;
@@ -57,7 +61,8 @@ public class Account {
         this.group = group;
         this.discoverable = discoverable;
         this.noindex = noindex;
-        this.moved = moved;
+        // moved is not a boolean. it's the new account. removing for now
+        //this.moved = moved;
         this.suspended = suspended;
         this.limited = limited;
         this.created_at = created_at;
@@ -65,5 +70,11 @@ public class Account {
         this.statuses_count = statuses_count;
         this.followers_count = followers_count;
         this.following_count = following_count;
+    }
+
+    public Account(String username) {
+        this(username, username, username, MothController.BASE_URL + "/@" + username, "", "", "", "", "", "", false,
+             new AccountField[0], new CustomEmoji[0], false, false, false, false, false, false, false, Util.now(),
+             Util.now(), 0, 0, 0);
     }
 }
