@@ -1,7 +1,13 @@
 package edu.sjsu.moth.server.controller;
 
+import edu.sjsu.moth.generated.Notification;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,22 +17,30 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.data.mongodb.core.query.Query;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.List;
 
-//sources: https://docs.joinmastodon.org/methods/notifications/#get
-//https://docs.joinmastodon.org/entities/Notification/
+// sources: https://docs.joinmastodon.org/methods/notifications/#get
+// https://docs.joinmastodon.org/entities/Notification/
 @RestController
 public class NotificationsController {
 
     private final WebClient webClient;
     private final TokenRepository tokenRepository;
+    private final ReactiveMongoTemplate reactiveMongoTemplate;
 
-    public NotificationsController(WebClient.Builder webClientBuilder, TokenRepository tokenRepository) {
+    @Autowired
+    public NotificationsController(
+            WebClient.Builder webClientBuilder,
+            TokenRepository tokenRepository,
+            ReactiveMongoTemplate reactiveMongoTemplate
+    ) {
         this.webClient = webClientBuilder.baseUrl("https://" + MothConfiguration.mothConfiguration.getServerName()).build();
         this.tokenRepository = tokenRepository;
+        this.reactiveMongoTemplate = reactiveMongoTemplate;
     }
 
     @GetMapping("/api/v1/notifications")
@@ -46,41 +60,53 @@ public class NotificationsController {
         //extract token from authorization header
         String token = extractToken(authorization);
 
-        //check if token is same as the user's from repo
         return tokenRepository.findItemByUser(username)
                 .flatMap(tokenEntity -> {
                     String storedToken = tokenEntity.getToken();
 
                     if (storedToken.equals(token)) {
-                        String apiUrl = "/api/v1/notifications";
+                        //create pagination parameters
+                        Pageable pageable = PageRequest.of(0, limit);
 
-                        //below are query params to filter the notifications
-                        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromPath(apiUrl)
-                                .queryParam("max_id", max_id)
-                                .queryParam("since_id", since_id)
-                                .queryParam("min_id", min_id)
-                                .queryParam("limit", limit)
-                                .queryParam("types", types)
-                                .queryParam("exclude_types", exclude_types)
-                                .queryParam("account_id", account_id);
+                        //build the query based on parameters
+                        Query query = new Query();
+                        query.with(pageable);
 
-                        return webClient.get()
-                                .uri(uriBuilder.build().toUri())
-                                .header(HttpHeaders.AUTHORIZATION, authorization)
-                                .retrieve()
-                                .toEntityList(Notification.class)
-                                .flatMap(response -> {
-                                    HttpHeaders headers = response.getHeaders();
-                                    HttpStatus statusCode = (HttpStatus) response.getStatusCode();
-                                    List<Notification> notifications = response.getBody();
+                        if (max_id != null) {
+                            query.addCriteria(Criteria.where("id").lt(max_id));
+                        }
 
-                                    if (statusCode.is2xxSuccessful() && notifications != null) {
-                                        //add link headers for pagination!! so users can navigate thru multiple pages of notifs
-                                        headers.add(HttpHeaders.LINK, createLinkHeader(headers, apiUrl, limit, notifications.size(), max_id, since_id));
+                        if (since_id != null) {
+                            query.addCriteria(Criteria.where("id").gt(since_id));
+                        }
+
+                        if (min_id != null) {
+                            query.addCriteria(Criteria.where("id").gt(min_id));
+                        }
+
+                        //execute the query using reactiveMongoTemplate
+                        return reactiveMongoTemplate.find(query, Notification.class)
+                                .collectList()
+                                .flatMap(notifications -> {
+                                    if (!notifications.isEmpty()) {
+                                        HttpHeaders headers = new HttpHeaders();
+                                        HttpStatus statusCode = HttpStatus.OK;
+
+                                        //add link headers for pagination!! so users can navigate through multiple pages of notifications
+                                        String nextLink = createNextLink(notifications, limit, max_id);
+                                        String prevLink = createPrevLink(notifications, limit, since_id);
+
+                                        if (nextLink != null) {
+                                            headers.add(HttpHeaders.LINK, nextLink);
+                                        }
+
+                                        if (prevLink != null) {
+                                            headers.add(HttpHeaders.LINK, prevLink);
+                                        }
 
                                         return Mono.just(ResponseEntity.ok().headers(headers).body(notifications));
                                     } else {
-                                        return Mono.just(ResponseEntity.status(statusCode).headers(headers).build());
+                                        return Mono.just(ResponseEntity.status(HttpStatus.NO_CONTENT).build());
                                     }
                                 });
                     } else {
@@ -97,51 +123,35 @@ public class NotificationsController {
         return null;
     }
 
-    private String createLinkHeader(HttpHeaders headers, String apiUrl, int limit, int resultCount, String maxId, String sinceId) {
-        StringBuilder linkHeader = new StringBuilder();
-
-        String baseLink = "<" + apiUrl + "?limit=" + limit;
-
-        if (maxId != null) {
-            linkHeader.append(baseLink).append("&max_id=").append(maxId).append(">; rel=\"next\", ");
+    private String createNextLink(List<Notification> notifications, int limit, String max_id) {
+        if (notifications.size() == limit) {
+            String nextMaxId = notifications.get(notifications.size() - 1).id();
+            return createLink(limit, "next", nextMaxId, null);
         }
-
-        if (sinceId != null) {
-            linkHeader.append(baseLink).append("&since_id=").append(sinceId).append(">; rel=\"prev\", ");
-        }
-
-        linkHeader.append(baseLink).append(">; rel=\"first\"");
-
-        //add link to the next page if the current page is full
-        if (resultCount == limit) {
-            String nextPageLink = baseLink + "&max_id=" + (maxId != null ? maxId : "") + ">; rel=\"next\"";
-            linkHeader.append(", ").append(nextPageLink);
-        }
-
-        return linkHeader.toString();
+        return null;
     }
 
-    public record Notification(
-            String id,
-            String type,
-            String created_at,
-            Account account,
-            Status status,
-            Report report
-    ) {
-        public record Account(
-                String id,
-                String username,
-                String acct
-        ) {}
+    private String createPrevLink(List<Notification> notifications, int limit, String since_id) {
+        if (notifications.size() == limit && since_id != null) {
+            String prevSinceId = notifications.get(0).id();
+            return createLink(limit, "prev", null, prevSinceId);
+        }
+        return null;
+    }
 
-        public record Status(
-                String id,
-                String created_at,
-                String in_reply_to_id,
-                String in_reply_to_account_id
-        ) {}
-        public record Report(
-        ) {}
+    private String createLink(int limit, String rel, String max_id, String since_id) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromPath("/api/v1/notifications")
+                .queryParam("limit", limit);
+
+        if (max_id != null) {
+            uriBuilder.queryParam("max_id", max_id);
+        }
+
+        if (since_id != null) {
+            uriBuilder.queryParam("since_id", since_id);
+        }
+
+        String link = "<" + uriBuilder.build().toUriString() + ">; rel=\"" + rel + "\"";
+        return link;
     }
 }
