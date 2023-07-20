@@ -12,7 +12,7 @@ import java.util.ResourceBundle;
 
 @Configuration
 public class i18nController {
-    //from baeldung
+    //from baeldung https://www.baeldung.com/java-localize-exception-messages
     public static String getExceptionMessage(String key, Locale locale) {
         return ResourceBundle.getBundle("messages", locale).getString(key);
     }
@@ -52,5 +52,4 @@ public class i18nController {
         springTemplateEngine.setTemplateResolver(templateResolver());
         return springTemplateEngine;
     }
-
 }

@@ -11,6 +11,7 @@ import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.server.util.Util.TTLHashMap;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +29,6 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -162,11 +162,10 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize(@RequestHeader("Accept-Language") String acceptLanguage) {
+    public String getOauthAuthorize() {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
-        // request packet.
-        Locale userLocale = Locale.forLanguageTag(acceptLanguage);
-        Context context = new Context(userLocale);
+        // request packet. resolved via the WebFilterChain.
+        Context context = new Context(LocaleContextHolder.getLocale());
         return templateEngine.process("authorize", context);
     }
 
@@ -187,8 +186,7 @@ public class AppController {
 
     // implemented according to https://docs.joinmastodon.org/methods/oauth/#token
     @PostMapping("/oauth/token")
-    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req,
-                                                @RequestHeader("Accept-Language") String acceptLanguage) {
+    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
         var registration = registrations.get(req.client_id);
         String scopes;
         String name = "";
@@ -198,7 +196,7 @@ public class AppController {
         } else {
             if (!registration.registration.client_secret.equals(req.client_secret)) {
                 throw new RuntimeException(
-                        getExceptionMessage("clientSecretException", Locale.forLanguageTag(acceptLanguage)));
+                        getExceptionMessage("clientSecretException", LocaleContextHolder.getLocale()));
             }
             scopes = registration.scopes;
             name = registration.registration.name;
