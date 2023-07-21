@@ -125,7 +125,7 @@ public class NotificationsController {
 
     private String createNextLink(List<Notification> notifications, int limit, String max_id) {
         if (notifications.size() == limit) {
-            String nextMaxId = notifications.get(notifications.size() - 1).id();
+            String nextMaxId = notifications.get(notifications.size() - 1).getId();
             return createLink(limit, "next", nextMaxId, null);
         }
         return null;
@@ -133,7 +133,7 @@ public class NotificationsController {
 
     private String createPrevLink(List<Notification> notifications, int limit, String since_id) {
         if (notifications.size() == limit && since_id != null) {
-            String prevSinceId = notifications.get(0).id();
+            String prevSinceId = notifications.get(0).getId();
             return createLink(limit, "prev", null, prevSinceId);
         }
         return null;
