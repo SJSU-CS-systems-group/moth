@@ -1,5 +1,8 @@
 package edu.sjsu.moth.server.db;
 
+import com.querydsl.core.annotations.QueryEntity;
+
+@QueryEntity
 public class StatusTag {
 
     public String name;
@@ -9,4 +12,6 @@ public class StatusTag {
         this.name = name;
         this.url = url;
     }
+
+    public StatusTag() {}
 }

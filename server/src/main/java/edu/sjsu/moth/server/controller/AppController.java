@@ -11,6 +11,7 @@ import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.server.util.Util.TTLHashMap;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +20,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.spring5.SpringTemplateEngine;
 import reactor.core.publisher.Mono;
 
-import java.io.IOException;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -32,6 +34,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
+
+import static edu.sjsu.moth.server.controller.i18nController.getExceptionMessage;
 
 /**
  * This code handles first contact and oauth outh with the client.
@@ -76,6 +80,9 @@ public class AppController {
     TTLHashMap<String, AppRegistrationEntry> registrations = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     TokenRepository tokenRepository;
+    // required for i18n
+    @Autowired
+    private SpringTemplateEngine templateEngine;
 
     /**
      * base64 URL encode a nonce of byteCount random bytes.
@@ -110,6 +117,13 @@ public class AppController {
                 .then(accountService.createAccount(request.username, request.password))
                 .then(generateAccessToken(request.username, appName, appWebsite))
                 .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
+    }
+
+    @GetMapping("/api/v1/accounts/lookup")
+    public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String username) {
+        return accountService.getAccount(username)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/api/v1/emails/confirmations")
@@ -155,16 +169,13 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
-                             @RequestParam(required = false, defaultValue = "") String error) throws IOException {
-        try (var is = AppController.class.getResourceAsStream("/static/oauth/authorize.html")) {
-            var authorizePage = new String(is.readAllBytes());
-            authorizePage = authorizePage.replace("client_id_value", client_id);
-            authorizePage = authorizePage.replace("redirect_uri_value", redirect_uri);
-            authorizePage = authorizePage.replace("authorize_error", error);
-            //noinspection ReassignedVariable
-            return authorizePage;
-        }
+    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri) {
+        // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
+        // request packet. resolved via the WebFilterChain.
+        Context context = new Context(LocaleContextHolder.getLocale());
+        context.setVariable("clientId", client_id);
+        context.setVariable("redirectUri", redirect_uri);
+        return templateEngine.process("authorize", context);
     }
 
     @GetMapping("/oauth/login")
@@ -193,7 +204,8 @@ public class AppController {
             scopes = req.scope;
         } else {
             if (!registration.registration.client_secret.equals(req.client_secret)) {
-                throw new RuntimeException("bad client_secret");
+                throw new RuntimeException(
+                        getExceptionMessage("clientSecretException", LocaleContextHolder.getLocale()));
             }
             scopes = registration.scopes;
             name = registration.registration.name;

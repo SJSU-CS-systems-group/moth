@@ -37,6 +37,22 @@ public class MothCommandLine implements Runnable {
     public void run() {
         final var prefix = "spring.";
         try {
+            if(verification){
+                File f = new File(configFile.toURI());
+                if(f.isFile()) {
+
+                    FileInputStream fileInputStream = new FileInputStream(f);
+                    properties.load(fileInputStream);
+                    System.out.println("VERIFIED");
+
+                    System.exit(1);
+                }
+                else
+                {
+                    System.out.println("File not found, Please input proper configuration file");
+                    System.exit(1);
+                }
+            }
             MothConfiguration config;
             config = new MothConfiguration(configFile);
             if(verification){

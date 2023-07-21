@@ -1,6 +1,6 @@
 package edu.sjsu.moth.server.controller;
 
-import edu.sjsu.moth.server.db.CustomEmoji;
+import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.server.db.CustomEmojiRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
