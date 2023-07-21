@@ -1,9 +1,11 @@
 package edu.sjsu.moth.server.controller;
 
+import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -18,7 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class StatusController {
@@ -27,6 +31,14 @@ public class StatusController {
 
     @Autowired
     AccountService accountService;
+
+    @Autowired
+    MediaService mediaService;
+
+    @GetMapping("/api/v1/statuses/{id}/context")
+    ResponseEntity<Object> getApiV1StatusContext(@PathVariable String id) {
+        return ResponseEntity.ok(Map.of("ancestors", List.of(), "descendants", List.of()));
+    }
 
     // defined in https://docs.joinmastodon.org/methods/statuses/
     // in that reference it looks like parameters come as form parameters, but in practice they
@@ -56,12 +68,17 @@ public class StatusController {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMap(acct -> {
+                    var mediaAttachments = new ArrayList<MediaAttachment>();
+                    for (var id : body.media_ids) {
+                        var attachment = mediaService.lookupCachedAttachment(id);
+                        if (attachment != null) mediaAttachments.add(attachment);
+                    }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
                     var status = new Status(null, Util.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, List.of(), List.of(), List.of(), List.of(), null, null,
-                                            body.status, Util.now());
+                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
+                                            null, body.status, Util.now());
                     return statusRepository.save(status).map(ResponseEntity::ok);
                 });
     }
