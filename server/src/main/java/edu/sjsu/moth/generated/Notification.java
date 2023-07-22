@@ -28,7 +28,7 @@ public class Notification {
     @JsonProperty("created_at")
     public String createdAt;
     @JsonProperty("account")
-    public Account account;
+    public NotificationAccount notificationAccount;
     @JsonProperty("status")
     public Status status;
     @JsonProperty("report")
@@ -41,12 +41,12 @@ public class Notification {
     public Notification() {
     }
 
-    public Notification(String id, String type, String createdAt, Account account, Status status, Report report) {
+    public Notification(String id, String type, String createdAt, NotificationAccount notificationAccount, Status status, Report report) {
         super();
         this.id = id;
         this.type = type;
         this.createdAt = createdAt;
-        this.account = account;
+        this.notificationAccount = notificationAccount;
         this.status = status;
         this.report = report;
     }
@@ -69,7 +69,7 @@ public class Notification {
         sb.append(',');
         sb.append("account");
         sb.append('=');
-        sb.append(((this.account == null)?"<null>":this.account));
+        sb.append(((this.notificationAccount == null)?"<null>":this.notificationAccount));
         sb.append(',');
         sb.append("status");
         sb.append('=');
@@ -94,7 +94,7 @@ public class Notification {
         result = ((result* 31)+((this.report == null)? 0 :this.report.hashCode()));
         result = ((result* 31)+((this.id == null)? 0 :this.id.hashCode()));
         result = ((result* 31)+((this.type == null)? 0 :this.type.hashCode()));
-        result = ((result* 31)+((this.account == null)? 0 :this.account.hashCode()));
+        result = ((result* 31)+((this.notificationAccount == null)? 0 :this.notificationAccount.hashCode()));
         result = ((result* 31)+((this.status == null)? 0 :this.status.hashCode()));
         return result;
     }
@@ -108,7 +108,7 @@ public class Notification {
             return false;
         }
         Notification rhs = ((Notification) other);
-        return (((((((this.createdAt == rhs.createdAt)||((this.createdAt!= null)&&this.createdAt.equals(rhs.createdAt)))&&((this.report == rhs.report)||((this.report!= null)&&this.report.equals(rhs.report))))&&((this.id == rhs.id)||((this.id!= null)&&this.id.equals(rhs.id))))&&((this.type == rhs.type)||((this.type!= null)&&this.type.equals(rhs.type))))&&((this.account == rhs.account)||((this.account!= null)&&this.account.equals(rhs.account))))&&((this.status == rhs.status)||((this.status!= null)&&this.status.equals(rhs.status))));
+        return (((((((this.createdAt == rhs.createdAt)||((this.createdAt!= null)&&this.createdAt.equals(rhs.createdAt)))&&((this.report == rhs.report)||((this.report!= null)&&this.report.equals(rhs.report))))&&((this.id == rhs.id)||((this.id!= null)&&this.id.equals(rhs.id))))&&((this.type == rhs.type)||((this.type!= null)&&this.type.equals(rhs.type))))&&((this.notificationAccount == rhs.notificationAccount)||((this.notificationAccount != null)&&this.notificationAccount.equals(rhs.notificationAccount))))&&((this.status == rhs.status)||((this.status!= null)&&this.status.equals(rhs.status))));
     }
 
     public String getId() {
