@@ -11,6 +11,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,8 +25,6 @@ import reactor.core.publisher.Mono;
 import java.security.Principal;
 import java.util.List;
 
-// sources: https://docs.joinmastodon.org/methods/notifications/#get
-// https://docs.joinmastodon.org/entities/Notification/
 @RestController
 public class NotificationsController {
 
@@ -57,16 +57,18 @@ public class NotificationsController {
     ) {
         String username = principal.getName();
 
-        //extract token from authorization header
-        String token = extractToken(authorization);
+        //directly get token from principal
+        String token = extractTokenFromPrincipal(principal);
 
         return tokenRepository.findItemByUser(username)
                 .flatMap(tokenEntity -> {
                     String storedToken = tokenEntity.getToken();
 
                     if (storedToken.equals(token)) {
+                        //so limit does not exceed 30
+                        int effectiveLimit = Math.min(limit, 30);
                         //create pagination parameters
-                        Pageable pageable = PageRequest.of(0, limit);
+                        Pageable pageable = PageRequest.of(0, effectiveLimit);
 
                         //build the query based on parameters
                         Query query = new Query();
@@ -116,9 +118,13 @@ public class NotificationsController {
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
     }
 
-    private String extractToken(String authorizationHeader) {
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            return authorizationHeader.substring(7);
+    private String extractTokenFromPrincipal(Principal principal) {
+        if (principal instanceof Authentication) {
+            Authentication authentication = (Authentication) principal;
+            Object credentials = authentication.getCredentials();
+            if (credentials instanceof OAuth2AccessToken) {
+                return ((OAuth2AccessToken) credentials).getTokenValue();
+            }
         }
         return null;
     }
