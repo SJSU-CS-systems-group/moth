@@ -15,6 +15,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -158,6 +159,14 @@ public class AppController {
         } else {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
+    }
+
+    // spec: https://docs.joinmastodon.org/methods/accounts/#get
+    // TODO at this point only local is implemented and no user checking is done.
+    @GetMapping("/api/v1/accounts/{id}")
+    public Mono<ResponseEntity<Account>> getApiV1AccountsById(Principal user, @PathVariable String id) {
+        // it's not clear what we need to do with the user...
+        return accountService.getAccount(id).map(ResponseEntity::ok);
     }
 
     private CredentialAccount convertAccount2CredentialAccount(Account a) {
