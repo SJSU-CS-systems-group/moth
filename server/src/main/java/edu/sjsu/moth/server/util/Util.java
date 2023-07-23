@@ -9,11 +9,13 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,6 +33,11 @@ public class Util {
     private final static Pbkdf2PasswordEncoder PASSWORD_ENCODER = new Pbkdf2PasswordEncoder("frog", 13, 10_000,
                                                                                             Pbkdf2PasswordEncoder.SecretKeyFactoryAlgorithm.PBKDF2WithHmacSHA256);
     public static ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    // defining a new epoch gets a few decades of bits back!
+    public static long NEW_EPOCH = new Calendar.Builder().setDate(2023, 1, 1)
+            .setTimeZone(TimeZone.getTimeZone("UTC"))
+            .build()
+            .getTimeInMillis();
 
     static {
         PASSWORD_ENCODER.setEncodeHashAsBase64(true);
@@ -88,6 +95,32 @@ public class Util {
         }
     }
 
+    public static long generateUniqueId() {
+        return Uniquifier.generateId();
+    }
+
+    /**
+     * Uniquifier is in its own class since we are sychronizing on the class, so we want to isolate the
+     * synchronization to just this logic.
+     */
+    private static class Uniquifier {
+        // this is a counter that will increment to generate unique ids. note, we are assuming that there will be
+        // less than
+        // 256 unique ids generated per second
+        private static int uniquifier = 0;
+        private static long lastTime = 0;
+
+        public static synchronized long generateId() {
+            var time = (System.currentTimeMillis() - NEW_EPOCH) << 16;
+            // we are going to reserve the lower 8 bits for parallel servers
+            var id = time + uniquifier << 8;
+            uniquifier = time != lastTime || uniquifier == 256 ? 0 : uniquifier + 1;
+            lastTime = time;
+            return id;
+        }
+
+    }
+
     /**
      * a lazy hashmap with approximate TTL. keys added to the hashmap will "expire" (get removed) after a specific
      * amount of time has passed (the TTL). TTL processing is done periodically based on the TTL. the expiration
@@ -126,4 +159,5 @@ public class Util {
             };
         }
     }
+
 }

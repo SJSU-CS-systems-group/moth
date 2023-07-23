@@ -1,9 +1,12 @@
 package edu.sjsu.moth.server.controller;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
+import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -14,11 +17,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class StatusController {
@@ -27,6 +33,14 @@ public class StatusController {
 
     @Autowired
     AccountService accountService;
+
+    @Autowired
+    MediaService mediaService;
+
+    @GetMapping("/api/v1/statuses/{id}/context")
+    ResponseEntity<Object> getApiV1StatusContext(@PathVariable String id) {
+        return ResponseEntity.ok(Map.of("ancestors", List.of(), "descendants", List.of()));
+    }
 
     // defined in https://docs.joinmastodon.org/methods/statuses/
     // in that reference it looks like parameters come as form parameters, but in practice they
@@ -56,14 +70,36 @@ public class StatusController {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMap(acct -> {
+                    var mediaAttachments = new ArrayList<MediaAttachment>();
+                    for (var id : body.media_ids) {
+                        var attachment = mediaService.lookupCachedAttachment(id);
+                        if (attachment != null) mediaAttachments.add(attachment);
+                    }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
                     var status = new Status(null, Util.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, List.of(), List.of(), List.of(), List.of(), null, null,
-                                            body.status, Util.now());
+                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
+                                            null, body.status, Util.now());
                     return statusRepository.save(status).map(ResponseEntity::ok);
                 });
+    }
+
+    // spec: https://docs.joinmastodon.org/methods/timelines/#home
+    // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
+    @GetMapping("/api/v1/timelines/home")
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(@RequestParam(required = false) String max_id,
+                                                             @RequestParam(required = false) String since_id,
+                                                             @RequestParam(required = false) String min_id,
+                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+        // TODO: this is an intial hacked implementation. dumps all the statuses
+        var qStatus = new QStatus("start");
+        var predicate = qStatus.content.isNotNull();
+        predicate = addRangeQueries(predicate, max_id, since_id, max_id);
+        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .take(limit)
+                .collectList()
+                .map(ResponseEntity::ok);
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses
@@ -82,10 +118,7 @@ public class StatusController {
         return accountService.getAccountById(id).map(acct -> acct.username).flatMapMany(u -> {
             var acct = new QStatus("account.acct");
             var predicate = acct.account.acct.eq(u);
-            if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
-            if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
-            // this isn't right. i'm not sure how to express close
-            if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
+            predicate = addRangeQueries(predicate, max_id, since_id, min_id);
             if (only_media != null && only_media)
                 predicate = predicate.and(new QStatus("media").mediaAttachments.isNotEmpty());
             if (exclude_replies != null && exclude_replies)
@@ -100,6 +133,14 @@ public class StatusController {
             int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
             return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count);
         }).collectList().map(ResponseEntity::ok);
+    }
+
+    BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id, String min_id) {
+        if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
+        if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
+        // this isn't right. i'm not sure how to express close
+        if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
+        return predicate;
     }
 
     public static class V1PostStatus {
