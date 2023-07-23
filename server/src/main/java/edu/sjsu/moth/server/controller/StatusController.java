@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server.controller;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -83,6 +85,23 @@ public class StatusController {
                 });
     }
 
+    // spec: https://docs.joinmastodon.org/methods/timelines/#home
+    // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
+    @GetMapping("/api/v1/timelines/home")
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(@RequestParam(required = false) String max_id,
+                                                             @RequestParam(required = false) String since_id,
+                                                             @RequestParam(required = false) String min_id,
+                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+        // TODO: this is an intial hacked implementation. dumps all the statuses
+        var qStatus = new QStatus("start");
+        var predicate = qStatus.content.isNotNull();
+        predicate = addRangeQueries(predicate, max_id, since_id, max_id);
+        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .take(limit)
+                .collectList()
+                .map(ResponseEntity::ok);
+    }
+
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses
     @GetMapping("/api/v1/accounts/{id}/statuses")
     Mono<ResponseEntity<List<Status>>> getApiV1AccountsStatuses(@PathVariable String id,
@@ -99,10 +118,7 @@ public class StatusController {
         return accountService.getAccountById(id).map(acct -> acct.username).flatMapMany(u -> {
             var acct = new QStatus("account.acct");
             var predicate = acct.account.acct.eq(u);
-            if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
-            if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
-            // this isn't right. i'm not sure how to express close
-            if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
+            predicate = addRangeQueries(predicate, max_id, since_id, min_id);
             if (only_media != null && only_media)
                 predicate = predicate.and(new QStatus("media").mediaAttachments.isNotEmpty());
             if (exclude_replies != null && exclude_replies)
@@ -117,6 +133,14 @@ public class StatusController {
             int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
             return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count);
         }).collectList().map(ResponseEntity::ok);
+    }
+
+    BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id, String min_id) {
+        if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
+        if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
+        // this isn't right. i'm not sure how to express close
+        if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
+        return predicate;
     }
 
     public static class V1PostStatus {
