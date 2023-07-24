@@ -37,8 +37,8 @@ public class ContentSecurityPolicyConfiguration {
 
     @Bean
     public SecurityWebFilterChain filterChain(ServerHttpSecurity http) {
-        http.csrf().disable();
-        http.oauth2ResourceServer().opaqueToken().introspector(this::introspect);
+        http.csrf(ServerHttpSecurity.CsrfSpec::disable);
+        http.oauth2ResourceServer(rsSpec -> rsSpec.opaqueToken(otSpec -> otSpec.introspector(this::introspect)));
         http.addFilterBefore(localeChangeFilter(), SecurityWebFiltersOrder.FIRST);
         return http.build();
     }
