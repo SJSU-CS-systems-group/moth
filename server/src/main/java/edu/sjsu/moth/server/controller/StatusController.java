@@ -1,15 +1,12 @@
 package edu.sjsu.moth.server.controller;
 
-import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.MediaAttachment;
-import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
-import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
+import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -29,7 +26,7 @@ import java.util.Map;
 @RestController
 public class StatusController {
     @Autowired
-    StatusRepository statusRepository;
+    StatusService statusService;
 
     @Autowired
     AccountService accountService;
@@ -71,7 +68,7 @@ public class StatusController {
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
-                    for (var id : body.media_ids) {
+                    if (body.media_ids != null) for (var id : body.media_ids) {
                         var attachment = mediaService.lookupCachedAttachment(id);
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
@@ -81,25 +78,20 @@ public class StatusController {
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
                                             null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
                                             null, body.status, Util.now());
-                    return statusRepository.save(status).map(ResponseEntity::ok);
+                    return statusService.save(status).map(ResponseEntity::ok);
                 });
     }
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
     // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
     @GetMapping("/api/v1/timelines/home")
-    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(@RequestParam(required = false) String max_id,
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(Principal user,
+                                                             @RequestParam(required = false) String max_id,
                                                              @RequestParam(required = false) String since_id,
                                                              @RequestParam(required = false) String min_id,
                                                              @RequestParam(required = false, defaultValue = "20") int limit) {
-        // TODO: this is an intial hacked implementation. dumps all the statuses
-        var qStatus = new QStatus("start");
-        var predicate = qStatus.content.isNotNull();
-        predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .take(limit)
-                .collectList()
-                .map(ResponseEntity::ok);
+
+        return statusService.getTimeline(user, max_id, since_id, min_id, limit).map(ResponseEntity::ok);
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses
@@ -115,32 +107,11 @@ public class StatusController {
             /* Boolean. Filter for pinned statuses only. Defaults to false, which includes all statuses. Pinned
             statuses do not receive special priority in the order of the returned results. */ Boolean pinned,
             /* String. Filter for statuses using a specific hashtag */ String tagged) {
-        return accountService.getAccountById(id).map(acct -> acct.username).flatMapMany(u -> {
-            var acct = new QStatus("account.acct");
-            var predicate = acct.account.acct.eq(u);
-            predicate = addRangeQueries(predicate, max_id, since_id, min_id);
-            if (only_media != null && only_media)
-                predicate = predicate.and(new QStatus("media").mediaAttachments.isNotEmpty());
-            if (exclude_replies != null && exclude_replies)
-                predicate = predicate.and(new QStatus("reply").inReplyToId.isNull());
-            if (exclude_reblogs != null && exclude_reblogs)
-                predicate = predicate.and(new QStatus("reblog").reblog.isNull());
-            // TODO: how to tell if it is pinned?
-            // if (pinned) predicate = predicate.and(new QStatus("pinned")..isNull());
-            if (tagged != null) predicate = predicate.and(new QStatus("tagged").tags.any().name.eq(tagged));
-
-            // now apply the limit
-            int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
-            return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count);
-        }).collectList().map(ResponseEntity::ok);
-    }
-
-    BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id, String min_id) {
-        if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
-        if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
-        // this isn't right. i'm not sure how to express close
-        if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
-        return predicate;
+        return accountService.getAccountById(id)
+                .flatMap(acct -> statusService.getStatusesForId(acct.username, max_id, since_id, min_id, only_media,
+                                                                exclude_replies, exclude_reblogs, pinned, tagged,
+                                                                limit))
+                .map(ResponseEntity::ok);
     }
 
     public static class V1PostStatus {
