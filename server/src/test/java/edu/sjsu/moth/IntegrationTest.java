@@ -67,7 +67,7 @@ public class IntegrationTest {
                 .processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
                 .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT)))
                 .build()
-                .start(Version.Main.PRODUCTION);
+                .start(Version.Main.V6_0);
         System.setProperty("spring.data.mongodb.port", Integer.toString(RAND_MONGO_PORT));
     }
 
