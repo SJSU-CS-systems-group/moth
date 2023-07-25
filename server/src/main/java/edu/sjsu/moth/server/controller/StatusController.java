@@ -71,7 +71,7 @@ public class StatusController {
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
-                    for (var id : body.media_ids) {
+                    if (body.media_ids != null) for (var id : body.media_ids) {
                         var attachment = mediaService.lookupCachedAttachment(id);
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
