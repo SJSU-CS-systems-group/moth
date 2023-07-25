@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
+
 @Controller
 public class TestAccountController {
 
@@ -69,7 +71,7 @@ public class TestAccountController {
     public Mono<ResponseEntity<String>> addAccount(@RequestParam String id, @RequestParam String username,
                                                    @RequestParam String acct, @RequestParam String url) {
         return accountRepository.save(
-                        new Account(id, username, acct, url, "", "", "", "", "", "", false, new AccountField[0],
+                        new Account(id, username, acct, url, "", "", "", "", "", "", false, new ArrayList<AccountField>(),
                                     new CustomEmoji[0], false, false, false, false, false, false, false, "", "", 0, 0
                                 , 0))
                 .thenReturn(ResponseEntity.ok("Added: " + id + " " + username + acct + url));
