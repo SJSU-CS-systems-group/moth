@@ -81,36 +81,4 @@ public class Account {
              Util.now(), 0, 0, 0);
     }
 
-    public void setNote(String note) {
-        this.note = note;
-    }
-
-    public void setDisplayName(String display_name) {
-        this.display_name = display_name;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
-    }
-
-    public void setHeader(String header) {
-        this.header = header;
-    }
-
-    public void setLocked(boolean locked) {
-        this.locked = locked;
-    }
-
-    public void setBot(boolean bot) {
-        this.bot = bot;
-    }
-
-    public void setDiscoverable(boolean discoverable) {
-        this.discoverable = discoverable;
-    }
-
-    public void setFields(List<AccountField> fields) {
-        this.fields.addAll(fields);
-    }
-
 }

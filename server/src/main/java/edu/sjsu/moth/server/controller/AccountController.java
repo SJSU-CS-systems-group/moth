@@ -20,16 +20,11 @@ import java.util.List;
 @RestController
 public class AccountController {
 
-    private final AccountRepository accountRepository;
-
+    @Autowired
     private final AccountService accountService;
 
-    // username
-    // blocking?
-    // set method for fields
-    @Autowired
-    public AccountController(AccountRepository accountRepository, AccountService accountService) {
-        this.accountRepository = accountRepository;
+
+    public AccountController(AccountService accountService) {
         this.accountService = accountService;
     }
 
@@ -44,43 +39,39 @@ public class AccountController {
                                                            @RequestPart(required = false) Boolean discoverable,
                                                            @RequestPart(required = false) List<AccountField> fields_attribute) {
 
-        //String username =
 
         return accountService.getAccountById(user.getName()).flatMap(a -> {
-            System.out.println("before" + a.note);
-
             if (display_name != null) {
-                a.setDisplayName(display_name);
+                a.display_name = display_name;
             }
 
             if (note != null) {
-                a.setNote(note);
+                a.note = note;
             }
 
             if (header != null) {
-                a.setHeader(header);
+                a.header = header;
             }
 
             if (avatar != null) {
-                a.setAvatar(avatar);
+                a.avatar = avatar;
             }
 
             if (fields_attribute != null) {
-                a.setFields(fields_attribute);
+                a.fields = fields_attribute;
             }
             if (locked != null) {
-                a.setLocked(locked);
+                a.locked = locked;
             }
 
             if (bot != null) {
-                a.setBot(bot);
+                a.bot = bot;
             }
 
             if (discoverable != null) {
-                a.setDiscoverable(discoverable);
+                a.discoverable = discoverable;
             }
 
-            System.out.println("After" + a.note);
             return accountService.updateAccount(a);
 
         }).map(ResponseEntity::ok);
