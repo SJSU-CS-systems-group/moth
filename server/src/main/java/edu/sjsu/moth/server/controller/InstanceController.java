@@ -14,17 +14,22 @@ import java.util.List;
 
 @RestController
 public class InstanceController {
-    private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
-    private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
-    private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
-    private static final Statuses STATUSES = new Statuses(500, 4, 23);
-    private static final MediaAttachments MEDIA_ATTACHMENTSV1 = new MediaAttachments(
+    public static final int MEG = 1024 * 1024;
+    public static final int IMAGE_SIZE_LIMIT = 10 * MEG;
+    public static final int VIDEO_SIZE_LIMIT = 40 * MEG;
+    public static final int IMAGE_MATRIX_LIMIT = 16777214;
+    public static final int VIDEO_MATRIX_LIMIT = 2304000;
+    public static final MediaAttachments MEDIA_ATTACHMENTSV1 = new MediaAttachments(
             new String[] { "image/jpeg", "image/png", "image/gif", "image/webp", "video/webm", "video/mp4",
                     "video" + "/quicktime", "video/ogg", "audio/wave", "audio/wav", "audio/x-wav", "audio/x-pn-wave",
                     "audio" + "/vnd.wave", "audio/ogg", "audio/vorbis", "audio/mpeg", "audio/mp3", "audio/webm",
                     "audio/flac", "audio/aac", "audio/m4a", "audio/x-m4a", "audio/mp4", "audio/3gpp", "video/x-ms-asf"
             },
-            10485760, 16777216, 41943040, 60, 2304000);
+            IMAGE_SIZE_LIMIT, IMAGE_MATRIX_LIMIT, VIDEO_SIZE_LIMIT, 60, VIDEO_MATRIX_LIMIT);
+    private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
+    private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
+    private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
+    private static final Statuses STATUSES = new Statuses(500, 4, 23);
     private static final Polls POLLS = new Polls(4, 50, 5 * 60, 7 * 24 * 60 * 60);
     private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSES, MEDIA_ATTACHMENTSV1, POLLS);
     private static final Accounts ACCOUNTS = new Accounts(10);
