@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,8 +31,10 @@ public class NotificationsController {
     }
 
     //NotificationWithUser class that extends Notification to include user info
+    @Document(collection = "notificationwithuser")
     public static class NotificationWithUser extends Notification {
     }
+
 
     @GetMapping("/api/v1/notifications")
     public Mono<ResponseEntity<List<NotificationWithUser>>> getAllNotifications(
@@ -80,6 +83,8 @@ public class NotificationsController {
                     //link headers for pagination
                     String nextLink = createNextLink(notifications, limit, max_id);
                     String prevLink = createPrevLink(notifications, limit, since_id);
+
+                    System.out.println("notifications size: " + notifications.size());
 
                     if (nextLink != null) {
                         headers.add(HttpHeaders.LINK, nextLink);

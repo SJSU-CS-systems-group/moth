@@ -10,10 +10,11 @@ package edu.sjsu.moth.generated;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import edu.sjsu.moth.server.db.Account;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
-    "id",
+    "id_",
     "type",
     "created_at",
     "account",
@@ -22,14 +23,14 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 })
 public class Notification {
 
-    @JsonProperty("id")
+    @JsonProperty("id_")
     public String id;
     @JsonProperty("type")
     public String type;
     @JsonProperty("created_at")
     public String createdAt;
     @JsonProperty("account")
-    public CredentialAccount notificationAccount;
+    public Account notificationAccount;
     @JsonProperty("status")
     public Status status;
     @JsonProperty("report")
@@ -42,7 +43,7 @@ public class Notification {
     public Notification() {
     }
 
-    public Notification(String id, String type, String createdAt, CredentialAccount notificationAccount, Status status, Report report) {
+    public Notification(String id, String type, String createdAt, Account notificationAccount, Status status, Report report) {
         super();
         this.id = id;
         this.type = type;

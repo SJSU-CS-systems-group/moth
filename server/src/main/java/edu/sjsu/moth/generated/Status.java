@@ -139,12 +139,12 @@ public class Status {
 
     @JsonProperty("uri")
     public String getUri() {
-        return MothController.BASE_URL + "/users/" + account.acct + "/statuses/" + id;
+        return MothController.BASE_URL + "/users/" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
 
     @JsonProperty("url")
     public String getUrl() {
-        return MothController.BASE_URL + "/@" + account.acct + "/statuses/" + id;
+        return MothController.BASE_URL + "/@" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
 
     @Override
