@@ -126,7 +126,7 @@ public class AppController {
         System.out.println(acct);
         return accountService.getAccount(acct)
                 .map(ResponseEntity::ok)
-                .switchIfEmpty(Mono.fromRunnable(Mono::empty));
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/api/v1/emails/confirmations")
