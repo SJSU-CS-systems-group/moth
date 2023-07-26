@@ -1,9 +1,9 @@
 package edu.sjsu.moth.server.db;
 
 public class AccountField {
-    private String name;
-    private String value;
-    private String verified_at;
+    public String name;
+    public String value;
+    public String verified_at;
 
     public AccountField(String name, String value, String verified_at) {
         this.name = name;
