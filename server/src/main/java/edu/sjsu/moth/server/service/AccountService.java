@@ -13,6 +13,7 @@ import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.WebFingerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Mono;
 
 import javax.naming.AuthenticationException;
@@ -69,4 +70,7 @@ public class AccountService {
         return mono;
     }
 
+    public Mono<Account> updateAccount(Account a) {
+        return accountRepository.save(a);
+    }
 }

@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @RestController
 public class InstanceController {
     public static final int MEG = 1024 * 1024;
@@ -102,13 +104,13 @@ public class InstanceController {
                             boolean discoverable, boolean group, String created_at, String note, String url,
                             String avatar, String avatar_static, String header, String header_static,
                             int followers_count, int following_count, int statuses_count, String last_status_at,
-                            boolean noindex, CustomEmoji[] emojis, AccountField[] fields) {}
+                            boolean noindex, CustomEmoji[] emojis, List<AccountField> fields) {}
 
     public record AccountV2(String id, String username, String acct, String display_name, boolean locked, boolean bot,
                             boolean discoverable, boolean group, String created_at, String note, String url,
                             String avatar, String avatar_static, String header, String header_static,
                             int followers_count, int following_count, int statuses_count, String last_status_at,
-                            boolean noindex, CustomEmoji[] emojis, AccountField[] fields) {}
+                            boolean noindex, CustomEmoji[] emojis, List<AccountField> fields) {}
 
     public record Usage(Users users) {}
 
