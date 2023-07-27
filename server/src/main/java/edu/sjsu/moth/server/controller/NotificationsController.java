@@ -84,8 +84,6 @@ public class NotificationsController {
                     String nextLink = createNextLink(notifications, limit, max_id);
                     String prevLink = createPrevLink(notifications, limit, since_id);
 
-                    System.out.println("notifications size: " + notifications.size());
-
                     if (nextLink != null) {
                         headers.add(HttpHeaders.LINK, nextLink);
                     }
