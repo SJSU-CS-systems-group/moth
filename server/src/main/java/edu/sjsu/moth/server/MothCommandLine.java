@@ -113,9 +113,9 @@ public class MothCommandLine implements Runnable {
                             public void onNext(Document document) {
                                 //System.out.println(document.toJson());
                                 if (document != null) {
-                                    System.out.println("Account exists in the collection: ");
+                                    System.out.println("Account exists in the collection ");
                                 } else {
-                                    System.out.println("Account does not exist in the collection: ");
+                                    System.out.println("Account does not exist in the collection ");
                                 }
                             }
 
