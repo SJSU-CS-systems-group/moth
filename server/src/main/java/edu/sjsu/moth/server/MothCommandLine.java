@@ -106,10 +106,7 @@ public class MothCommandLine implements Runnable {
                         documents.subscribe(new Subscriber<Document>() {
                             @Override
                             public void onSubscribe(Subscription subscription) {
-
                                 subscription.request(Long.MAX_VALUE);
-
-
                             }
 
                             @Override
@@ -140,11 +137,7 @@ public class MothCommandLine implements Runnable {
                         //Document document = new Document();
                         System.out.println("hello2");
                        latch.await();
-
                         System.out.println("hello3");
-
-
-
 
                     } else {
                         System.out.println("couldn't contact the database in 1 second");
@@ -154,8 +147,6 @@ public class MothCommandLine implements Runnable {
                         //  Block of code to try
                         InetAddress.getByName(config.getServerName());
                         System.out.println("VERIFIED");
-
-
                         System.exit(0);
                     } catch (UnknownHostException e) {
                         //  Block of code to handle errors
@@ -185,10 +176,6 @@ public class MothCommandLine implements Runnable {
             e.printStackTrace();
         }
     }
-
-
-
-
 
 }
 
