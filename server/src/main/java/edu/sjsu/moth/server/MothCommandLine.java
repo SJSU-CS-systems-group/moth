@@ -1,22 +1,30 @@
 package edu.sjsu.moth.server;
-
+import ch.qos.logback.core.net.server.Client;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.reactivestreams.client.FindPublisher;
+import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
+import com.mongodb.reactivestreams.client.MongoCollection;
+import com.mongodb.reactivestreams.client.MongoDatabase;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import org.bson.Document;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
-
 import java.io.FileInputStream;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,8 +38,6 @@ public class MothCommandLine implements Runnable {
     private boolean verification;
 
     public final Properties properties = new Properties();
-
-    String connectionString = "mongodb://localhost:279";
 
     @Parameters(index = "1..*", description = "extra spring arguments")
     private String[] springArgs;
@@ -61,8 +67,9 @@ public class MothCommandLine implements Runnable {
                             .applyConnectionString(connString)
                             .retryWrites(true)
                             .build();
-                    var latch = new CountDownLatch(1);
-                    MongoClients.create(settings).listDatabaseNames().subscribe(new Subscriber<String>() {
+                    var latch2 = new CountDownLatch(1);
+                    MongoClient mongoClient1 = MongoClients.create(settings);
+                    mongoClient1.listDatabaseNames().subscribe(new Subscriber<String>() {
                         @Override
                         public void onSubscribe(org.reactivestreams.Subscription subscription) {
                             subscription.request(1);
@@ -71,7 +78,7 @@ public class MothCommandLine implements Runnable {
                         @Override
                         public void onNext(String s) {
                             // all good, we are getting stuff!
-                            latch.countDown();
+                            latch2.countDown();
                         }
 
                         @Override
@@ -82,13 +89,63 @@ public class MothCommandLine implements Runnable {
                         @Override
                         public void onComplete() {
                             // all good, got everything
-                            latch.countDown();
+                            latch2.countDown();
                         }
+
                     });
 
-                    if (latch.await(1, TimeUnit.SECONDS)) {
+                    if (latch2.await(1, TimeUnit.SECONDS)) {
                         System.out.println("good");
-                        System.exit(1);
+
+                        MongoDatabase database = mongoClient1.getDatabase("test");
+                        MongoCollection<Document> collection = database.getCollection("account");
+                        String accountName = config.getAccountName(); // Replace with the actual account name from the config file
+                        Document query = new Document("acct", accountName);
+                        FindPublisher<Document> documents = collection.find(query);
+                        var latch = new CountDownLatch(1);
+                        documents.subscribe(new Subscriber<Document>() {
+                            @Override
+                            public void onSubscribe(Subscription subscription) {
+
+                                subscription.request(Long.MAX_VALUE);
+
+
+                            }
+
+                            @Override
+                            public void onNext(Document document) {
+                                //System.out.println(document.toJson());
+                                if (document != null) {
+                                    System.out.println("Account exists in the collection: " + accountName);
+                                } else {
+                                    System.out.println("Account does not exist in the collection: " + accountName);
+                                }
+                            }
+
+                            @Override
+                            public void onError(Throwable throwable) {
+                                System.out.println("error fetching account"+throwable.getMessage());
+
+                            }
+
+                            @Override
+                            public void onComplete() {
+
+                                System.out.println("hello1");
+                                latch.countDown();
+                            }
+                        });
+
+
+                        //Document document = new Document();
+                        System.out.println("hello2");
+                       latch.await();
+
+                        System.out.println("hello3");
+
+
+
+
                     } else {
                         System.out.println("couldn't contact the database in 1 second");
                         System.exit(0);
@@ -97,6 +154,8 @@ public class MothCommandLine implements Runnable {
                         //  Block of code to try
                         InetAddress.getByName(config.getServerName());
                         System.out.println("VERIFIED");
+
+
                         System.exit(0);
                     } catch (UnknownHostException e) {
                         //  Block of code to handle errors
@@ -126,6 +185,11 @@ public class MothCommandLine implements Runnable {
             e.printStackTrace();
         }
     }
+
+
+
+
+
 }
 
 
