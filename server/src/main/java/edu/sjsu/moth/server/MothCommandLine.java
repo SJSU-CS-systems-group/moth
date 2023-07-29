@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 @Command(name = "moth-server", mixinStandardHelpOptions = true)
 public class MothCommandLine implements Runnable {
     @Parameters(index = "0", description = "Config file")
