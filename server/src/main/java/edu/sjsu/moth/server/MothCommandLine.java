@@ -33,12 +33,9 @@ import java.util.concurrent.TimeUnit;
 public class MothCommandLine implements Runnable {
     @Parameters(index = "0", description = "Config file")
     private File configFile;
-
     @CommandLine.Option(names = {"-v","--verify"} ,description = "verify")
     private boolean verification;
-
     public final Properties properties = new Properties();
-
     @Parameters(index = "1..*", description = "extra spring arguments")
     private String[] springArgs;
 
@@ -50,7 +47,6 @@ public class MothCommandLine implements Runnable {
         // we get a non-zero return code.
         if (rc != 0) System.exit(rc);
     }
-
     public void run() {
         final var prefix = "spring.";
         try {
@@ -85,18 +81,15 @@ public class MothCommandLine implements Runnable {
                         public void onError(Throwable throwable) {
                             // Handle error (optional)
                         }
-
                         @Override
                         public void onComplete() {
                             // all good, got everything
                             latch2.countDown();
                         }
-
                     });
 
                     if (latch2.await(1, TimeUnit.SECONDS)) {
-                        System.out.println("good");
-
+                        System.out.println("verified connection to "+ config.getDBServer());
                         MongoDatabase database = mongoClient1.getDatabase("test");
                         MongoCollection<Document> collection = database.getCollection("account");
                         String accountName = config.getAccountName(); // Replace with the actual account name from the config file
@@ -108,7 +101,6 @@ public class MothCommandLine implements Runnable {
                             public void onSubscribe(Subscription subscription) {
                                 subscription.request(Long.MAX_VALUE);
                             }
-
                             @Override
                             public void onNext(Document document) {
                                 //System.out.println(document.toJson());
@@ -118,27 +110,17 @@ public class MothCommandLine implements Runnable {
                                     System.out.println("Account does not exist in the collection ");
                                 }
                             }
-
                             @Override
                             public void onError(Throwable throwable) {
                                 System.out.println("error fetching account"+throwable.getMessage());
-
                             }
-
                             @Override
                             public void onComplete() {
-
-                                System.out.println("hello1");
                                 latch.countDown();
                             }
                         });
-
-
                         //Document document = new Document();
-                        System.out.println("hello2");
                         latch.await();
-                        System.out.println("hello3");
-
                     } else {
                         System.out.println("couldn't contact the database in 1 second");
                         System.exit(0);
@@ -146,7 +128,7 @@ public class MothCommandLine implements Runnable {
                     try {
                         //  Block of code to try
                         InetAddress.getByName(config.getServerName());
-                        System.out.println("VERIFIED");
+                        System.out.println("VERIFIED ADMINISTRATOR");
                         System.exit(0);
                     } catch (UnknownHostException e) {
                         //  Block of code to handle errors
@@ -159,7 +141,6 @@ public class MothCommandLine implements Runnable {
                     System.exit(1);
                 }
             }
-
             HashMap<String, Object> defaults = new HashMap<String, Object>();
             defaults.put("server.port", config.getServerPort());
             defaults.put("server.name", config.getServerName());
@@ -176,7 +157,6 @@ public class MothCommandLine implements Runnable {
             e.printStackTrace();
         }
     }
-
 }
 
 
