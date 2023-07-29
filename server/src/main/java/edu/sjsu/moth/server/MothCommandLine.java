@@ -128,7 +128,7 @@ public class MothCommandLine implements Runnable {
                     try {
                         //  Block of code to try
                         InetAddress.getByName(config.getServerName());
-                        System.out.println("VERIFIED ADMINISTRATOR");
+                        System.out.println("Verified Contact Account");
                         System.exit(0);
                     } catch (UnknownHostException e) {
                         //  Block of code to handle errors
