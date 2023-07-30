@@ -6,6 +6,7 @@ import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.data.annotation.TypeAlias;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.PartEvent;
@@ -157,7 +158,16 @@ public class MediaController {
         Map<String, Object> meta = new HashMap<>();
     }
 
-    class FillableMediaAttachment extends MediaAttachment {
+    // this is a big pain! FillableMediaAttachment is supposed to be a helper class.
+    // we shouldn't do this because the class gets stored in mongodb. this is
+    // a hotfix, but long term this could be converted to a helper method to
+    // preserve the type
+    @TypeAlias("edu.sjsu.moth.generated.MediaAttachment")
+    static public class FillableMediaAttachment extends MediaAttachment {
+        // had to add the default constructer because mongo will deserialize
+        // as FillableMediaAttachment rather than MediaAttachment!
+        public FillableMediaAttachment() {}
+
         FillableMediaAttachment(long id, String fileName, String previewFileName, Map<String, Object> meta,
                                 String description, String type) {
             this.id = Long.toString(id);
