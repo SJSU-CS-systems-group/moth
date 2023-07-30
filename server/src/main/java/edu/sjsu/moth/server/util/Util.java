@@ -9,10 +9,12 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TimeZone;
@@ -97,6 +99,12 @@ public class Util {
 
     public static long generateUniqueId() {
         return Uniquifier.generateId();
+    }
+
+    public static String generatePassword() {
+        var bytes = new byte[6];
+        new Random().nextBytes(bytes);
+        return Base64.getEncoder().encodeToString(bytes);
     }
 
     /**
