@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.Notification;
+import edu.sjsu.moth.generated.CredentialAccount;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.data.mongodb.core.query.Query;
 import reactor.core.publisher.Mono;
-
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
+
 @RestController
 public class NotificationsController {
 
@@ -30,11 +31,17 @@ public class NotificationsController {
         this.reactiveMongoTemplate = reactiveMongoTemplate;
     }
 
-    //NotificationWithUser class that extends Notification to include user info
+    // NotificationWithUser class that extends Notification to include user info
     @Document(collection = "notificationwithuser")
     public static class NotificationWithUser extends Notification {
-    }
+        Notification notification;
+        String user;
 
+        public NotificationWithUser(Notification notification, String user) {
+            this.notification = notification;
+            this.user = user;
+        }
+    }
 
     @GetMapping("/api/v1/notifications")
     public Mono<ResponseEntity<List<NotificationWithUser>>> getAllNotifications(
@@ -56,10 +63,10 @@ public class NotificationsController {
         Pageable pageable = PageRequest.of(0, effectiveLimit);
 
         Query query = new Query();
-        query.with(pageable);
 
-        //criteria to filter notifs for the authenticated user
+        // criteria to filter notifs for the authenticated user and account_id
         query.addCriteria(Criteria.where("account.id").is(account_id));
+        query.addCriteria(Criteria.where("user").is(principal.getName()));
 
         if (max_id != null) {
             query.addCriteria(Criteria.where("id").lt(max_id));
@@ -73,8 +80,11 @@ public class NotificationsController {
             query.addCriteria(Criteria.where("id").gt(min_id));
         }
 
-        //execute query with reactiveMongoTemplate and NotificationWithUser class
-        return reactiveMongoTemplate.find(query, NotificationWithUser.class)
+        query.with(pageable);
+
+        //execute query with reactiveMongoTemplate and create NotificationWithUser instances
+        return reactiveMongoTemplate.find(query, Notification.class)
+                .map(notification -> new NotificationWithUser(notification, principal.getName()))
                 .collectList()
                 .flatMap(notifications -> {
                     HttpHeaders headers = new HttpHeaders();
