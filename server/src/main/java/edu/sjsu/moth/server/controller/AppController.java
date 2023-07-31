@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server.controller;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import edu.sjsu.moth.generated.CredentialAccount;
 import edu.sjsu.moth.generated.Source;
@@ -7,10 +8,14 @@ import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.EmailService;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.server.util.Util.TTLHashMap;
+import lombok.Getter;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,12 +35,14 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
+import static edu.sjsu.moth.server.controller.AppController.ExceptionMessageFormat.emf;
 import static edu.sjsu.moth.server.controller.i18nController.getExceptionMessage;
 
 /**
@@ -70,9 +77,16 @@ public class AppController {
     final static private Random nonceRandom = new SecureRandom();
     // from config file
     static String VAPID_KEY = genNonce(33);
-    private final TTLHashMap<String, String> code2User = new TTLHashMap<>(10, TimeUnit.MINUTES);
+    final public List<ExceptionMessageFormat> emfList = List.of(
+            emf(EmailService.BadCodeException.class, "AppBadCode", List.of(registrationEmail())),
+            emf(EmailService.RegistrationNotFound.class, "AppRegistrationNotFound", List.of(registrationEmail())));
+    private final TTLHashMap<String, String> code2Email = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     AccountService accountService;
+
+    @Autowired
+    EmailService emailService;
+
     /*
      * i think we may be able to get away with making these memory only since they are only
      * temporarily cached in memory. i'm not sure how big of a deal it is if they get lost on
@@ -81,6 +95,8 @@ public class AppController {
     TTLHashMap<String, AppRegistrationEntry> registrations = new TTLHashMap<>(10, TimeUnit.MINUTES);
     @Autowired
     TokenRepository tokenRepository;
+    @Autowired
+    MessageSource messageSource;
     // required for i18n
     @Autowired
     private SpringTemplateEngine templateEngine;
@@ -94,17 +110,21 @@ public class AppController {
         return Base64.getUrlEncoder().encodeToString(bytes);
     }
 
-    private Mono<Token> generateAccessToken(String username, String appName, String appWebsite) {
+    public static String registrationEmail() {
+        return "moth@" + MothConfiguration.mothConfiguration.getServerName();
+    }
+
+    private Mono<Token> generateAccessToken(String username, String email, String appName, String appWebsite) {
         //generate access token for user
         //need to put these in a database to map them to a user
         final var token = genNonce(33);
-        return tokenRepository.save(new Token(token, username, appName, appWebsite, LocalDateTime.now()));
+        return tokenRepository.save(new Token(token, username, email, appName, appWebsite, LocalDateTime.now()));
     }
 
     //https://docs.joinmastodon.org/methods/accounts/#create
     @PostMapping("/api/v1/accounts")
     public Mono<ResponseEntity<Object>> registerAccount(@RequestHeader("Authorization") String authorization,
-                                                        @RequestBody RegistrationRequest request) throws RegistrationException, RateLimitException {
+                                                        @RequestBody RegistrationRequest request, Locale locale) throws RegistrationException, RateLimitException {
         var appName = "";
         var appWebsite = "";
 
@@ -115,11 +135,21 @@ public class AppController {
         //generate and return TokenResponse with access token
         return accountService.getAccount(request.username)
                 .flatMap(a -> Mono.error(ERR_TAKEN))
-                .then(accountService.createAccount(request.username, request.password))
-                .then(generateAccessToken(request.username, appName, appWebsite))
-                .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
+                .then(accountService.createAccount(request.username, request.email, request.password))
+                .then(generateAccessToken(request.username, request.email, appName, appWebsite))
+                .map(token -> ResponseEntity.ok((Object) new TokenResponse(token.token, "*")))
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                                      .body(new ErrorResponse(error2Message(e, locale)))));
     }
 
+    public String error2Message(Throwable e, Locale locale) {
+        for (var emf : emfList) {
+            if (emf.exception.isInstance(e)) {
+                return messageSource.getMessage(emf.code, emf.args.toArray(), locale);
+            }
+        }
+        return e.getLocalizedMessage();
+    }
 
     @GetMapping("/api/v1/accounts/lookup")
     public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String acct) {
@@ -180,27 +210,31 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri) {
+    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
+                                    @RequestParam(required = false) String error) {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet. resolved via the WebFilterChain.
         Context context = new Context(LocaleContextHolder.getLocale());
         context.setVariable("clientId", client_id);
         context.setVariable("redirectUri", redirect_uri);
+        context.setVariable("authorizeError", error == null ? "" : error);
         return templateEngine.process("authorize", context);
     }
 
     @GetMapping("/oauth/login")
     Mono<ResponseEntity<String>> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
-                                               @RequestParam String user, @RequestParam String password) {
-        return accountService.checkPassword(user, password)
+                                               @RequestParam String user, @RequestParam String password,
+                                               Locale locale) {
+        // the parameter comes in as "user" but it's actually the email
+        return emailService.checkEmailCode(user, password)
                 .then(Mono.fromCallable(() -> {
                     var code = genNonce(33);
-                    code2User.put(code, user);
+                    code2Email.put(code, user);
                     return code;
                 }))
                 .flatMap(code -> Util.getMonoURI(redirect_uri + "?code=" + code))
                 .onErrorResume(t -> Util.getMonoURI(
-                        LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(t.getMessage()))))
+                        LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(error2Message(t, locale)))))
                 .map(uri -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
     }
 
@@ -208,23 +242,24 @@ public class AppController {
     @PostMapping("/oauth/token")
     Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
         var registration = registrations.get(req.client_id);
-        String scopes;
-        String name = "";
-        String website = "";
-        if (registration == null) {
-            scopes = req.scope;
-        } else {
-            if (!registration.registration.client_secret.equals(req.client_secret)) {
-                throw new RuntimeException(
-                        getExceptionMessage("clientSecretException", LocaleContextHolder.getLocale()));
-            }
-            scopes = registration.scopes;
-            name = registration.registration.name;
-            website = registration.registration.website;
+        if (registration != null && !registration.registration.client_secret.equals(req.client_secret)) {
+            throw new RuntimeException(getExceptionMessage("clientSecretException", LocaleContextHolder.getLocale()));
         }
-        var user = req.code == null ? "" : code2User.getOrDefault(req.code, "");
+        var scopes = registration == null ? req.scope() : registration.scopes;
+        var name = registration == null ? "" : registration.registration.name;
+        var website = registration == null ? "" : registration.registration.website;
+
+        var email = req.code == null ? "" : code2Email.getOrDefault(req.code, "");
         // generate an empty token, we'll fill it in with a real user later
-        return generateAccessToken(user, name, website).map(t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
+        return generateAccessToken(name, email, name, website).map(
+                t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
+    }
+
+    public record ExceptionMessageFormat(Class<? extends Throwable> exception, String code, List<String> args) {
+        // shorthand for setting up the message table
+        static ExceptionMessageFormat emf(Class<? extends Throwable> exception, String code, List<String> args) {
+            return new ExceptionMessageFormat(exception, code, args);
+        }
     }
 
     record AppsRequest(String client_name, String redirect_uris, String scopes, String website) {}
@@ -244,6 +279,7 @@ public class AppController {
 
     record AppRegistrationEntry(AppRegistration registration, LocalDateTime createDate, String scopes) {}
 
+    @Getter
     public static class RegistrationException extends RuntimeException {
         private final Object details;
 
@@ -256,9 +292,6 @@ public class AppController {
             this.details = details;
         }
 
-        public Object getDetails() {
-            return details;
-        }
     }
 
     public static class RateLimitException extends RuntimeException {
@@ -270,6 +303,7 @@ public class AppController {
     record RegistrationRequest(String username, String email, String password, boolean agreement, String locale,
                                String reason) {}
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     record ErrorResponse(String error, Object details) {
         public ErrorResponse(String error) {
             this(error, null);

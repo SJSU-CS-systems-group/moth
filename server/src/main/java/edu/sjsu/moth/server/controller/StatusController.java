@@ -5,7 +5,7 @@ import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
-import edu.sjsu.moth.server.util.Util;
+import edu.sjsu.moth.util.EmailCodeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -73,11 +73,11 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var status = new Status(null, Util.now(), body.in_reply_to_id, null, body.sensitive,
+                    var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
                                             null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
-                                            null, body.status, Util.now());
+                                            null, body.status, EmailCodeUtils.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
     }

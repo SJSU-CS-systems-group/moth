@@ -100,7 +100,7 @@ public class IntegrationTest {
         Assertions.assertEquals("hello sub null", new String(body));
 
         // Now try with a token that we put in the database, we should see the user dude
-        tokenRepository.save(new Token("XXXX", "dude", "app", "web", LocalDateTime.now())).block();
+        tokenRepository.save(new Token("XXXX", "dude", "dude@dude.com", "app", "web", LocalDateTime.now())).block();
         body = webTestClient.get()
                 .uri(TOKEN_TEST_ENDPOINT)
                 .header("Authorization", "Bearer XXXX")

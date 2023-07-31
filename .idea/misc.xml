@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="EntryPointsManager">
-    <list size="8">
+    <list size="9">
       <item index="0" class="java.lang.String" itemvalue="com.fasterxml.jackson.annotation.JsonProperty" />
       <item index="1" class="java.lang.String" itemvalue="org.springframework.context.annotation.Bean" />
       <item index="2" class="java.lang.String" itemvalue="org.springframework.context.annotation.Configuration" />
@@ -10,6 +10,7 @@
       <item index="5" class="java.lang.String" itemvalue="org.springframework.web.bind.annotation.GetMapping" />
       <item index="6" class="java.lang.String" itemvalue="org.springframework.web.bind.annotation.RequestMapping" />
       <item index="7" class="java.lang.String" itemvalue="org.springframework.web.bind.annotation.RestController" />
+      <item index="8" class="java.lang.String" itemvalue="picocli.CommandLine.Command" />
     </list>
   </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
@@ -21,7 +22,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_17" default="true" project-jdk-name="openjdk-17" project-jdk-type="JavaSDK">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_17" default="true" project-jdk-name="17" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>

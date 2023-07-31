@@ -4,6 +4,7 @@ import edu.sjsu.moth.server.db.EmailRegistration;
 import edu.sjsu.moth.server.db.EmailRegistrationRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.server.util.Util;
+import edu.sjsu.moth.util.EmailCodeUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import net.mailific.server.MailObject;
 import net.mailific.server.ServerConfig;
@@ -69,15 +70,6 @@ public class EmailService implements ApplicationRunner {
         return from.substring(startBracket + 1, endBracket);
     }
 
-    static public String normalizeEmail(String email) {
-        var parts = email.split("@");
-        var user = parts[0].toLowerCase();
-        var host = parts[1].toLowerCase();
-        if (host.endsWith(".")) host = host.substring(0, host.length() - 1);
-        user = user.replace(".", "");
-        return user + '@' + host;
-    }
-
     @Override
     public void run(ApplicationArguments args) throws Exception {
         var cfg = MothConfiguration.mothConfiguration;
@@ -109,6 +101,66 @@ public class EmailService implements ApplicationRunner {
         var server = new NettySmtpServer(serverConfig);
         server.start();
     }
+
+    /**
+     * throws BadCodeException password didn't match
+     * throws RegistrationNotFound registration email not received
+     *
+     * @return username
+     */
+    public Mono<String> checkEmailCode(String email, String password) {
+        if (MothConfiguration.mothConfiguration.getSMTPLocalPort() == -1) return Mono.empty();
+        return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email))
+                .flatMap(reg -> EmailCodeUtils.checkPassword(password, reg.saltedPassword) ? Mono.just(
+                        reg.username) : Mono.error(new BadCodeException()))
+                .switchIfEmpty(Mono.error(new RegistrationNotFound()));
+    }
+
+    /**
+     * throws BadCodeException password didn't match
+     * throws AlreadyRegistered email already assigned to a username
+     * throws RegistrationNotFound registration email not received
+     */
+    public Mono<Void> assignAccountToEmail(String email, String username, String password) {
+        // TODO: there does seem to be the potential for take over of accounts through this vector since we don't check
+        //       that the username isn't already assigned to another email
+        return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email)).flatMap(r -> {
+            if (!EmailCodeUtils.checkPassword(password, r.saltedPassword)) return Mono.error(new BadCodeException());
+            if (r.username == null) {
+                r.username = username;
+                return emailRegistrationRepository.save(r);
+            }
+            return Mono.error(new AlreadyRegistered());
+        }).switchIfEmpty(Mono.error(new RegistrationNotFound())).then();
+    }
+
+    public Mono<EmailRegistration> registerEmail(String email, String password) {
+        var reg = new EmailRegistration();
+        reg.id = EmailCodeUtils.normalizeEmail(email);
+        reg.email = email;
+        reg.lastEmail = reg.firstEmail = EmailCodeUtils.now();
+        reg.saltedPassword = EmailCodeUtils.encodePassword(password);
+        return emailRegistrationRepository.save(reg);
+    }
+
+    public Mono<EmailRegistration> registrationForEmail(String email) {
+        return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email));
+    }
+
+    /**
+     * indicates that a bad code/password was passed
+     */
+    public static class BadCodeException extends Exception {}
+
+    /**
+     * indicates that the email is not registered
+     */
+    public static class RegistrationNotFound extends Exception {}
+
+    /**
+     * indicates that the email is already registered
+     */
+    public static class AlreadyRegistered extends Exception {}
 
     /**
      * this class gleans to, from, subject, and message id to reply with a registration password.
@@ -157,14 +209,14 @@ public class EmailService implements ApplicationRunner {
                                              .withPlainText(getMessage("emailUnrecognizedReply"))
                                              .buildEmail());
                 } else {
-                    mono = emailRegistrationRepository.findById(normalizeEmail(emailId)).flatMap(reg -> {
+                    mono = emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(emailId)).flatMap(reg -> {
                         if (registration) {
                             eb.withSubject(replySubject).withPlainText(getMessage("emailAlreadyRegistered"));
                             return Mono.just(eb.buildEmail());
                         } else {
                             var password = Util.generatePassword();
-                            reg.saltedPassword = Util.encodePassword(password);
-                            reg.lastEmail = Util.now();
+                            reg.saltedPassword = EmailCodeUtils.encodePassword(password);
+                            reg.lastEmail = EmailCodeUtils.now();
                             return emailRegistrationRepository.save(reg)
                                     .thenReturn(eb.withSubject(getMessage("emailSubjectPasswordReset"))
                                                         .withPlainText(getMessage("emailNewPassword", password))
@@ -173,15 +225,10 @@ public class EmailService implements ApplicationRunner {
                     }).switchIfEmpty(Mono.defer(() -> {
                         if (registration) {
                             var password = Util.generatePassword();
-                            var reg = new EmailRegistration();
-                            reg.id = normalizeEmail(emailId);
-                            reg.email = emailId;
-                            reg.lastEmail = reg.firstEmail = Util.now();
-                            reg.saltedPassword = Util.encodePassword(password);
-                            return emailRegistrationRepository.save(reg)
-                                    .thenReturn(eb.withSubject(getMessage("emailSubjectWelcome", domain))
-                                                        .withPlainText(getMessage("emailNewPassword", password))
-                                                        .buildEmail());
+                            return registerEmail(emailId, password).thenReturn(
+                                    eb.withSubject(getMessage("emailSubjectWelcome", domain))
+                                            .withPlainText(getMessage("emailNewPassword", password))
+                                            .buildEmail());
                         } else {
                             eb.withSubject(replySubject).withPlainText(getMessage("emailNotRegistered"));
                             return Mono.just(eb.buildEmail());
