@@ -38,24 +38,13 @@ public class MothCommandLine implements Runnable {
     @Parameters(index = "1..*", description = "extra spring arguments")
     private String[] springArgs;
 
-    public static void main(String[] args) {
-        var rc = new CommandLine(new MothCommandLine()).execute(args);
-        // SpringApplication.run() will return when the application
-        // starts up, so even though execute returns, that doesn't mean
-        // that the application is done. thus, we should only exit if
-        // we get a non-zero return code.
-        if (rc != 0) System.exit(rc);
-    }
+
     public void run() {
         final var prefix = "spring.";
         try {
             MothConfiguration config;
             config = new MothConfiguration(configFile);
             if(verification){
-                File f = new File(configFile.toURI());
-                if(f.isFile()) {
-                    FileInputStream fileInputStream = new FileInputStream(f);
-                    properties.load(fileInputStream);
                     ConnectionString connString = new ConnectionString(
                             "mongodb://" + config.getDBServer() + "/test?w=majority");
                     MongoClientSettings settings = MongoClientSettings.builder()
@@ -104,9 +93,9 @@ public class MothCommandLine implements Runnable {
                             public void onNext(Document document) {
                                 //System.out.println(document.toJson());
                                 if (document != null) {
-                                    System.out.println("Account exists in the collection ");
+                                    System.out.println("%s exists in the collection ".formatted(accountName));
                                 } else {
-                                    System.out.println("Account does not exist in the collection ");
+                                    System.out.println("Account does not exist in the collection: ");
                                 }
                             }
                             @Override
@@ -124,21 +113,13 @@ public class MothCommandLine implements Runnable {
                         System.out.println("couldn't contact the database in 1 second");
                         System.exit(0);
                     }
-                    try {
+
                         //  Block of code to try
                         InetAddress.getByName(config.getServerName());
-                        System.out.println("Verified Contact Account");
+                        System.out.println("Verified "+config.getServerName());
                         System.exit(0);
-                    } catch (UnknownHostException e) {
-                        //  Block of code to handle errors
-                        System.out.println("error " + e.getMessage());
-                        System.exit(1);
-                    }
 
-                } else {
-                    System.out.println("File not found, Please input proper configuration file");
-                    System.exit(1);
-                }
+
             }
             HashMap<String, Object> defaults = new HashMap<String, Object>();
             defaults.put("server.port", config.getServerPort());
@@ -155,6 +136,14 @@ public class MothCommandLine implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+    public static void main(String[] args) {
+        var rc = new CommandLine(new MothCommandLine()).execute(args);
+        // SpringApplication.run() will return when the application
+        // starts up, so even though execute returns, that doesn't mean
+        // that the application is done. thus, we should only exit if
+        // we get a non-zero return code.
+        if (rc != 0) System.exit(rc);
     }
 }
 
