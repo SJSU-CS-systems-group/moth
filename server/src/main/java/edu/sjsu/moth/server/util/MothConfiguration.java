@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.Properties;
 
 public class MothConfiguration {
-    private static final List<RequriedProperty> requriedPropertyList = List.of(
-            new RequriedProperty("server.port", "server.port is the port to listen to on."),
-            new RequriedProperty("server.name", "server.name is the host name of the server."),
-            new RequriedProperty("db", "address of mongodb server"),
-            new RequriedProperty("account", "account of user"));
+    private static final List<RequiredProperty> REQUIRED_PROPERTY_LIST = List.of(
+            new RequiredProperty("server.port", "server.port is the port to listen to on."),
+            new RequiredProperty("server.name", "server.name is the host name of the server."),
+            new RequiredProperty("db", "address of mongodb server"),
+            new RequiredProperty("account", "account of user"));
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
 
@@ -23,7 +23,7 @@ public class MothConfiguration {
 
             properties.load(fileInputStream);
 
-            requriedPropertyList.forEach(rp -> {
+            REQUIRED_PROPERTY_LIST.forEach(rp -> {
                 if (properties.getProperty(rp.name) == null) {
                     System.out.println("Missing property: " + rp.name + ". Description: " + rp.description);
                     System.exit(1);
@@ -33,8 +33,20 @@ public class MothConfiguration {
         }
     }
 
+    private static String getHost(String hostPort) {
+        if (hostPort == null) return null;
+        int lastColon = hostPort.lastIndexOf(':');
+        return hostPort.substring(0, lastColon);
+    }
+
+    private static int getPort(String hostPort) {
+        if (hostPort == null) return -1;
+        int lastColon = hostPort.lastIndexOf(':');
+        return Integer.parseInt(hostPort.substring(lastColon + 1));
+    }
+
     public InstanceController.Rule[] getRules() {
-        ArrayList<InstanceController.Rule> rules = new ArrayList<InstanceController.Rule>();
+        ArrayList<InstanceController.Rule> rules = new ArrayList<>();
         String r = "instance.rule.";
         String index = "1";
 
@@ -43,10 +55,10 @@ public class MothConfiguration {
             index = Integer.toString(Integer.parseInt(index) + 1);
         }
 
-        if (rules.size() == 0) {
+        if (rules.isEmpty()) {
             rules.add(new InstanceController.Rule("1", "Be yourself and have fun!"));
         }
-      
+
         return rules.toArray(new InstanceController.Rule[0]);
     }
 
@@ -66,5 +78,11 @@ public class MothConfiguration {
         return properties.getProperty("account");
     }
 
-    record RequriedProperty(String name, String description) {}
+    public int getSMTPLocalPort() {return Integer.parseInt(properties.getProperty("smtp.localPort", "-1"));}
+
+    public String getSMTPServerHost() {return getHost(properties.getProperty("smtp.server"));}
+
+    public int getSMTPServerPort() {return getPort(properties.getProperty("smtp.server"));}
+
+    record RequiredProperty(String name, String description) {}
 }
