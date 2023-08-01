@@ -24,6 +24,7 @@ import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusTag;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -38,8 +39,21 @@ public class Status {
 
     @JsonProperty("id")
     public String id;
+
+
+
     @JsonProperty("created_at")
-    public String createdAt;
+    public Instant createdAt; // Changed the type to Instant
+
+    // Getter and Setter for createdAt field
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
     @JsonProperty("in_reply_to_id")
     public String inReplyToId;
     @JsonProperty("in_reply_to_account_id")
@@ -106,7 +120,7 @@ public class Status {
                   String text, String edited_at) {
         super();
         this.id = id;
-        this.createdAt = createdAt;
+        this.createdAt = Instant.parse(createdAt);
         this.inReplyToId = inReplyToId;
         this.inReplyToAccountId = inReplyToAccountId;
         this.sensitive = sensitive;
@@ -346,5 +360,7 @@ public class Status {
                                                                                       rhs.account))) && (Objects.equals(
                 this.card, rhs.card)));
     }
+
+
 
 }
