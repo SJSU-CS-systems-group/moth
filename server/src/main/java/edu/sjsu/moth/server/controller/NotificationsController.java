@@ -33,13 +33,16 @@ public class NotificationsController {
 
     // NotificationWithUser class that extends Notification to include user info
     @Document(collection = "notificationwithuser")
-    public static class NotificationWithUser extends Notification {
+    public static class NotificationWithUser{
         Notification notification;
         String user;
 
         public NotificationWithUser(Notification notification, String user) {
             this.notification = notification;
             this.user = user;
+        }
+        public String getId() {
+            return notification.getId();
         }
     }
 
