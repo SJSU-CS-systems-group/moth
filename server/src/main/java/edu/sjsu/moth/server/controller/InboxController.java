@@ -27,6 +27,13 @@ import java.util.List;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
+import java.util.ArrayList;
+
+import java.util.Collections;
+import java.util.List;
+
+import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
+
 @RestController
 public class InboxController {
     @Autowired
@@ -58,7 +65,7 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // check id
-            if (accountRepository.findItemByAcct(id).equals(Mono.empty())) {
+            if (accountRepository.findItemByAcct(id)==null) {
                 return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
             }
             // find id, grab arraylist, append
