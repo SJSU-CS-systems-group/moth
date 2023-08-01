@@ -36,19 +36,20 @@ public class SearchController {
                                        @RequestParam(required = false) String max_id,
                                        @RequestParam(required = false) String min_id,
                                        @RequestParam(required = false) Integer limit,
-                                       @RequestParam(required = false) Integer offset) {
+                                       @RequestParam(required = false) Integer offset)
+    {
         SearchResult result = new SearchResult();
         // return empty SearchResult obj. , until query.length() >= 3
         if (query.length() < 3) {
             return Mono.just(result);
         }
         // search results limiter defaulter
-        if (limit == null || limit == 0 || limit >=41) {
+        if (limit == null || limit == 0 || limit >= 41) {
             limit = 20;
         }
         //// this is meant for if someone does @user@someInstance.com, splitQuery[1] will be someInstance
         if (query.contains("@")) {
-            if(query.startsWith("@")) // truncate leading @ if its above, transform into user@someInstance.com
+            if (query.startsWith("@")) // truncate leading @ if its above, transform into user@someInstance.com
                 query = query.substring(1);
             String[] splitQuery = query.split("@", 2); // split into 2 parts, split at @ char
             String domain = "https://" + splitQuery[1] + "/api/v2/search"; // use as domain below
@@ -86,7 +87,8 @@ public class SearchController {
         }
         return Mono.empty();
     }
-    public static class SearchResult{
+
+    public static class SearchResult {
         // https://docs.joinmastodon.org/entities/Search/
         private ArrayList<Account> accounts;
         private ArrayList<Status> statuses;
@@ -98,35 +100,49 @@ public class SearchController {
             this.statuses = new ArrayList<>(0);
             this.hashtags = new ArrayList<>(0);
         }
-        // getters, setters
-        public ArrayList<Account> getAccounts () {return accounts;}
-        public ArrayList<Status> getStatuses () {return statuses;}
-        public ArrayList<Hashtags> getHashtags() {return hashtags;}
-        public ArrayList<Account> setAccounts (ArrayList<Account> accountsModify ) {return this.accounts = accountsModify;}
-        public ArrayList<Status> setStatuses (ArrayList<Status> statusesModify ) {return this.statuses = statusesModify;}
-        public ArrayList<Hashtags> setHashtags(ArrayList<Hashtags> hashtagsModify) { return this.hashtags = hashtagsModify; }
-    }
-    public static class Hashtags{
-       private String name;
-       private String url;
-       public Hashtags() {
-           ArrayList<History> history = new ArrayList<>(0);
-       }
-       // getters, setters
-        public String getName() { return name; }
 
-        public String getUrl() { return url; }
+        // getters, setters
+        public ArrayList<Account> getAccounts() {return accounts;}
+
+        public ArrayList<Status> getStatuses() {return statuses;}
+
+        public ArrayList<Hashtags> getHashtags() {return hashtags;}
+
+        public ArrayList<Account> setAccounts(ArrayList<Account> accountsModify) {
+            return this.accounts = accountsModify;
+        }
+
+        public ArrayList<Status> setStatuses(ArrayList<Status> statusesModify) {return this.statuses = statusesModify;}
+
+        public ArrayList<Hashtags> setHashtags(ArrayList<Hashtags> hashtagsModify) {
+            return this.hashtags = hashtagsModify;
+        }
+    }
+
+    public static class Hashtags {
+        private String name, url;
+
+        public Hashtags() {
+            ArrayList<History> history = new ArrayList<>(0);
+        }
+
+        // getters, setters
+        public String getName() {return name;}
+
+        public String getUrl() {return url;}
 
         //history class
-        public static class History{
-            private int day;
-            private int uses;
-            private int accounts;
-            // getters, setters
-            public int getDay() { return day; }
+        public static class History {
+            private int day, uses, accounts;
 
-            public int getAccounts() {return accounts;
+            // getters, setters
+            public int getDay() {return day;}
+
+            public int getAccounts() {
+                return accounts;
             }
 
             public int getUses() {return uses;}
-    }}}
+        }
+    }
+}
