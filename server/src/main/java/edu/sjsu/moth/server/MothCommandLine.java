@@ -93,7 +93,7 @@ public class MothCommandLine implements Runnable {
                             }
                             @Override
                             public void onError(Throwable throwable) {
-                                System.out.println("error fetching account"+throwable.getMessage());
+                                System.out.println("error fetching account: "+throwable.getMessage());
                             }
                             @Override
                             public void onComplete() {
