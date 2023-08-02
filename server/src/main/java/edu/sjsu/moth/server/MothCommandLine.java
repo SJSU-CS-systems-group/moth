@@ -112,7 +112,6 @@ public class MothCommandLine implements Runnable {
                         System.out.println("Verified "+config.getServerName());
                         System.exit(0);
 
-
             }
             HashMap<String, Object> defaults = new HashMap<String, Object>();
             defaults.put("server.port", config.getServerPort());
