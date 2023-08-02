@@ -15,9 +15,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +25,8 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static edu.sjsu.moth.util.WebFingerUtils.genPubPrivKeyPem;
 
 @RestController
 public class StatusController {
@@ -55,7 +55,7 @@ public class StatusController {
     //   media attachment processing
     //   poll processing
     @PostMapping(value = "/api/v1/statuses", consumes = MediaType.APPLICATION_JSON_VALUE)
-    Mono<ResponseEntity<Object>> postApiV1Statuses(@RequestHeader("Authorization") String authorizationHeader, Principal user, @RequestBody V1PostStatus body) {
+    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestBody V1PostStatus body) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                      .body(new AppController.ErrorResponse("The access token is invalid")));
@@ -78,26 +78,18 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var status = new Status(null, Util.now(), body.in_reply_to_id, null, body.sensitive,
-                                            body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
-                                            body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
-                                            null, body.status, Util.now());
+                    var status = new Status(null, Util.now(), body.in_reply_to_id, null,
+                                            body.sensitive, body.spoiler_text == null ? "" : body.spoiler_text,
+                                            body.visibility, body.language, null, null, 0, 0, 0, false, false, false,
+                                            false, body.status, null, null, acct, mediaAttachments, List.of(),
+                                            List.of(), List.of(), null, null, body.status, Util.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
     }
 
     @PostMapping(value = "/api/v1/statuses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    Mono<ResponseEntity<Object>> postApiV1Statuses(@RequestHeader("Authorization") String authorizationHeader, Principal user,
-                                                   @RequestPart(name = "status") String status,
-                                                   @RequestPart(name = "media_ids", required = false) String[] media_ids,
-                                                   @RequestPart(name = "poll", required = false) V1PostStatus.V1PostPoll poll,
-                                                   @RequestPart(name = "in_reply_to_id", required = false) String in_reply_to_id,
-                                                   @RequestPart(name = "sensitive", required = false) String sensitive,
-                                                   @RequestPart(name = "spoiler_text", required = false) String spoiler_text,
-                                                   @RequestPart(name = "visibility") String visibility,
-                                                   @RequestPart(name = "language") String language,
-                                                   @RequestPart(name = "scheduled_at", required = false) String scheduled_at) {
+    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestPart(name = "status") String status,
+                                                   @RequestPart(name = "media_ids", required = false) String[] media_ids, @RequestPart(name = "poll", required = false) V1PostStatus.V1PostPoll poll, @RequestPart(name = "in_reply_to_id", required = false) String in_reply_to_id, @RequestPart(name = "sensitive", required = false) String sensitive, @RequestPart(name = "spoiler_text", required = false) String spoiler_text, @RequestPart(name = "visibility") String visibility, @RequestPart(name = "language") String language, @RequestPart(name = "scheduled_at", required = false) String scheduled_at) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                      .body(new AppController.ErrorResponse("The access token is invalid")));
@@ -121,11 +113,11 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var s = new Status(null, Util.now(), in_reply_to_id, null, sensitive == null ? false : sensitive.equals("true"),
-                                       spoiler_text == null ? "" : spoiler_text, visibility,
-                                       language, null, null, 0, 0, 0, false, false, false, false, status,
-                                       null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
-                                       null, status, Util.now());
+                    var s = new Status(null, Util.now(), in_reply_to_id, null,
+                                       sensitive != null && sensitive.equals("true"),
+                                       spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
+                                       0, false, false, false, false, status, null, null, acct, mediaAttachments,
+                                       List.of(), List.of(), List.of(), null, null, status, Util.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
     }
@@ -142,7 +134,6 @@ public class StatusController {
 
         return statusService.getTimeline(user, max_id, since_id, min_id, limit).map(ResponseEntity::ok);
     }
-
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses
     @GetMapping("/api/v1/accounts/{id}/statuses")

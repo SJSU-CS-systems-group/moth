@@ -95,8 +95,8 @@ public class MastodonRegistration {
     }
 
     private static boolean isUsernameTaken(String username) {
-        //check if the username is already taken
-        return false;
+        AppController appController = new AppController();
+        return appController.lookUpAccount(username) != null;
     }
 
     private static boolean isUsernameReserved(String username) {
