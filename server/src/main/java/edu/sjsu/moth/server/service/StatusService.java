@@ -21,22 +21,8 @@ import java.util.Set;
 
 @Configuration
 public class StatusService {
-    @Id
-    private String id;
 
-    // Other existing fields ...
 
-    @CreatedDate
-    private Instant createdAt;
-
-    // Getter and Setter for createdAt field
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 
     @Autowired
     StatusRepository statusRepository;
@@ -82,8 +68,8 @@ public class StatusService {
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
         return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
     }
-    public Flux<Status> getAllStatuses() {
-        return statusRepository.findAll();
+    public Flux<Status> getAllStatuses(int offset, int limit) {
+        return statusRepository.findAll().skip(offset).take(limit);
     }
 
 

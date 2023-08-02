@@ -20,10 +20,8 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 public class StatusController {
@@ -115,25 +113,12 @@ public class StatusController {
                                                                 limit))
                 .map(ResponseEntity::ok);
     }
+
     @GetMapping("/api/v1/trends/statuses")
-    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses() {
-        return statusService.getAllStatuses()
-                .collectList()
-                .map(statusList -> {
-                    // Sort the statuses based on some criteria (e.g., timestamp, likes, etc.)
-                    statusList.sort(Comparator.comparing(Status::getCreatedAt).reversed());
+    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(@RequestParam(required = false, defaultValue = "0") int offset, @RequestParam(required = false, defaultValue = "20") int limit) {
 
-                    // Extract the first 10 trending statuses
-                    int limit = 20;
-                    List<Status> trendingStatuses = new ArrayList<>();
-                    for (int i = 0; i < Math.min(limit, statusList.size()); i++) {
-                        trendingStatuses.add(statusList.get(i));
-                    }
-
-                    return ResponseEntity.ok(trendingStatuses);
-                });
+        return statusService.getAllStatuses(offset, limit).collectList().map(ResponseEntity::ok);
     }
-
 
     public static class V1PostStatus {
         /**
