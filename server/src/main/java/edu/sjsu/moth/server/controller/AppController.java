@@ -120,9 +120,11 @@ public class AppController {
                 .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
     }
 
+
     @GetMapping("/api/v1/accounts/lookup")
-    public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String username) {
-        return accountService.getAccount(username)
+    public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String acct) {
+        System.out.println(acct);
+        return accountService.getAccount(acct)
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
