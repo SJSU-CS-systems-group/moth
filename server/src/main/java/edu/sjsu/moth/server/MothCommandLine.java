@@ -9,7 +9,6 @@ import com.mongodb.reactivestreams.client.MongoCollection;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.bson.Document;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.springframework.boot.SpringApplication;
