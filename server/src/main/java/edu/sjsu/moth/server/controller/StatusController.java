@@ -154,6 +154,11 @@ public class StatusController {
                                                                 limit))
                 .map(ResponseEntity::ok);
     }
+    @GetMapping("/api/v1/trends/statuses")
+    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(@RequestParam(required = false, defaultValue = "0") int offset, @RequestParam(required = false, defaultValue = "20") int limit) {
+
+        return statusService.getAllStatuses(offset, limit).collectList().map(ResponseEntity::ok);
+    }
 
     public static class V1PostStatus {
         /**

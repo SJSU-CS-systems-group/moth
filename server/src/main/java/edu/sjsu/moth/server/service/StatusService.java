@@ -7,6 +7,7 @@ import edu.sjsu.moth.server.db.StatusRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @Configuration
 public class StatusService {
+
     @Autowired
     StatusRepository statusRepository;
 
@@ -58,4 +60,9 @@ public class StatusService {
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
         return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
     }
+
+    public Flux<Status> getAllStatuses(int offset, int limit) {
+        return statusRepository.findAll().skip(offset).take(limit);
+    }
+
 }
