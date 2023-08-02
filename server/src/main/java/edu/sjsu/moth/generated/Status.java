@@ -23,6 +23,7 @@ import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusTag;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -345,7 +346,5 @@ public class Status {
                                                                                       rhs.account))) && (Objects.equals(
                 this.card, rhs.card)));
     }
-
-
 
 }

@@ -4,25 +4,17 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.StatusRepository;
-import nonapi.io.github.classgraph.json.Id;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.domain.Sort;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
-
-import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Configuration
 public class StatusService {
-
-
 
     @Autowired
     StatusRepository statusRepository;
@@ -68,10 +60,9 @@ public class StatusService {
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
         return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
     }
+
     public Flux<Status> getAllStatuses(int offset, int limit) {
         return statusRepository.findAll().skip(offset).take(limit);
     }
-
-
 
 }
