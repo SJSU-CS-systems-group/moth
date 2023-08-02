@@ -74,7 +74,7 @@ public class SearchController {
             /// normal search (of local instance)
             // TO DO: finish other search types, finish @RequestParam processing
             return accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
-                result.getAccounts().addAll(accounts);
+                result.accounts.addAll(accounts);
                 return result;
             });
         }
