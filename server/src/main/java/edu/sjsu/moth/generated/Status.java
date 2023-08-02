@@ -11,6 +11,7 @@
 //   * changed mentions to StatusMention
 //   * changed reblog to Status type
 //   * added @QueryEntity
+//   * added null check in getUri()
 // NOTE: did NOT add pinned and filter (optional/not needed)
 
 package edu.sjsu.moth.generated;
@@ -139,13 +140,14 @@ public class Status {
 
     @JsonProperty("uri")
     public String getUri() {
-        return MothController.BASE_URL + "/users/" + account.acct + "/statuses/" + id;
+        return MothController.BASE_URL + "/users/" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
 
     @JsonProperty("url")
     public String getUrl() {
-        return MothController.BASE_URL + "/@" + account.acct + "/statuses/" + id;
+        return MothController.BASE_URL + "/@" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
+
 
     @Override
     public String toString() {
