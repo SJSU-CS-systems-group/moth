@@ -13,8 +13,9 @@ public class MothConfiguration {
     private static final List<RequiredProperty> REQUIRED_PROPERTY_LIST = List.of(
             new RequiredProperty("server.port", "server.port is the port to listen to on."),
             new RequiredProperty("server.name", "server.name is the host name of the server."),
-            new RequiredProperty("db", "address of mongodb server"),
-            new RequiredProperty("account", "account of user"));
+            new RequiredProperty("db", "address of mongodb server"), new RequiredProperty("account", "account of user"),
+            new RequiredProperty("contact.email", "email of contact account"));
+
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
 
@@ -77,6 +78,8 @@ public class MothConfiguration {
     public String getAccountName() {
         return properties.getProperty("account");
     }
+
+    public String getContactEmail() {return properties.getProperty("contact.email");}
 
     public int getSMTPLocalPort() {return Integer.parseInt(properties.getProperty("smtp.localPort", "-1"));}
 

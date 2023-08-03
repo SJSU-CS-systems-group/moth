@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <link rel="icon" type="image/png" sizes="32x32" href="/moth/favicon.png">
+    <link href="/moth/favicon.png" rel="icon" sizes="32x32" type="image/png">
     <meta charset="UTF-8">
     <title> OAuth Login </title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
     <style>
         img {
@@ -73,7 +73,7 @@
 <div class="spin">
     <img alt="Moth Logo" src="/moth/cyber-moth.png">
 </div>
-<h2 th:text="#{authorizeError}">authError</h2>
+<h2 th:text="${authorizeError}"></h2>
 <form action="/oauth/login">
     <span th:text="#{email}">Email</span>
     <br/>
@@ -82,9 +82,9 @@
     <span th:text="#{password}">Password</span>
     <br/>
     <input name="password" type="password"/><br/>
-    <input th:value="${clientId}" name="client_id" type="hidden" value="client_id_value"/>
-    <input th:value="${redirectUri}" name="redirect_uri" type="hidden" value="redirect_uri_value"/>
-    <input type="submit" value="#{signIn}" th:value="#{signIn}"/>
+    <input name="client_id" th:value="${clientId}" type="hidden" value="client_id_value"/>
+    <input name="redirect_uri" th:value="${redirectUri}" type="hidden" value="redirect_uri_value"/>
+    <input th:value="#{signIn}" type="submit" value="#{signIn}"/>
 </form>
 </body>
 </html>

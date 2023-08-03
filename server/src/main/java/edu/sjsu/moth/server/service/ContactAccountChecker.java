@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Configuration;
+import reactor.core.publisher.Mono;
 
 import java.util.Base64;
 import java.util.Random;
@@ -23,6 +24,9 @@ public class ContactAccountChecker implements ApplicationRunner {
     @Autowired
     AccountService accountService;
 
+    @Autowired
+    EmailService emailService;
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         var contact = MothConfiguration.mothConfiguration.getAccountName();
@@ -32,7 +36,14 @@ public class ContactAccountChecker implements ApplicationRunner {
             var randomBytes = new byte[9];
             new Random().nextBytes(randomBytes);
             var randomPassword = Base64.getEncoder().encodeToString(randomBytes);
-            accountService.createAccount(contact, randomPassword).block();
+            var contactEmail = MothConfiguration.mothConfiguration.getContactEmail();
+            emailService.registerEmail(contactEmail, randomPassword)
+                    // we are going to push ahead even if the email is already registered
+                    .onErrorComplete()
+                    .then(Mono.fromRunnable(() -> log.info("created registration for contact")))
+                    .then(accountService.createAccount(contact, contactEmail, randomPassword))
+                    .then(Mono.fromRunnable(() -> log.info("created account for contact")))
+                    .block();
         } else {
             log.info("✅ contact account %s found".formatted(contact));
         }

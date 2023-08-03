@@ -5,13 +5,12 @@ import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
-import edu.sjsu.moth.server.util.Util;
+import edu.sjsu.moth.util.EmailCodeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,8 +24,6 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static edu.sjsu.moth.util.WebFingerUtils.genPubPrivKeyPem;
 
 @RestController
 public class StatusController {
@@ -78,11 +75,11 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var status = new Status(null, Util.now(), body.in_reply_to_id, null,
-                                            body.sensitive, body.spoiler_text == null ? "" : body.spoiler_text,
-                                            body.visibility, body.language, null, null, 0, 0, 0, false, false, false,
-                                            false, body.status, null, null, acct, mediaAttachments, List.of(),
-                                            List.of(), List.of(), null, null, body.status, Util.now());
+                    var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
+                                            body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
+                                            body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
+                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
+                                            null, body.status, EmailCodeUtils.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
     }
@@ -113,15 +110,14 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var s = new Status(null, Util.now(), in_reply_to_id, null,
+                    var s = new Status(null, EmailCodeUtils.now(), in_reply_to_id, null,
                                        sensitive != null && sensitive.equals("true"),
                                        spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,
-                                       List.of(), List.of(), List.of(), null, null, status, Util.now());
+                                       List.of(), List.of(), List.of(), null, null, status, EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
     }
-
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
     // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
@@ -154,6 +150,7 @@ public class StatusController {
                                                                 limit))
                 .map(ResponseEntity::ok);
     }
+
     @GetMapping("/api/v1/trends/statuses")
     Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(@RequestParam(required = false, defaultValue = "0") int offset, @RequestParam(required = false, defaultValue = "20") int limit) {
 
