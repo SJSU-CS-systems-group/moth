@@ -153,7 +153,6 @@ public class AppController {
 
     @GetMapping("/api/v1/accounts/lookup")
     public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String acct) {
-        System.out.println(acct);
         return accountService.getAccount(acct)
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());

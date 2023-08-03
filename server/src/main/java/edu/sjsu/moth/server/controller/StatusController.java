@@ -8,13 +8,16 @@ import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -22,6 +25,8 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static edu.sjsu.moth.util.WebFingerUtils.genPubPrivKeyPem;
 
 @RestController
 public class StatusController {
@@ -49,7 +54,7 @@ public class StatusController {
     //   text vs content processing
     //   media attachment processing
     //   poll processing
-    @PostMapping("/api/v1/statuses")
+    @PostMapping(value = "/api/v1/statuses", consumes = MediaType.APPLICATION_JSON_VALUE)
     Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestBody V1PostStatus body) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -73,14 +78,50 @@ public class StatusController {
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
                     // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
-                                            body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
-                                            body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
-                                            null, body.status, EmailCodeUtils.now());
+                    var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null,
+                                            body.sensitive, body.spoiler_text == null ? "" : body.spoiler_text,
+                                            body.visibility, body.language, null, null, 0, 0, 0, false, false, false,
+                                            false, body.status, null, null, acct, mediaAttachments, List.of(),
+                                            List.of(), List.of(), null, null, body.status, Util.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
     }
+
+    @PostMapping(value = "/api/v1/statuses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestPart(name = "status") String status,
+                                                   @RequestPart(name = "media_ids", required = false) String[] media_ids, @RequestPart(name = "poll", required = false) V1PostStatus.V1PostPoll poll, @RequestPart(name = "in_reply_to_id", required = false) String in_reply_to_id, @RequestPart(name = "sensitive", required = false) String sensitive, @RequestPart(name = "spoiler_text", required = false) String spoiler_text, @RequestPart(name = "visibility") String visibility, @RequestPart(name = "language") String language, @RequestPart(name = "scheduled_at", required = false) String scheduled_at) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                     .body(new AppController.ErrorResponse("The access token is invalid")));
+        }
+
+        if (status == null || status.length() == 0) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                                     .body(new AppController.ErrorResponse("Validation failed: Text can't be blank")));
+        }
+        if (scheduled_at != null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                                     .body(new AppController.ErrorResponse("scheduled posts are not supported")));
+        }
+
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> {
+                    var mediaAttachments = new ArrayList<MediaAttachment>();
+                    if (media_ids != null) for (var id : media_ids) {
+                        var attachment = mediaService.lookupCachedAttachment(id);
+                        if (attachment != null) mediaAttachments.add(attachment);
+                    }
+                    // if i pass a null id to status it gets filled in by the repo with the objectid
+                    var s = new Status(null, Util.now(), in_reply_to_id, null,
+                                       sensitive != null && sensitive.equals("true"),
+                                       spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
+                                       0, false, false, false, false, status, null, null, acct, mediaAttachments,
+                                       List.of(), List.of(), List.of(), null, null, status, Util.now());
+                    return statusService.save(s).map(ResponseEntity::ok);
+                });
+    }
+
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
     // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
@@ -112,6 +153,11 @@ public class StatusController {
                                                                 exclude_replies, exclude_reblogs, pinned, tagged,
                                                                 limit))
                 .map(ResponseEntity::ok);
+    }
+    @GetMapping("/api/v1/trends/statuses")
+    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(@RequestParam(required = false, defaultValue = "0") int offset, @RequestParam(required = false, defaultValue = "20") int limit) {
+
+        return statusService.getAllStatuses(offset, limit).collectList().map(ResponseEntity::ok);
     }
 
     public static class V1PostStatus {
