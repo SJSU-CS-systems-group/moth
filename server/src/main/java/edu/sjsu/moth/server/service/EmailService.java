@@ -196,7 +196,7 @@ public class EmailService implements ApplicationRunner {
             if (!inReplyToSeen && !from.contains("mailer-daemon") && !subject.contains("ailure")) {
                 var emailId = extractEmail(from);
                 var eb = EmailBuilder.startingBlank()
-                        .from(to)
+                        .from(AuthService.registrationEmail())
                         .to(from)
                         .withHeader("In-Reply-To", messageId)
                         .withHeader("References", messageId);
