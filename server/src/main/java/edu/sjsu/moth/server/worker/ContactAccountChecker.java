@@ -1,5 +1,7 @@
-package edu.sjsu.moth.server.service;
+package edu.sjsu.moth.server.worker;
 
+import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.EmailService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
