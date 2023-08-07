@@ -2,9 +2,9 @@ package edu.sjsu.moth.service;
 
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.service.AccountService;
-import edu.sjsu.moth.server.service.ContactAccountChecker;
 import edu.sjsu.moth.server.service.EmailService;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.worker.ContactAccountChecker;
 import edu.sjsu.moth.util.MockitoFactoryBean;
 import edu.sjsu.moth.util.MothTestInitializer;
 import org.junit.jupiter.api.Test;
