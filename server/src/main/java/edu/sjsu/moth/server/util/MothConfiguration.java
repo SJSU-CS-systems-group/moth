@@ -60,6 +60,11 @@ public class MothConfiguration {
             rules.add(new InstanceController.Rule("1", "Be yourself and have fun!"));
         }
 
+        var disclaimer = """
+                This is an experimental server.
+                Privacy, security, and reliability have not been implemented. You are using at your own risk.
+                """;
+        rules.add(new InstanceController.Rule(Integer.toString(rules.size() + 1), disclaimer));
         return rules.toArray(new InstanceController.Rule[0]);
     }
 

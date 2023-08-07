@@ -5,39 +5,41 @@ import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
 public class InstanceController {
+    private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
+    private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
+    private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
+    private static final Statuses STATUSES = new Statuses(500, 4, 23);
+    private static final Polls POLLS = new Polls(4, 50, 5 * 60, 7 * 24 * 60 * 60);
+    private static final Accounts ACCOUNTS = new Accounts(10);
+    private static final Translation TRANSLATION = new Translation(true);
+    private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
     public static final int MEG = 1024 * 1024;
     public static final int IMAGE_SIZE_LIMIT = 10 * MEG;
     public static final int VIDEO_SIZE_LIMIT = 40 * MEG;
     public static final int IMAGE_MATRIX_LIMIT = 16777214;
     public static final int VIDEO_MATRIX_LIMIT = 2304000;
-    public static final MediaAttachments MEDIA_ATTACHMENTSV1 = new MediaAttachments(
+    private static final MediaAttachments MEDIA_ATTACHMENTSV1 = new MediaAttachments(
             new String[] { "image/jpeg", "image/png", "image/gif", "image/webp", "video/webm", "video/mp4",
                     "video" + "/quicktime", "video/ogg", "audio/wave", "audio/wav", "audio/x-wav", "audio/x-pn-wave",
                     "audio" + "/vnd.wave", "audio/ogg", "audio/vorbis", "audio/mpeg", "audio/mp3", "audio/webm",
                     "audio/flac", "audio/aac", "audio/m4a", "audio/x-m4a", "audio/mp4", "audio/3gpp", "video/x-ms-asf"
             },
             IMAGE_SIZE_LIMIT, IMAGE_MATRIX_LIMIT, VIDEO_SIZE_LIMIT, 60, VIDEO_MATRIX_LIMIT);
-    private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
-    private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
-    private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
-    private static final Statuses STATUSES = new Statuses(500, 4, 23);
-    private static final Polls POLLS = new Polls(4, 50, 5 * 60, 7 * 24 * 60 * 60);
     private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSES, MEDIA_ATTACHMENTSV1, POLLS);
-    private static final Accounts ACCOUNTS = new Accounts(10);
-    private static final Translation TRANSLATION = new Translation(true);
     private static final ConfigurationV2 CONFIGURATIONV2 = new ConfigurationV2(URLS, ACCOUNTS, STATUSES,
                                                                                MEDIA_ATTACHMENTSV1, POLLS, TRANSLATION);
-    private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
-
     @Autowired
     private AccountRepository accountRepo;
 
@@ -50,11 +52,14 @@ public class InstanceController {
     public Mono<ResponseEntity<InstanceV1>> getV1Instance() {
         return getContactAccount().map(c -> ResponseEntity.ok(
                 new InstanceV1(MothConfiguration.mothConfiguration.getServerName(),
-                               MothConfiguration.mothConfiguration.getServerName(), "Simple Moth Server",
-                               "Experimental Simple Moth Server",
-                               "admin@" + MothConfiguration.mothConfiguration.getServerName(), "0.0.1", URLS, STATSV1,
-                               FilesController.instanceFileURL("thumbnail.png"), new String[] { "en" }, true, false,
-                               true, CONFIGURATIONV1, c, RULES)));
+                               MothConfiguration.mothConfiguration.getServerName(), "Experimental Simple Moth Server",
+                               """
+                                       Experimental Simple Moth Server.
+                                       Message  privacy, security, and reliability have not been implemented.
+                                       Use at your own risk.
+                                       """, "admin@" + MothConfiguration.mothConfiguration.getServerName(), "0.0.1",
+                               URLS, STATSV1, FilesController.instanceFileURL("thumbnail.png"), new String[] { "en" },
+                               true, false, true, CONFIGURATIONV1, c, RULES)));
     }
 
     @GetMapping("/api/v2/instance")
@@ -71,6 +76,29 @@ public class InstanceController {
                                                                                            "thumbnail.png"))),
                                new String[] { "en" }, CONFIGURATIONV2, new RegistrationsV2(false, false, null),
                                new Contact("", c), RULES)));
+    }
+
+    @GetMapping("/terms")
+    public ResponseEntity<String> getTerms() {
+        var location = MothController.BASE_URL + "/privacy-policy";
+        return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
+                .location(URI.create(location))
+                .body("<html><body>You are being <a href=\"%s\">redirected</a>.</body></html>".formatted(location));
+    }
+
+    @GetMapping("/privacy-policy")
+    public ResponseEntity<String> getPrivacyPolicy() {
+        var terms = """
+                <html><body>
+                this is an experimental moth server.
+                we try to be mastodon compatible, but it is early days.
+                <b>
+                message privacy, security, and reliability have not been implemented.
+                Use at your own risk.
+                </b>
+                </html></body>
+                """;
+        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(terms);
     }
 
     public Mono<AccountV1> getContactAccount() {

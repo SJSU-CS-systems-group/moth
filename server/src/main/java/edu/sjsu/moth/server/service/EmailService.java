@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 
 /**
  * Register an email service to set up new account based on emails.
@@ -56,15 +57,23 @@ import java.util.function.BiFunction;
 @CommonsLog
 @Configuration
 public class EmailService implements ApplicationRunner {
+    static List<Pattern> allowedEmails = List.of(Pattern.compile("@sjsu.edu$"), Pattern.compile("@gavilan.edu$"));
     Mailer mailer;
     @Autowired
     EmailRegistrationRepository emailRegistrationRepository;
-
     @Autowired
     MessageSource messageSource;
-
     String domain;
     List<BiFunction<String, String, Boolean>> listeners = Collections.synchronizedList(new LinkedList<>());
+
+    static boolean registrationAllowed(String email) {
+        for (var allowed : allowedEmails) {
+            if (allowed.matcher(email).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     static public String extractEmail(String from) {
         var startBracket = from.lastIndexOf('<');
@@ -218,13 +227,18 @@ public class EmailService implements ApplicationRunner {
                 var registration = subject.contains("regist");
                 var reset = subject.contains("reset");
                 var replySubject = "re: " + subject;
+                var normalizedEmail = EmailCodeUtils.normalizeEmail(emailId);
                 Mono<Email> mono;
                 if (registration == reset) {
                     mono = Mono.just(eb.withSubject(replySubject)
                                              .withPlainText(getMessage("emailUnrecognizedReply"))
                                              .buildEmail());
+                } else if (!registrationAllowed(normalizedEmail)) {
+                    mono = Mono.just(eb.withSubject(replySubject)
+                                             .withPlainText(getMessage("emailRegistrationNotAllowed"))
+                                             .buildEmail());
                 } else {
-                    mono = emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(emailId)).flatMap(reg -> {
+                    mono = emailRegistrationRepository.findById(normalizedEmail).flatMap(reg -> {
                         if (registration) {
                             eb.withSubject(replySubject).withPlainText(getMessage("emailAlreadyRegistered"));
                             return Mono.just(eb.buildEmail());
