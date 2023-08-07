@@ -38,8 +38,12 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 
 /**
  * Register an email service to set up new account based on emails.
@@ -60,6 +64,7 @@ public class EmailService implements ApplicationRunner {
     MessageSource messageSource;
 
     String domain;
+    List<BiFunction<String, String, Boolean>> listeners = Collections.synchronizedList(new LinkedList<>());
 
     static public String extractEmail(String from) {
         var startBracket = from.lastIndexOf('<');
@@ -78,7 +83,7 @@ public class EmailService implements ApplicationRunner {
             log.warn("SMTP configuration not fully present. skipping email set up.");
             return;
         }
-        mailer = MailerBuilder.withDebugLogging(true)
+        mailer = MailerBuilder.withDebugLogging(false)
                 .withSMTPServer(cfg.getSMTPServerHost(), cfg.getSMTPServerPort())
                 .withTransportStrategy(TransportStrategy.SMTP)
                 .withProperty("mail.smtp.localhost", domain)
@@ -147,6 +152,14 @@ public class EmailService implements ApplicationRunner {
         return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email));
     }
 
+    public void listenForEmail(BiFunction<String, String, Boolean> receive) {
+        listeners.add(receive);
+    }
+
+    public @NotNull CompletableFuture<Void> sendMail(Email email) {
+        return mailer.sendMail(email);
+    }
+
     /**
      * indicates that a bad code/password was passed
      */
@@ -194,6 +207,8 @@ public class EmailService implements ApplicationRunner {
             // only reply to fresh messages that don't talk about deamons or failures
             log.info("received mail from %s to %s about %s".formatted(from, to, subject));
             if (!inReplyToSeen && !from.contains("mailer-daemon") && !subject.contains("ailure")) {
+                // this will notify all the listeners and remove them if they are done listening
+                listeners.removeIf(f -> !f.apply(from, subject));
                 var emailId = extractEmail(from);
                 var eb = EmailBuilder.startingBlank()
                         .from(AuthService.registrationEmail())
