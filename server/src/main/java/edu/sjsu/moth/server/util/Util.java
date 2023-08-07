@@ -112,7 +112,8 @@ public class Util {
     public static String generatePassword() {
         var bytes = new byte[6];
         new Random().nextBytes(bytes);
-        return Base64.getEncoder().encodeToString(bytes);
+        // we need to exclude O, I, and l they are too similar to other letters and numbers
+        return Base64.getUrlEncoder().encodeToString(bytes).replace('l', '@').replace('O', '^').replace('I', '$');
     }
 
     /**
