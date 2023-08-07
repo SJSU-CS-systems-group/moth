@@ -1,6 +1,6 @@
 package edu.sjsu.moth.server.worker;
 
-import edu.sjsu.moth.server.controller.AppController;
+import edu.sjsu.moth.server.service.AuthService;
 import edu.sjsu.moth.server.service.EmailService;
 import lombok.extern.apachecommons.CommonsLog;
 import org.simplejavamail.email.EmailBuilder;
@@ -36,8 +36,8 @@ public class EmailServiceChecker implements ApplicationRunner {
                 return true;
             });
             emailService.sendMail(EmailBuilder.startingBlank()
-                                          .to(AppController.registrationEmail())
-                                          .from(AppController.registrationEmail())
+                                          .to(AuthService.registrationEmail())
+                                          .from(AuthService.registrationEmail())
                                           .withSubject(randSubject)
                                           .withPlainText("checking email")
                                           .buildEmail());
