@@ -55,6 +55,8 @@ public class EmailCodeUtils {
         return user + '@' + host;
     }
 
+    public static String epoch() {return jsonDateFormat.format(new Date(0));}
+
     /**
      * Uniquifier is in its own class since we are sychronizing on the class, so we want to isolate the
      * synchronization to just this logic.
