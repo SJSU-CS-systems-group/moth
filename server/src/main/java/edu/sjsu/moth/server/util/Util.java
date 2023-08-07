@@ -33,7 +33,6 @@ import java.util.stream.StreamSupport;
  * simple utility methods
  */
 public class Util {
-
     public static DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
     /* prepend 13 random bytes and append "frog" to the end. iterate 10,000 times (to make it slower) using SHA256*/
