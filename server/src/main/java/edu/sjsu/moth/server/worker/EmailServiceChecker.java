@@ -39,8 +39,7 @@ public class EmailServiceChecker implements ApplicationRunner {
                                           .to(AuthService.registrationEmail())
                                           .from(AuthService.registrationEmail())
                                           .withSubject(randSubject)
-                                          .withPlainText("checking email")
-                                          .buildEmail());
+                                          .withPlainText("checking email"));
             var responseSeen = false;
             try {
                 responseSeen = latch.await(20, TimeUnit.SECONDS);
