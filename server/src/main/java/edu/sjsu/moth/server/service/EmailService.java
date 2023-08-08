@@ -115,10 +115,11 @@ public class EmailService implements ApplicationRunner {
      */
     public Mono<String> checkEmailCode(String email, String password) {
         if (MothConfiguration.mothConfiguration.getSMTPLocalPort() == -1) return Mono.empty();
-        return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email))
-                .flatMap(reg -> EmailCodeUtils.checkPassword(password, reg.saltedPassword) ? Mono.just(
-                        reg.username) : Mono.error(new BadCodeException()))
-                .switchIfEmpty(Mono.error(new RegistrationNotFound()));
+        return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email)).flatMap(reg -> {
+            if (reg.username == null) return Mono.error(new RegistrationNotFound());
+            if (EmailCodeUtils.checkPassword(password, reg.saltedPassword)) return Mono.just(reg.username);
+            return Mono.error(new BadCodeException());
+        }).switchIfEmpty(Mono.error(new RegistrationNotFound()));
     }
 
     /**
