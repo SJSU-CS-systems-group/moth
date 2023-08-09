@@ -1,21 +1,17 @@
 package edu.sjsu.moth.server.controller;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import edu.sjsu.moth.generated.CredentialAccount;
-import edu.sjsu.moth.generated.Source;
-import edu.sjsu.moth.server.db.Account;
-import edu.sjsu.moth.server.db.Token;
-import edu.sjsu.moth.server.db.TokenRepository;
-import edu.sjsu.moth.server.service.AccountService;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import edu.sjsu.moth.server.service.AuthService;
+import edu.sjsu.moth.server.service.EmailService;
 import edu.sjsu.moth.server.util.Util;
-import edu.sjsu.moth.server.util.Util.TTLHashMap;
+import lombok.Getter;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -25,18 +21,10 @@ import org.thymeleaf.context.Context;
 import org.thymeleaf.spring5.SpringTemplateEngine;
 import reactor.core.publisher.Mono;
 
-import java.security.Principal;
-import java.security.SecureRandom;
-import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
+import java.util.Locale;
 
-import static edu.sjsu.moth.server.controller.i18nController.getExceptionMessage;
+import static edu.sjsu.moth.server.controller.AppController.ExceptionMessageFormat.emf;
 
 /**
  * This code handles first contact and oauth outh with the client.
@@ -59,191 +47,104 @@ import static edu.sjsu.moth.server.controller.i18nController.getExceptionMessage
 @CommonsLog
 @RestController
 public class AppController {
-    public static final RegistrationException ERR_TAKEN = new RegistrationException("Username or email already taken",
-                                                                                    Map.of("username",
-                                                                                           List.of(Map.of("error",
-                                                                                                          "ERR_TAKEN",
-                                                                                                          "description",
-                                                                                                          "username or email already taken"))));
     public static final String LOGIN_ERR_FORMAT = "/oauth/authorize?client_id=%s&redirect_uri=%s&error=%s";
-    static private final Logger LOG = Logger.getLogger(AppController.class.getName());
-    final static private Random nonceRandom = new SecureRandom();
     // from config file
-    static String VAPID_KEY = genNonce(33);
-    private final TTLHashMap<String, String> code2User = new TTLHashMap<>(10, TimeUnit.MINUTES);
+    final public List<ExceptionMessageFormat> emfList = List.of(
+            emf(EmailService.BadCodeException.class, "AppBadCode", List.of(AuthService.registrationEmail())),
+            emf(EmailService.RegistrationNotFound.class, "AppRegistrationNotFound",
+                List.of(AuthService.registrationEmail())));
+
     @Autowired
-    AccountService accountService;
-    /*
-     * i think we may be able to get away with making these memory only since they are only
-     * temporarily cached in memory. i'm not sure how big of a deal it is if they get lost on
-     * restart.
-     */ AtomicInteger appCounter = new AtomicInteger();
-    TTLHashMap<String, AppRegistrationEntry> registrations = new TTLHashMap<>(10, TimeUnit.MINUTES);
+    AuthService authService;
+
     @Autowired
-    TokenRepository tokenRepository;
+    MessageSource messageSource;
     // required for i18n
     @Autowired
     private SpringTemplateEngine templateEngine;
 
-    /**
-     * base64 URL encode a nonce of byteCount random bytes.
-     */
-    static String genNonce(int byteCount) {
-        byte[] bytes = new byte[byteCount];
-        nonceRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().encodeToString(bytes);
-    }
-
-    private Mono<Token> generateAccessToken(String username, String appName, String appWebsite) {
-        //generate access token for user
-        //need to put these in a database to map them to a user
-        final var token = genNonce(33);
-        return tokenRepository.save(new Token(token, username, appName, appWebsite, LocalDateTime.now()));
-    }
-
     //https://docs.joinmastodon.org/methods/accounts/#create
     @PostMapping("/api/v1/accounts")
     public Mono<ResponseEntity<Object>> registerAccount(@RequestHeader("Authorization") String authorization,
-                                                        @RequestBody RegistrationRequest request) throws RegistrationException, RateLimitException {
-        var appName = "";
-        var appWebsite = "";
-
+                                                        @RequestBody RegistrationRequest request, Locale locale) throws RegistrationException, RateLimitException {
         //validate authorization header with bearer token authentication
         //authorization token has to be valid before registering
         MastodonRegistration.validateRegistrationRequest(request);
         //TODO: send confirmation email to the user
         //generate and return TokenResponse with access token
-        return accountService.getAccount(request.username)
-                .flatMap(a -> Mono.error(ERR_TAKEN))
-                .then(accountService.createAccount(request.username, request.password))
-                .then(generateAccessToken(request.username, appName, appWebsite))
-                .map(token -> ResponseEntity.ok(new TokenResponse(token.token, "*")));
+        var token = authorization.split(" ")[1]; // skip "Bearer"
+        return authService.registerAccount(token, request.username, request.email, request.password)
+                .then(Mono.just(ResponseEntity.ok((Object) new AuthService.TokenResponse(token, "*"))))
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                                      .body(new ErrorResponse(error2Message(e, locale)))));
     }
 
-
-    @GetMapping("/api/v1/accounts/lookup")
-    public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String acct) {
-        System.out.println(acct);
-        return accountService.getAccount(acct)
-                .map(ResponseEntity::ok)
-                .defaultIfEmpty(ResponseEntity.notFound().build());
+    public String error2Message(Throwable e, Locale locale) {
+        for (var emf : emfList) {
+            if (emf.exception.isInstance(e)) {
+                return messageSource.getMessage(emf.code, emf.args.toArray(), locale);
+            }
+        }
+        return e.getLocalizedMessage();
     }
 
     @PostMapping("/api/v1/emails/confirmations")
-    String emailsConfirmations() {
-        // we don't use email verification... YET!
-        return "{}";
+    ResponseEntity<String> emailsConfirmations() {
+        return ResponseEntity.ok("{}");
     }
 
     @PostMapping("/api/v1/apps")
-    ResponseEntity<Object> postApps(@RequestBody AppsRequest req) {
-        var registration = new AppRegistration(appCounter.getAndIncrement(), req.client_name, req.redirect_uris,
-                                               req.website, genNonce(33), genNonce(33), VAPID_KEY);
-        // we should have a scheduled thread to clean up expired registrations, but for now we will do it on the fly
-        registrations.put(registration.client_id,
-                          new AppRegistrationEntry(registration, LocalDateTime.now(), req.scopes));
-        LOG.fine("postApps returning " + registration);
-        return ResponseEntity.ok(registration);
-    }
-
-    //to verify using the user token and retrieve credential account
-    //source: https://docs.joinmastodon.org/methods/accounts/#verify_credentials
-    //note that the CredentialAccount has the same info but a different format that Account :'(
-    @GetMapping("/api/v1/accounts/verify_credentials")
-    public Mono<ResponseEntity<CredentialAccount>> verifyCredentials(Principal user,
-                                                                     @RequestHeader("Authorization") String authorizationHeader) {
-        if (user != null) {
-            return accountService.getAccount(user.getName())
-                    .map(this::convertAccount2CredentialAccount)
-                    .map(ResponseEntity::ok)
-                    .switchIfEmpty(
-                            Mono.fromRunnable(() -> log.error("couldn't find " + user.getName())).then(Mono.empty()));
-        } else {
-            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
-        }
-    }
-
-    // spec: https://docs.joinmastodon.org/methods/accounts/#get
-    // TODO at this point only local is implemented and no user checking is done.
-    @GetMapping("/api/v1/accounts/{id}")
-    public Mono<ResponseEntity<Account>> getApiV1AccountsById(Principal user, @PathVariable String id) {
-        // it's not clear what we need to do with the user...
-        return accountService.getAccount(id).map(ResponseEntity::ok);
-    }
-
-    private CredentialAccount convertAccount2CredentialAccount(Account a) {
-        var source = new Source("public", false, "", a.note, a.fields, 0);
-        return new CredentialAccount(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.created_at, a.note,
-                                     a.url, a.avatar, a.avatar_static, a.header, a.header_static, a.followers_count,
-                                     a.following_count, a.statuses_count, a.last_status_at, source, List.of(a.emojis),
-                                     a.fields);
+    Mono<ResponseEntity<AuthService.AppRegistration>> postApps(@RequestBody AppsRequest req) {
+        return authService.registerApp(req.client_name, req.redirect_uris, req.scopes, req.website)
+                .map(ResponseEntity::ok);
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri) {
+    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
+                                    @RequestParam(required = false) String error) {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet. resolved via the WebFilterChain.
         Context context = new Context(LocaleContextHolder.getLocale());
         context.setVariable("clientId", client_id);
         context.setVariable("redirectUri", redirect_uri);
+        context.setVariable("authorizeError", error == null ? "" : error);
         return templateEngine.process("authorize", context);
     }
 
     @GetMapping("/oauth/login")
     Mono<ResponseEntity<String>> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
-                                               @RequestParam String user, @RequestParam String password) {
-        return accountService.checkPassword(user, password)
-                .then(Mono.fromCallable(() -> {
-                    var code = genNonce(33);
-                    code2User.put(code, user);
-                    return code;
-                }))
+                                               @RequestParam String user, @RequestParam String password,
+                                               Locale locale) {
+        // the parameter comes in as "user" but it's actually the email
+        return authService.login(user, password, client_id)
                 .flatMap(code -> Util.getMonoURI(redirect_uri + "?code=" + code))
                 .onErrorResume(t -> Util.getMonoURI(
-                        LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(t.getMessage()))))
+                        LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(error2Message(t, locale)))))
                 .map(uri -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
     }
 
     // implemented according to https://docs.joinmastodon.org/methods/oauth/#token
+
+    /**
+     * This method will return a bearer token for subsequent requests.
+     */
     @PostMapping("/oauth/token")
-    Mono<ResponseEntity<Object>> postOauthToken(@RequestBody TokenRequest req) {
-        var registration = registrations.get(req.client_id);
-        String scopes;
-        String name = "";
-        String website = "";
-        if (registration == null) {
-            scopes = req.scope;
-        } else {
-            if (!registration.registration.client_secret.equals(req.client_secret)) {
-                throw new RuntimeException(
-                        getExceptionMessage("clientSecretException", LocaleContextHolder.getLocale()));
-            }
-            scopes = registration.scopes;
-            name = registration.registration.name;
-            website = registration.registration.website;
+    Mono<ResponseEntity<AuthService.TokenResponse>> postOauthToken(@RequestBody TokenRequest req) {
+        return authService.generateToken(req.client_id, req.client_secret, req.code, req.scope).map(ResponseEntity::ok);
+    }
+
+    public record ExceptionMessageFormat(Class<? extends Throwable> exception, String code, List<String> args) {
+        // shorthand for setting up the message table
+        static ExceptionMessageFormat emf(Class<? extends Throwable> exception, String code, List<String> args) {
+            return new ExceptionMessageFormat(exception, code, args);
         }
-        var user = req.code == null ? "" : code2User.getOrDefault(req.code, "");
-        // generate an empty token, we'll fill it in with a real user later
-        return generateAccessToken(user, name, website).map(t -> ResponseEntity.ok(new TokenResponse(t.token, scopes)));
     }
 
     record AppsRequest(String client_name, String redirect_uris, String scopes, String website) {}
 
-    record TokenResponse(String access_token, String scope) {
-        @JsonProperty("token_type")
-        String getTokenType() {return "Bearer";}
-
-        @JsonProperty("created_at")
-        String getCreatedAt() {return Long.toString(System.currentTimeMillis() / 1000);}
-    }
-
     record TokenRequest(String client_id, String client_secret, String code, String scope) {}
 
-    record AppRegistration(int id, String name, String redirect_uri, String website, String client_id,
-                           String client_secret, String vapid_key) {}
-
-    record AppRegistrationEntry(AppRegistration registration, LocalDateTime createDate, String scopes) {}
-
+    @Getter
     public static class RegistrationException extends RuntimeException {
         private final Object details;
 
@@ -256,9 +157,6 @@ public class AppController {
             this.details = details;
         }
 
-        public Object getDetails() {
-            return details;
-        }
     }
 
     public static class RateLimitException extends RuntimeException {
@@ -267,9 +165,10 @@ public class AppController {
         }
     }
 
-    record RegistrationRequest(String username, String email, String password, boolean agreement, String locale,
-                               String reason) {}
+    public record RegistrationRequest(String username, String email, String password, boolean agreement, String locale,
+                                      String reason) {}
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     record ErrorResponse(String error, Object details) {
         public ErrorResponse(String error) {
             this(error, null);

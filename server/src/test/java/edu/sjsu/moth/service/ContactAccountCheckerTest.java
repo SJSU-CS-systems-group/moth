@@ -2,8 +2,9 @@ package edu.sjsu.moth.service;
 
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.service.AccountService;
-import edu.sjsu.moth.server.service.ContactAccountChecker;
+import edu.sjsu.moth.server.service.EmailService;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.worker.ContactAccountChecker;
 import edu.sjsu.moth.util.MockitoFactoryBean;
 import edu.sjsu.moth.util.MothTestInitializer;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,11 @@ public class ContactAccountCheckerTest {
         return new MockitoFactoryBean<>(AccountService.class);
     }
 
+    @Bean
+    public FactoryBean<EmailService> emailService() {
+        return new MockitoFactoryBean<>(EmailService.class);
+    }
+
     @Test
     public void testContactAccountCreate() throws Exception {
         var ctx = new AnnotationConfigApplicationContext(ContactAccountCheckerTest.class);
@@ -34,19 +40,26 @@ public class ContactAccountCheckerTest {
         ctx.register(ContactAccountCheckerTest.class);
         ctx.register(ContactAccountChecker.class);
         var accountService = ctx.getBean("accountService", AccountService.class);
+        var emailService = ctx.getBean("emailService", EmailService.class);
 
         // mock that contact account doesn't exist
         Mockito.when(accountService.getAccount(Mockito.any())).thenReturn(Mono.empty());
-        Mockito.when(accountService.createAccount(Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(accountService.createAccount(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
                 .thenAnswer(i -> Mono.just(new Account(i.getArgument(0))));
+
+        Mockito.when(emailService.registerEmail(Mockito.anyString(), Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(emailService.assignAccountToEmail(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenAnswer(i -> Mono.empty());
 
         var contactAccountChecker = ctx.getBean(ContactAccountChecker.class);
         contactAccountChecker.run(null);
-        Mockito.verify(accountService, Mockito.times(1)).createAccount(Mockito.anyString(), Mockito.anyString());
+        Mockito.verify(accountService, Mockito.times(1))
+                .createAccount(Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
 
         // mock that contact account exists
         Mockito.when(accountService.getAccount(contact)).thenReturn(Mono.just(new Account(contact)));
         contactAccountChecker.run(null);
-        Mockito.verify(accountService, Mockito.times(1)).createAccount(Mockito.anyString(), Mockito.anyString());
+        Mockito.verify(accountService, Mockito.times(1))
+                .createAccount(Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
     }
 }

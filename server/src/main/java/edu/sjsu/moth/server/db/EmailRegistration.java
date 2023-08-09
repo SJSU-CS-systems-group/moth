@@ -9,6 +9,7 @@ public class EmailRegistration {
     @Id
     public String id;
     public String email;
+    public String username;
     public String saltedPassword;
     public String lastEmail;
     public String firstEmail;

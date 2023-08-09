@@ -18,7 +18,6 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.Map;
 
 @CommonsLog
@@ -36,9 +35,13 @@ public class GlobalErrorWebExceptionHandler extends AbstractErrorWebExceptionHan
      * when logging the stack trace, only log stack frames from our code.
      */
     private static void filterStack(StringBuilder logBuilder, Throwable cause) {
-        Arrays.stream(cause.getStackTrace()).forEach(stack -> {
-            if (stack.getClassName().startsWith("edu.sjsu")) logBuilder.append("\n        ").append(stack);
-        });
+        var stacks = cause.getStackTrace();
+        for (int i = 0; i < stacks.length; i++) {
+            var stack = stacks[i];
+            if (stack.getClassName().startsWith("edu.sjsu") || i == 0 || i == stacks.length - 1) {
+                logBuilder.append("\n        ").append(stack);
+            }
+        }
     }
 
     @Override

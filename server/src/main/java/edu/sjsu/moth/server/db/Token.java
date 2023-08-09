@@ -10,6 +10,7 @@ public class Token {
     @Id
     public String token;
     public String user;
+    public String email;
     public String appName;
     public String appWebsite;
     // https://www.baeldung.com/mongodb-java-date-operations recommends LocatDateTime
@@ -17,9 +18,10 @@ public class Token {
 
     public Token() {}
 
-    public Token(String token, String user, String appName, String appWebsite, LocalDateTime created_at) {
+    public Token(String token, String user, String email, String appName, String appWebsite, LocalDateTime created_at) {
         this.token = token;
         this.user = user;
+        this.email = email;
         this.appName = appName;
         this.appWebsite = appWebsite;
         this.created_at = created_at;

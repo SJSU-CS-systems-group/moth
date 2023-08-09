@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server.util;
 
+import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -31,8 +32,25 @@ public class ContentSecurityPolicyConfiguration {
     public Mono<OAuth2AuthenticatedPrincipal> introspect(String token) {
         return tokenRepository.findItemByToken(token)
                 .switchIfEmpty(Mono.error(new BadOpaqueTokenException("unknown token")))
-                .map(t -> new DefaultOAuth2AuthenticatedPrincipal(t.user, Map.of("sub", t.user, "src", "oauth"),
-                                                                  Set.of()));
+                .map(this::sanitizeToken)
+                .map(t -> new DefaultOAuth2AuthenticatedPrincipal(t.user, Map.of("sub", t.user, "src", "oauth", "email",
+                                                                                 t.email), Set.of()));
+    }
+
+    /**
+     * this should be temporary while we get everything converted over to use emails. it just
+     * makes sure that nothing is null.
+     *
+     * @param token token to sanitize (changed in place)
+     * @return the original token object that has been sanitized
+     */
+    private Token sanitizeToken(Token token) {
+        if (token.token == null) token.token = "";
+        if (token.email == null) token.email = "nothing@nothing";
+        if (token.appName == null) token.appName = "app";
+        if (token.user == null) token.user = "";
+        if (token.appWebsite == null) token.appWebsite = "https://nowhere.example.com";
+        return token;
     }
 
     @Bean
