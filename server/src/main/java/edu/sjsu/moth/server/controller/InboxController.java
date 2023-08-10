@@ -4,21 +4,29 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.AccountRepository;
-
+import edu.sjsu.moth.server.db.Actor;
+import edu.sjsu.moth.server.db.ConversationsRepository;
+import edu.sjsu.moth.server.db.ExternalActorRepository;
+import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
 import edu.sjsu.moth.server.db.Following;
 import edu.sjsu.moth.server.db.FollowingRepository;
+import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.MediaService;
+import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
@@ -27,15 +35,17 @@ import java.util.List;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
-import java.util.ArrayList;
-
-import java.util.Collections;
-import java.util.List;
-
-import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
-
 @RestController
 public class InboxController {
+    @Autowired
+    StatusService statusService;
+
+    @Autowired
+    AccountService accountService;
+
+    @Autowired
+    MediaService mediaService;
+
     @Autowired
     FollowersRepository followersRepository;
 
@@ -45,11 +55,113 @@ public class InboxController {
     @Autowired
     AccountRepository accountRepository;
 
+    @Autowired
+    ExternalStatusRepository externalStatusRepository;
+
+    @Autowired
+    ExternalActorRepository externalActorRepository;
+
+    @Autowired
+    ConversationsRepository conversationsRepository;
+
     //required to map payload from JSON to a Java Object for data access
     ObjectMapper mappedLoad;
 
     public InboxController(ObjectMapper mappedLoad) {
         this.mappedLoad = mappedLoad;
+    }
+
+    //Print method, testing purposes
+    public static void printJsonNode(JsonNode node, String indent) {
+        if (node.isObject()) {
+            // Print keys and their values for object nodes
+            node.fields().forEachRemaining(entry -> {
+                System.out.println(indent + entry.getKey() + ": ");
+                printJsonNode(entry.getValue(), indent + "    "); // Increase indentation for nested objects
+            });
+        } else if (node.isArray()) {
+            // Print each element in the array
+            for (JsonNode element : node) {
+                printJsonNode(element, indent);
+            }
+        } else if (node.isValueNode()) {
+            // Print the value of scalar nodes
+            String value = node.asText();
+            if (value.isEmpty()) {
+                System.out.println();
+            } else {
+                System.out.println(indent + value);
+            }
+        }
+    }
+
+    @PostMapping("/inbox")
+    public Mono<String> inbox(@RequestBody JsonNode inboxNode) {
+        //print out what it gives
+        System.out.println("\nSTART####################################################################\n");
+        printJsonNode(inboxNode, " ");
+        System.out.println("\nEND######################################################################\n");
+
+        //handle here
+        String requestType = inboxNode.get("type").asText();
+        if (requestType.equals("Delete")) {
+            return Mono.empty();
+        } else if (requestType.equals("Create")) {
+            return createHandler(inboxNode);
+        } else if (requestType.equals("Update")) {
+            System.out.println("I've seen UPDATE and it is going to be supported soon");
+            return Mono.empty();
+        } else {
+            return Mono.error(new RuntimeException(requestType + " is not supported yet because I've never seen it"));
+        }
+    }
+
+    public Mono<String> createHandler(@RequestBody JsonNode node) {
+        JsonNode objNode = node.get("object");
+        String toLink = objNode.get("id").asText();
+
+        //putting in variables for now to make it easier to read
+        String accountName = node.get("actor")
+                .asText()
+                .substring(node.get("actor").asText().indexOf("/users/") + "statuses/".length());
+        String id = toLink.substring(toLink.indexOf("/statuses/") + "/statuses/".length());
+        String createdAt = node.get("published").asText();
+        String inReplyTo = objNode.get("inReplyTo").asText();
+        Boolean sensitive = objNode.get("sensitive").asText().equals("true");
+        String language = objNode.get("contentMap").fields().next().getKey();
+        String content = objNode.get("content").asText();
+
+        //Making an actor and then converting to account
+        String accountLink = node.get("actor").asText();
+        if (externalActorRepository.findItemById(accountLink) != null) {
+            externalActorRepository.findItemById(accountLink).flatMap(Actor::convertToAccount).subscribe(account -> {
+                //not sure about spoiler text
+                //havent implemented media service yet, not sure about visibility
+                Status status = new Status(id, createdAt, inReplyTo, inReplyTo, sensitive, "", "direct", language, null,
+                                           null, 0, 0, 0, false, false, false, false, content, null, null, account,
+                                           List.of(), List.of(), List.of(), List.of(), null, null, content,
+                                           node.get("published").asText());
+                externalStatusRepository.save(status);
+            });
+        } else {
+            WebClient webClient = WebClient.builder()
+                    .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
+                    .build();
+            Mono<Actor> response = webClient.get().uri(accountLink).retrieve().bodyToMono(Actor.class);
+            response.flatMap(actor -> {
+                externalActorRepository.save(actor);
+                return actor.convertToAccount();
+            }).subscribe(account -> {
+                //not sure about spoiler text
+                //havent implemented media service yet, not sure about visibility
+                Status status = new Status(id, createdAt, inReplyTo, inReplyTo, sensitive, "", "direct", language, null,
+                                           null, 0, 0, 0, false, false, false, false, content, null, null, account,
+                                           List.of(), List.of(), List.of(), List.of(), null, null, content,
+                                           node.get("published").asText());
+                externalStatusRepository.save(status);
+            });
+        }
+        return Mono.empty();
     }
 
     @PostMapping("/users/{id}/inbox")
@@ -65,7 +177,7 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // check id
-            if (accountRepository.findItemByAcct(id)==null) {
+            if (accountRepository.findItemByAcct(id) == null) {
                 return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
             }
             // find id, grab arraylist, append
