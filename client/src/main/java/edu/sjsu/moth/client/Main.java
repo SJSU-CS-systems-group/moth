@@ -3,6 +3,7 @@ package edu.sjsu.moth.client;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
 import edu.sjsu.moth.util.WebFingerUtils;
 import org.bson.Document;
@@ -100,35 +101,36 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
         int listEmails(@CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg) {
             var props = loadProperties(cfg);
 
-            try (var client = MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db")))) {
-                var regDb = client.getDatabase("test").getCollection("emailregistration");
-                regDb.find().forEach(d -> System.out.println(d.entrySet()));
-            }
+            getEmailRegistrationCollection(props).find().forEach(d -> System.out.println(d.entrySet()));
             return 0;
         }
 
+        private MongoCollection<Document> getEmailRegistrationCollection(Properties props) {
+            return MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db")))
+                    .getDatabase("test")
+                    .getCollection("emailregistration");
+        }
+
         @Command(description = "delete the record for an email", mixinStandardHelpOptions = true)
-        int updateEmail(@CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
+        int deleteEmail(@CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
                         @CommandLine.Parameters(paramLabel = "email") String email, @CommandLine.Option(names = "--no"
                 + "-dryrun", defaultValue = "False") boolean noDryrun) {
             var props = loadProperties(cfg);
-            try (var client = MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db")))) {
-                var regDb = client.getDatabase("test").getCollection("emailregistration");
-                var normalizeEmail = normalizeEmail(email);
-                if (noDryrun) {
-                    var rc = regDb.deleteOne(Filters.eq("_id", normalizeEmail));
-                    if (rc.wasAcknowledged()) System.out.printf("%s deleted\n", normalizeEmail);
-                    else {
-                        System.out.printf("problem deleting %s\n", normalizeEmail);
-                        System.exit(2);
-                    }
+            var regDb = getEmailRegistrationCollection(props);
+            var normalizeEmail = normalizeEmail(email);
+            if (noDryrun) {
+                var rc = regDb.deleteOne(Filters.eq("_id", normalizeEmail));
+                if (rc.wasAcknowledged()) System.out.printf("%s deleted\n", normalizeEmail);
+                else {
+                    System.out.printf("problem deleting %s\n", normalizeEmail);
+                    System.exit(2);
+                }
+            } else {
+                var rec = regDb.find(Filters.eq("_id", normalizeEmail)).first();
+                if (rec == null) {
+                    System.out.printf("%s does not exist\n", normalizeEmail);
                 } else {
-                    var rec = regDb.find(Filters.eq("_id", normalizeEmail)).first();
-                    if (rec == null) {
-                        System.out.printf("%s does not exist\n", normalizeEmail);
-                    } else {
-                        System.out.printf("would delete %s\n", normalizeEmail);
-                    }
+                    System.out.printf("would delete %s\n", normalizeEmail);
                 }
             }
             return 0;
@@ -142,49 +144,47 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
                 "--no-dryrun", defaultValue = "False") boolean noDryrun) {
             var props = loadProperties(cfg);
 
-            try (var client = MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db")))) {
-                var regDb = client.getDatabase("test").getCollection("emailregistration");
-                var normalizeEmail = normalizeEmail(email);
-                var rec = regDb.find(Filters.eq("_id", normalizeEmail)).first();
-                boolean updating = false;
-                if (rec == null) {
-                    System.out.printf("%s is not in the database, will add\n", normalizeEmail);
-                } else {
-                    updating = true;
-                    System.out.printf("found %s in the database, will update\n", rec.entrySet());
+            var regDb = getEmailRegistrationCollection(props);
+            var normalizeEmail = normalizeEmail(email);
+            var rec = regDb.find(Filters.eq("_id", normalizeEmail)).first();
+            boolean updating = false;
+            if (rec == null) {
+                System.out.printf("%s is not in the database, will add\n", normalizeEmail);
+            } else {
+                updating = true;
+                System.out.printf("found %s in the database, will update\n", rec.entrySet());
+            }
+            var newRec = new Document().append("_id", normalizeEmail(email))
+                    .append("email", email)
+                    .append("saltedPassword", encodePassword(password));
+            if (username != null) {
+                var prevRec = regDb.find(Filters.eq("username", username)).first();
+                if (prevRec != null && !prevRec.get("_id").equals(normalizeEmail)) {
+                    System.out.printf("%s is already assigned to %s\n", username, prevRec.get("_id"));
+                    System.exit(2);
                 }
-                var newRec = new Document().append("_id", normalizeEmail(email))
-                        .append("email", email)
-                        .append("saltedPassword", encodePassword(password));
-                if (username != null) {
-                    var prevRec = regDb.find(Filters.eq("username", username)).first();
-                    if (prevRec != null && !prevRec.get("_id").equals(normalizeEmail)) {
-                        System.out.printf("%s is already assigned to %s\n", username, prevRec.get("_id"));
+                newRec.append("username", username);
+            }
+            if (noDryrun) {
+                if (updating) {
+                    var rc = regDb.replaceOne(rec, newRec);
+                    if (rc.wasAcknowledged()) {
+                        System.out.printf("%s updated\n", newRec);
+                    } else {
+                        System.out.printf("could not update %s\n", newRec);
                         System.exit(2);
                     }
-                    newRec.append("username", username);
-                }
-                if (noDryrun) {
-                    if (updating) {
-                        var rc = regDb.replaceOne(rec, newRec);
-                        if (rc.wasAcknowledged()) {
-                            System.out.printf("%s updated\n", newRec);
-                        } else {
-                            System.out.printf("could not update %s\n", newRec);
-                            System.exit(2);
-                        }
-                    } else {
-                        var rc = regDb.insertOne(newRec);
-                        if (rc.wasAcknowledged()) {
-                            System.out.printf("%s inserted\n", newRec);
-                        } else {
-                            System.out.printf("could not insert %s\n", newRec);
-                            System.exit(2);
-                        }
-                    }
                 } else {
-                    System.out.printf("would have %s %s\n", updating ? "updated" : "inserted", newRec);
+                    var rc = regDb.insertOne(newRec);
+                    if (rc.wasAcknowledged()) {
+                        System.out.printf("%s inserted\n", newRec);
+                    } else {
+                        System.out.printf("could not insert %s\n", newRec);
+                        System.exit(2);
+                    }
                 }
+            } else {
+                System.out.printf("would have %s %s\n", updating ? "updated" : "inserted", newRec);
             }
             return 0;
         }
