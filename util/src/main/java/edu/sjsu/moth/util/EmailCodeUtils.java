@@ -4,6 +4,9 @@ import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
 import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
@@ -12,6 +15,8 @@ import java.util.TimeZone;
 public class EmailCodeUtils {
 
     public static final SimpleDateFormat jsonDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+    public static DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+
     /* prepend 13 random bytes and append "frog" to the end. iterate 10,000 times (to make it slower) using SHA256*/
     public final static Pbkdf2PasswordEncoder PASSWORD_ENCODER = new Pbkdf2PasswordEncoder("frog", 13, 10_000,
                                                                                            Pbkdf2PasswordEncoder.SecretKeyFactoryAlgorithm.PBKDF2WithHmacSHA256);
@@ -25,7 +30,10 @@ public class EmailCodeUtils {
         PASSWORD_ENCODER.setEncodeHashAsBase64(true);
     }
 
-    public static String now() {return jsonDateFormat.format(new Date());}
+    public static String now() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
+        return now.format(dateFormatter);
+    }
 
     /**
      * return a salted and hashed password
