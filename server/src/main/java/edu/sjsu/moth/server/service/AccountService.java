@@ -1,8 +1,14 @@
 package edu.sjsu.moth.server.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.Followers;
+import edu.sjsu.moth.server.db.FollowersRepository;
+import edu.sjsu.moth.server.db.Following;
+import edu.sjsu.moth.server.db.FollowingRepository;
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
@@ -11,7 +17,14 @@ import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 /**
  * this class manages the logic and DB access around account management.
@@ -25,6 +38,12 @@ public class AccountService {
     WebfingerRepository webfingerRepository;
     @Autowired
     AccountRepository accountRepository;
+
+    @Autowired
+    FollowersRepository followersRepository;
+
+    @Autowired
+    FollowingRepository followingRepository;
 
     @Autowired
     PubKeyPairRepository pubKeyPairRepository;
@@ -66,6 +85,72 @@ public class AccountService {
                                               .map(p -> p.publicKeyPEM));
         }
         return mono;
+    }
+
+    public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
+        String follower = inboxNode.get("actor").asText();
+        if (requestType.equals("Follow")) {
+            // check id
+            if (accountRepository.findItemByAcct(id)==null) {
+                return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
+            }
+            // find id, grab arraylist, append
+            else {
+                return followersRepository.findItemById(id)
+                        .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                        .flatMap(followedUser -> {
+                            followedUser.getFollowers().add(follower);
+                            return followersRepository.save(followedUser).thenReturn("done");
+                        });
+            }
+        }
+        if (requestType.equals("Undo")) {
+            // find id, grab arraylist, remove
+            return followersRepository.findItemById(id).flatMap(followedUser -> {
+                followedUser.getFollowers().remove(follower);
+                return followersRepository.save(followedUser).thenReturn("done");
+            });
+        }
+        return Mono.empty();
+    }
+
+    public Mono<InboxController.UsersFollowResponse> usersFollow(String id, @RequestParam(required = false) Integer page,
+                                                                 @RequestParam(required = false) Integer limit, String followType) {
+        var items = followType.equals("following") ? followingRepository.findItemById(id)
+                .map(Following::getFollowing) : followersRepository.findItemById(id).map(Followers::getFollowers);
+        String returnID = MothController.BASE_URL + "/users/" + id + followType;
+        int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
+        if (page == null) {
+            String first = returnID + "?page=1";
+            return items.map(
+                    v -> new InboxController.UsersFollowResponse(returnID, "OrderedCollection", v.size(), first, null, null, null));
+        } else { // page number is given
+            int pageNum = page < 1 ? 1 : page;
+            return items.map(v -> {
+                String newReturnID = limit != null ? returnID + "?page=" + page + "&limit=" + limit : returnID +
+                        "?page=" + page;
+                if (pageNum * pageSize >= v.size()) { // no next page
+                    return new InboxController.UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, null, returnID,
+                                                                   paginateFollowers(v, pageNum, pageSize));
+                } else {
+                    String next = returnID + "?page=" + (pageNum + 1);
+                    if (limit != null) {
+                        next += "&limit=" + limit;
+                    }
+                    return new InboxController.UsersFollowResponse(newReturnID, "OrderedCollectionPage", v.size(), null, next, returnID,
+                                                                   paginateFollowers(v, pageNum, pageSize));
+                }
+            });
+        }
+    }
+
+    public List<String> paginateFollowers(ArrayList<String> followers, int pageNo, int pageSize) {
+        int startIndex = (pageNo - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, followers.size());
+        if (startIndex >= followers.size()) {
+            return Collections.emptyList();
+        }
+        return followers.subList(startIndex, endIndex);
     }
 
     public Mono<Account> updateAccount(Account a) {
