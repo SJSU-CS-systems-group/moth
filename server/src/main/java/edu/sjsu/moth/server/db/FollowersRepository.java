@@ -7,5 +7,4 @@ import reactor.core.publisher.Mono;
 public interface FollowersRepository extends ReactiveMongoRepository<Followers, String>{
     @Query("{id:'?0'}")
     Mono<Followers> findItemById(String id);
-
 }

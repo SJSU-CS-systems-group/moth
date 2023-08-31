@@ -3,6 +3,8 @@ package edu.sjsu.moth.server.service;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.server.db.ExternalStatus;
+import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -19,8 +21,16 @@ public class StatusService {
     @Autowired
     StatusRepository statusRepository;
 
+    @Autowired
+    ExternalStatusRepository externalStatusRepository;
+
     public Mono<Status> save(Status status) {
         return statusRepository.save(status);
+    }
+
+    public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
+        System.out.println("external status saved!");
+        return externalStatusRepository.save(status);
     }
 
     public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit) {
