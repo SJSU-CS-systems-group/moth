@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.server.db.EmailRegistration;
 import edu.sjsu.moth.server.db.EmailRegistrationRepository;
+import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.EmailCodeUtils;
@@ -26,7 +27,8 @@ import net.mailific.server.reference.BaseMailObjectFactory;
 import net.mailific.server.session.Reply;
 import net.mailific.server.session.SmtpSession;
 import org.jetbrains.annotations.NotNull;
-import org.simplejavamail.api.email.Email;
+import org.simplejavamail.api.email.EmailPopulatingBuilder;
+import org.simplejavamail.api.email.config.DkimConfig;
 import org.simplejavamail.api.mailer.Mailer;
 import org.simplejavamail.api.mailer.config.TransportStrategy;
 import org.simplejavamail.email.EmailBuilder;
@@ -38,6 +40,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
 
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -60,11 +63,17 @@ public class EmailService implements ApplicationRunner {
     @Autowired
     EmailRegistrationRepository emailRegistrationRepository;
 
+    // needed to get the DKIM private key
+    @Autowired
+    PubKeyPairRepository pubKeyPairRepository;
+
     @Autowired
     MessageSource messageSource;
 
     String domain;
     List<BiFunction<String, String, Boolean>> listeners = Collections.synchronizedList(new LinkedList<>());
+    byte[] dkimPrivateKey;
+    String dkimPublicKeyBase64;
 
     static public String extractEmail(String from) {
         var startBracket = from.lastIndexOf('<');
@@ -75,8 +84,26 @@ public class EmailService implements ApplicationRunner {
         return from.substring(startBracket + 1, endBracket);
     }
 
+    public static String unPEM(String pem) {
+        return pem.replaceAll("--+[^-]+--+", "").replace("\n", "").replace("\r", "");
+    }
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        var dkimPubKeyPair = pubKeyPairRepository.findItemByAcct(PubKeyPairRepository.DKIM_ACCT_ID).block();
+        if (dkimPubKeyPair == null) {
+            dkimPubKeyPair = pubKeyPairRepository.save(AccountService.genPubKeyPair(PubKeyPairRepository.DKIM_ACCT_ID))
+                    .block();
+            if (dkimPubKeyPair == null) {
+                log.error("❌ could not create DKIM public key");
+                System.exit(2);
+            }
+            log.info("❗ created DKIM public key");
+        }
+        dkimPrivateKey = Base64.getDecoder().decode(unPEM(dkimPubKeyPair.privateKeyPEM));
+        dkimPublicKeyBase64 = unPEM(dkimPubKeyPair.publicKeyPEM);
+        log.info("✅ found DKIM public key: " + dkimPublicKeyBase64);
+
         var cfg = MothConfiguration.mothConfiguration;
         domain = cfg.getServerName();
         if (cfg.getSMTPLocalPort() == -1 || cfg.getSMTPServerHost() == null) {
@@ -157,8 +184,13 @@ public class EmailService implements ApplicationRunner {
         listeners.add(receive);
     }
 
-    public @NotNull CompletableFuture<Void> sendMail(Email email) {
-        return mailer.sendMail(email);
+    public @NotNull CompletableFuture<Void> sendMail(EmailPopulatingBuilder emailBuilder) {
+        var dkimCfg = DkimConfig.builder()
+                .dkimPrivateKeyData(dkimPrivateKey)
+                .dkimSelector("moth")
+                .dkimSigningDomain(MothConfiguration.mothConfiguration.getServerName())
+                .build();
+        return mailer.sendMail(emailBuilder.signWithDomainKey(dkimCfg).buildEmail());
     }
 
     /**
@@ -185,13 +217,16 @@ public class EmailService implements ApplicationRunner {
         String to;
         String from;
         String subject;
+        String firstLine = "";
+        String lastLine = "";
         boolean blankSeen;
         boolean inReplyToSeen;
 
         @Override
-        public void writeLine(byte[] line, int offset, int length) {
+        public void writeLine(byte[] lineBytes, int offset, int length) {
+            var line = new String(lineBytes, offset, length);
             if (!blankSeen) {
-                var parts = new String(line, offset, length).split(":", 2);
+                var parts = line.split(":", 2);
                 switch (parts[0].toLowerCase()) {
                     case "from" -> from = parts[1].strip();
                     case "to" -> to = parts[1].strip();
@@ -200,6 +235,9 @@ public class EmailService implements ApplicationRunner {
                     case "in-reply-to" -> inReplyToSeen = true;
                     case "" -> blankSeen = true;
                 }
+            } else {
+                if (firstLine.isEmpty()) firstLine = line;
+                lastLine = line;
             }
         }
 
@@ -207,6 +245,11 @@ public class EmailService implements ApplicationRunner {
         public Reply complete(SmtpSession session) {
             // only reply to fresh messages that don't talk about deamons or failures
             log.info("received mail from %s to %s about %s".formatted(from, to, subject));
+            if (!to.contains(AuthService.registrationEmail())) {
+                log.warn("ignoring mail from: %s, to: %s, subject: %s, body=%s..%s".formatted(from, to, subject,
+                                                                                              firstLine, lastLine));
+
+            }
             if (!inReplyToSeen && !from.contains("mailer-daemon") && !subject.contains("ailure")) {
                 // this will notify all the listeners and remove them if they are done listening
                 listeners.removeIf(f -> !f.apply(from, subject));
@@ -219,41 +262,37 @@ public class EmailService implements ApplicationRunner {
                 var registration = subject.contains("regist");
                 var reset = subject.contains("reset");
                 var replySubject = "re: " + subject;
-                Mono<Email> mono;
+                Mono<EmailPopulatingBuilder> mono;
                 if (registration == reset) {
-                    mono = Mono.just(eb.withSubject(replySubject)
-                                             .withPlainText(getMessage("emailUnrecognizedReply"))
-                                             .buildEmail());
+                    mono = Mono.just(eb.withSubject(replySubject).withPlainText(getMessage("emailUnrecognizedReply")));
                 } else {
                     mono = emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(emailId)).flatMap(reg -> {
                         if (registration) {
                             eb.withSubject(replySubject).withPlainText(getMessage("emailAlreadyRegistered"));
-                            return Mono.just(eb.buildEmail());
+                            return Mono.just(eb);
                         } else {
                             var password = Util.generatePassword();
                             reg.saltedPassword = EmailCodeUtils.encodePassword(password);
                             reg.lastEmail = EmailCodeUtils.now();
                             return emailRegistrationRepository.save(reg)
                                     .thenReturn(eb.withSubject(getMessage("emailSubjectPasswordReset"))
-                                                        .withPlainText(getMessage("emailNewPassword", password))
-                                                        .buildEmail());
+                                                        .withPlainText(getMessage("emailNewPassword", password)));
                         }
                     }).switchIfEmpty(Mono.defer(() -> {
                         if (registration) {
                             var password = Util.generatePassword();
                             return registerEmail(emailId, password).thenReturn(
                                     eb.withSubject(getMessage("emailSubjectWelcome", domain))
-                                            .withPlainText(getMessage("emailNewPassword", password))
-                                            .buildEmail());
+                                            .withPlainText(getMessage("emailNewPassword", password)));
                         } else {
                             eb.withSubject(replySubject).withPlainText(getMessage("emailNotRegistered"));
-                            return Mono.just(eb.buildEmail());
+                            return Mono.just(eb);
 
                         }
                     }));
                 }
-                mono.doOnNext(email -> log.info("sending " + email.getSubject() + " to " + email.getToRecipients()))
-                        .map(mailer::sendMail)
+                mono.doOnNext(email -> log.info("sending " + email.getSubject() + " to " + email.getRecipients()))
+                        .map(EmailService.this::sendMail)
                         .block();
             }
             return super.complete(session);

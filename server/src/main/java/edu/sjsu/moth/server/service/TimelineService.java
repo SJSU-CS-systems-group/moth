@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.generated.Marker;
+import edu.sjsu.moth.server.db.TimelineRecord;
 import edu.sjsu.moth.server.db.TimelineRepository;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +19,16 @@ public class TimelineService {
     @Autowired
     TimelineRepository timelineRepository;
 
+    private TimelineRecord getEmptyTimelineRecord(String acct) {
+        var r = new TimelineRecord();
+        r.acct = acct;
+        r.markers = Map.of();
+        return r;
+    }
+
     public Mono<Map<String, Marker>> getMarkersForUser(String name, List<String> timeline) {
         return timelineRepository.findById(name)
+                .defaultIfEmpty(getEmptyTimelineRecord(name))
                 .map(r -> timeline.stream()
                         .map(k -> Map.entry(k, r.markers.getOrDefault(k, EMPTY_MARKER)))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
