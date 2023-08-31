@@ -29,7 +29,6 @@ public class StatusService {
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
-        System.out.println("external status saved!");
         return externalStatusRepository.save(status);
     }
 

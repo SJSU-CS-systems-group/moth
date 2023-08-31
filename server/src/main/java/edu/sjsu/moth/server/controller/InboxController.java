@@ -145,12 +145,10 @@ public class InboxController {
 
         //Making an actor and then converting to account
         String accountLink = node.get("actor").asText();
-        System.out.println("TEST");
         return actorService.getActor(accountLink)
                 .switchIfEmpty(createActor(accountLink))
                 .flatMap(actor -> convertToAccount(actor))
                 .flatMap(account -> {
-                    System.out.println("HELLO!!");
                     //not sure about spoiler text
                     //haven't implemented media service yet, not sure about visibility
                     ExternalStatus status = new ExternalStatus(id, createdAt, inReplyTo, inReplyTo, sensitive, "",
@@ -158,7 +156,6 @@ public class InboxController {
                                                                false, false, content, null, null, account, List.of(),
                                                                List.of(), List.of(), List.of(), null, null, content,
                                                                node.get("published").asText());
-                    System.out.println("hello! status will be saved!");
                     return statusService.saveExternal(status).map(ResponseEntity::ok);
                 });
     }
