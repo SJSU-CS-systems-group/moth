@@ -1,21 +1,21 @@
 package edu.sjsu.moth.server.db;
 
-import edu.sjsu.moth.generated.Status;
-
+import java.util.HashMap;
 import java.util.List;
 
 public class Conversation {
     //https://docs.joinmastodon.org/entities/Conversation/
     public String id;
-    public boolean unread;
-    public List<Account> accounts;
-    public Status lastStatus;
+    public HashMap<String, Boolean> accountsRead;
+    public List<String> accountIds;
+    public String lastStatusId;
 
-    public Conversation(String id, boolean unread, List<Account> accounts, Status lastStatus) {
+    public Conversation(String id, HashMap<String, Boolean> accountsRead, List<String> accountIds,
+                        String lastStatusId) {
         this.id = id;
-        this.unread = unread;
-        this.accounts = accounts;
-        this.lastStatus = lastStatus;
+        this.accountsRead = accountsRead;
+        this.accountIds = accountIds;
+        this.lastStatusId = lastStatusId;
     }
 
     public Conversation() {}

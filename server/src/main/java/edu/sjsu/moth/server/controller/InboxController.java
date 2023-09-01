@@ -183,18 +183,14 @@ public class InboxController {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
             // check id
-            if (accountService.getAccount(id) == null) {
-                return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
-            }
-            // find id, grab arraylist, append
-            else {
-                return followerService.getFollowersById(id)
-                        .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
-                        .flatMap(followedUser -> {
-                            followedUser.getFollowers().add(follower);
-                            return followerService.saveFollowers(followedUser).thenReturn("done");
-                        });
-            }
+            return accountService.getAccount(id)
+                    .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow doesn't exist.")))
+                    .then(followerService.getFollowersById(id))
+                    .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                    .flatMap(followedUser -> {
+                        followedUser.getFollowers().add(follower);
+                        return followerService.saveFollowers(followedUser).thenReturn("done");
+                    });
         }
         if (requestType.equals("Undo")) {
             // find id, grab arraylist, remove
