@@ -90,19 +90,15 @@ public class AccountService {
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
-            // check id
-            if (accountRepository.findItemByAcct(id)==null) {
-                return Mono.error(new RuntimeException("Error: Account to follow doesn't exist."));
-            }
             // find id, grab arraylist, append
-            else {
-                return followersRepository.findItemById(id)
-                        .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
-                        .flatMap(followedUser -> {
-                            followedUser.getFollowers().add(follower);
-                            return followersRepository.save(followedUser).thenReturn("done");
-                        });
-            }
+            return accountRepository.findItemByAcct(id)
+                    .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
+                    .then(followersRepository.findItemById(id)
+                                  .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
+                                  .flatMap(followedUser -> {
+                                      followedUser.getFollowers().add(follower);
+                                      return followersRepository.save(followedUser).thenReturn("done");
+                                  }));
         }
         if (requestType.equals("Undo")) {
             // find id, grab arraylist, remove
