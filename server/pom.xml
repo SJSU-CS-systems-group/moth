@@ -83,6 +83,7 @@
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+
         <!-- from http://querydsl.com/static/querydsl/latest/reference/html/ch02s07.html#d0e1750 -->
         <dependency>
             <groupId>com.querydsl</groupId>

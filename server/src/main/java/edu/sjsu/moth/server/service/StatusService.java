@@ -2,10 +2,12 @@ package edu.sjsu.moth.server.service;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.QStatus;
+import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
@@ -72,6 +74,21 @@ public class StatusService {
 
     public Flux<Status> getAllStatuses(int offset, int limit) {
         return statusRepository.findAll().skip(offset).take(limit);
+    }
+
+    @NotNull
+    public Mono<SearchResult> filterStatusSearch(String query, String account_id, String max_id, String min_id,
+                                                 Integer limit, Integer offset, SearchResult result) {
+        return statusRepository.findByStatusLike(query).take(limit).collectList().map(statuses -> {
+            // check RequestParams: account_id, max_id, min_id, offset
+            result.statuses.addAll(statuses);
+            if (account_id != null)
+                result.statuses.stream().filter(c -> Integer.parseInt(c.id) == Integer.parseInt(account_id));
+            if (max_id != null) result.statuses.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
+            if (min_id != null) result.statuses.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
+            if (offset != null) result.statuses.subList(offset, result.statuses.size());
+            return result;
+        });
     }
 
 }
