@@ -160,9 +160,9 @@ public class AccountService {
         return accountRepository.save(a);
     }
 
-    public void filterAccountSearch(String query, Principal user, Boolean following, String max_id, String min_id,
+    public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id, String min_id,
                                     Integer limit, Integer offset, SearchResult result) {
-        accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
+        return accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
             result.accounts.addAll(accounts);
             // check RequestParams: following, max_id, min_id, limit, offset
             if (following != null && following && user != null) {
@@ -178,8 +178,8 @@ public class AccountService {
             }
             if (max_id != null) result.accounts.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
             if (min_id != null) result.accounts.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
-            if (offset != null) result.accounts.subList(20, result.accounts.size());
-            return accounts;
+            if (offset != null) result.accounts.subList(offset, result.accounts.size());
+            return result;
         });
     }
 }

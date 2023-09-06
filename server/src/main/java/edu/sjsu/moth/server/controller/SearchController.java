@@ -78,8 +78,14 @@ public class SearchController {
                 return Mono.error(new RuntimeException("User not signed in"));
             }
             switch (type) {
-                case "accounts": {
+                case "": {
+                    // NOT WORKING DUE TO MONO
                     accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset, result);
+                    statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result);
+                    return Mono.just(result);
+                }
+                case "accounts": {
+                    return accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset, result);
                 }
                 case "statuses": {
                     return statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result);
