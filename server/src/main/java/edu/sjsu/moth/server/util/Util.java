@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import reactor.core.publisher.Mono;
 
@@ -68,6 +69,30 @@ public class Util {
         new Random().nextBytes(bytes);
         // we need to exclude O, I, and l they are too similar to other letters and numbers
         return Base64.getUrlEncoder().encodeToString(bytes).replace('l', '@').replace('O', '^').replace('I', '$');
+    }
+
+    //Print method, testing purposes
+    public static void printJsonNode(JsonNode node, String indent) {
+        if (node.isObject()) {
+            // Print keys and their values for object nodes
+            node.fields().forEachRemaining(entry -> {
+                System.out.println(indent + entry.getKey() + ": ");
+                printJsonNode(entry.getValue(), indent + "    "); // Increase indentation for nested objects
+            });
+        } else if (node.isArray()) {
+            // Print each element in the array
+            for (JsonNode element : node) {
+                printJsonNode(element, indent);
+            }
+        } else if (node.isValueNode()) {
+            // Print the value of scalar nodes
+            String value = node.asText();
+            if (value.isEmpty()) {
+                System.out.println();
+            } else {
+                System.out.println(indent + value);
+            }
+        }
     }
 
     /**

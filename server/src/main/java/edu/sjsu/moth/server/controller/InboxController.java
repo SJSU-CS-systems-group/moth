@@ -4,39 +4,48 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.sjsu.moth.server.db.AccountRepository;
-
+import edu.sjsu.moth.generated.Actor;
+import edu.sjsu.moth.generated.Attachment;
+import edu.sjsu.moth.generated.CustomEmoji;
+import edu.sjsu.moth.server.db.Account;
+import edu.sjsu.moth.server.db.AccountField;
+import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.Followers;
-import edu.sjsu.moth.server.db.FollowersRepository;
 import edu.sjsu.moth.server.db.Following;
-import edu.sjsu.moth.server.db.FollowingRepository;
+
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.ActorService;
+import edu.sjsu.moth.server.service.StatusService;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
-
-import java.util.ArrayList;
-
-import java.util.Collections;
-import java.util.List;
-
+import static edu.sjsu.moth.server.util.Util.generateUniqueId;
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 @RestController
 public class InboxController {
+    @Autowired
+    StatusService statusService;
+
+    @Autowired
+    ActorService actorService;
 
     @Autowired
     AccountService accountService;
@@ -46,6 +55,117 @@ public class InboxController {
 
     public InboxController(ObjectMapper mappedLoad) {
         this.mappedLoad = mappedLoad;
+    }
+
+    public static Mono<Account> convertToAccount(Actor actor) {
+        String serverName = "";
+        try {
+            serverName = new URL(actor.id).getHost();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+
+        ArrayList<AccountField> accountFields = new ArrayList<>();
+        for (Attachment attachment : actor.attachment) {
+            AccountField accountField = new AccountField(attachment.name, attachment.value, null);
+            accountFields.add(accountField);
+        }
+
+        String iconLink;
+        if (actor.icon != null) {
+            iconLink = actor.icon.url;
+        } else {
+            iconLink = null;
+        }
+
+        String imageLink;
+        if (actor.image != null) {
+            imageLink = actor.image.url;
+        } else {
+            imageLink = null;
+        }
+
+        WebClient webClient = WebClient.builder()
+                .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
+                .build();
+        Mono<JsonNode> outboxResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
+        Mono<JsonNode> followersResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
+        Mono<JsonNode> followingResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
+        String finalServerName = serverName;
+        return outboxResponse.flatMap(jsonNodeOutbox -> {
+            int totalItems = jsonNodeOutbox.get("totalItems").asInt();
+            return followersResponse.flatMap(jsonNodeFollowers -> {
+                int totalItemFollowers = jsonNodeFollowers.get("totalItems").asInt();
+                return followingResponse.map(jsonNodeFollowing -> {
+                    int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
+                    return new Account(String.valueOf(generateUniqueId()), actor.preferredUsername,
+                                       actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
+                                       actor.summary, iconLink, iconLink, imageLink, imageLink,
+                                       actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
+                                       actor.discoverable, false, false, false, false, actor.published, null,
+                                       totalItems, totalItemFollowers, totalItemFollowing);
+                });
+            });
+        });
+        //don't know about custom emojis, bot, and group
+        //noindex, moved, suspended, and limited are optional?
+        //icon, image, tag, attachment might be null
+        //not sure how to get last_status_at. outbox doesn't give a time, only the last status
+    }
+
+    @PostMapping("/inbox")
+    public Mono<ResponseEntity<Object>> inbox(@RequestBody JsonNode inboxNode) {
+        //handle here
+        String requestType = inboxNode.get("type").asText();
+        if (requestType.equals("Delete")) {
+            return Mono.empty();
+        } else if (requestType.equals("Create")) {
+            return createHandler(inboxNode);
+        } else if (requestType.equals("Update")) {
+            System.out.println("I've seen UPDATE and it is going to be supported soon");
+            return Mono.empty();
+        } else {
+            return Mono.error(new RuntimeException(requestType + " is not supported yet because I've never seen it"));
+        }
+    }
+
+    public Mono<ResponseEntity<Object>> createHandler(@RequestBody JsonNode node) {
+        JsonNode objNode = node.get("object");
+        String toLink = objNode.get("id").asText();
+
+        //putting in variables for now to make it easier to read
+        String id = toLink.substring(toLink.indexOf("/statuses/") + "/statuses/".length());
+        String createdAt = node.get("published").asText();
+        String inReplyTo = objNode.get("inReplyTo").asText();
+        Boolean sensitive = objNode.get("sensitive").asText().equals("true");
+        String language = objNode.get("contentMap").fields().next().getKey();
+        String content = objNode.get("content").asText();
+
+        //Making an actor and then converting to account
+        String accountLink = node.get("actor").asText();
+        return actorService.getActor(accountLink)
+                .switchIfEmpty(createActor(accountLink))
+                .flatMap(actor -> convertToAccount(actor))
+                .flatMap(account -> {
+                    //not sure about spoiler text
+                    //haven't implemented media service yet, not sure about visibility
+                    ExternalStatus status = new ExternalStatus(id, createdAt, inReplyTo, inReplyTo, sensitive, "",
+                                                               "direct", language, null, null, 0, 0, 0, false, false,
+                                                               false, false, content, null, null, account, List.of(),
+                                                               List.of(), List.of(), List.of(), null, null, content,
+                                                               node.get("published").asText());
+                    return statusService.saveExternal(status).map(ResponseEntity::ok);
+                });
+    }
+
+    public Mono<Actor> createActor(String accountLink) {
+        WebClient webClient = WebClient.builder()
+                .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
+                .build();
+        Mono<Actor> response = webClient.get().uri(accountLink).retrieve().bodyToMono(Actor.class);
+        return response.flatMap(actor -> {
+            return actorService.save(actor);
+        });
     }
 
     @PostMapping("/users/{id}/inbox")
@@ -68,7 +188,7 @@ public class InboxController {
     public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id,
                                                     @RequestParam(required = false) Integer page,
                                                     @RequestParam(required = false) Integer limit) {
-        return accountService.usersFollow(id, page, limit, "followers");
+      return accountService.usersFollow(id, page, limit, "followers");
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
