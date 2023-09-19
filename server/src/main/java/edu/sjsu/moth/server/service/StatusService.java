@@ -50,7 +50,6 @@ public class StatusService {
         if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
         return predicate;
     }
-
     public Mono<List<Status>> getStatusesForId(String username, String max_id, String since_id, String min_id,
                                                Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
                                                Boolean pinned, String tagged, Integer limit) {

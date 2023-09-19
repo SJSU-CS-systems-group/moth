@@ -166,11 +166,11 @@ public class AccountService {
             result.accounts.addAll(accounts);
             // check RequestParams: following, max_id, min_id, limit, offset
             if (following != null && following && user != null) {
-                for (int i = 0; i < accounts.size(); i++) {
+                for (int i = 0; i < result.accounts.size(); i++) {
                     int finalI = i;
                     followersRepository.findItemById(((Account) user).id).map(followers -> {
                         if (!followers.followers.contains(user)) {
-                            accounts.remove(accounts.get(finalI));
+                            result.accounts.remove(accounts.get(finalI));
                         }
                         return null;
                     });
