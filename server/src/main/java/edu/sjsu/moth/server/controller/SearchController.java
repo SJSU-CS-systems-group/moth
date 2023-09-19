@@ -76,17 +76,21 @@ public class SearchController {
             // normal search (of local instance)
             switch (type) {
                 case "": {
-                    String finalQuery = query;
-                    Integer finalLimit = limit;
-                    return Mono.zip(accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset, result),
-                                    statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result)).map(t -> {
-                        result.accounts = t.getT1().accounts;
-                        result.statuses = t.getT2().statuses;
-                        return result;
-                    });
+                    return Mono.zip(
+                                    accountService.filterAccountSearch(query, user, following, max_id, min_id, limit,
+                                                                       offset,
+                                                                       result),
+                                    statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset
+                                            , result))
+                            .map(t -> {
+                                result.accounts = t.getT1().accounts;
+                                result.statuses = t.getT2().statuses;
+                                return result;
+                            });
                 }
                 case "accounts": {
-                    return accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset, result);
+                    return accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset,
+                                                              result);
                 }
                 case "statuses": {
                     return statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result);
