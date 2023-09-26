@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,7 +53,7 @@ public class StatusController {
     //   media attachment processing
     //   poll processing
     @PostMapping(value = "/api/v1/statuses", consumes = MediaType.APPLICATION_JSON_VALUE)
-    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestBody V1PostStatus body) {
+    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestBody V1PostStatus body) { //
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                      .body(new AppController.ErrorResponse("The access token is invalid")));
@@ -119,7 +120,13 @@ public class StatusController {
                 });
     }
 
-    // spec: https://docs.joinmastodon.org/methods/timelines/#home
+    @DeleteMapping("/api/v1/statuses/{id}")
+    Mono<ResponseEntity<Status>> postApiV1Statuses(Principal user, @PathVariable String id) {
+        return statusService.findStatusById(id).flatMap(s->statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
+    }
+
+
+        // spec: https://docs.joinmastodon.org/methods/timelines/#home
     // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
     @GetMapping("/api/v1/timelines/home")
     Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(Principal user,

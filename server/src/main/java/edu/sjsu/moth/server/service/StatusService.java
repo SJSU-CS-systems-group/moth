@@ -32,6 +32,15 @@ public class StatusService {
         return externalStatusRepository.save(status);
     }
 
+    public Mono<Void> delete(Status status) {
+        return statusRepository.delete(status);
+    }
+
+    public Mono<Status> findStatusById(String id) {
+        System.out.println(statusRepository.findById(id));
+        return statusRepository.findById(id);
+    }
+
     public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit) {
         // TODO: this is an intial hacked implementation. dumps all the statuses
         var qStatus = new QStatus("start");
