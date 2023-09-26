@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.Marker;
+import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.service.TimelineService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -33,5 +34,10 @@ public class TimelineController {
             required = false) String notificationsLast) {
         if (user == null) return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         return timelineService.setMarkerForUser(user.getName(), homeLast, notificationsLast).map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/api/v1/timelines/public")
+    public Mono<ResponseEntity<Status>> viewPublicTimeline() {
+        return Mono.empty();
     }
 }

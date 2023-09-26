@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 @CommonsLog
@@ -120,6 +121,20 @@ public class AccountController {
     public Mono<ResponseEntity<Account>> getApiV1AccountsById(Principal user, @PathVariable String id) {
         // it's not clear what we need to do with the user...
         return accountService.getAccount(id).map(ResponseEntity::ok);
+    }
+
+    // TODO: placeholder for testing
+    @GetMapping("/api/v1/mutes")
+    public Mono<ArrayList<Account>> getMutes(Integer max_id, Integer since_id, Integer limit) {
+
+        return Mono.just(new ArrayList<Account>());
+    }
+
+    // TODO: placeholder for testing
+    @GetMapping("/api/v1/blocks")
+    public Mono<ArrayList<Account>> getBlocks(Integer max_id, Integer since_id, Integer min_id, Integer limit) {
+
+        return Mono.just(new ArrayList<Account>());
     }
 
 }

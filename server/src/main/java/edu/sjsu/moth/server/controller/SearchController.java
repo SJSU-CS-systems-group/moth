@@ -1,7 +1,8 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.SearchResult;
-import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,13 +12,17 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 import reactor.core.publisher.Mono;
 
+import java.security.Principal;
 import java.util.Optional;
 
 @RestController
 public class SearchController {
 
     @Autowired
-    AccountRepository accountRepository; // our own repository
+    StatusService statusService;
+
+    @Autowired
+    AccountService accountService;
 
     @Autowired
     public SearchController(WebClient.Builder webBuilder) {
@@ -25,17 +30,14 @@ public class SearchController {
 
     @GetMapping("api/v2/search")
     // DOCS FOR SPECS --> https://docs.joinmastodon.org/methods/search/
-    public Mono<SearchResult> doSearch(@RequestParam("q") String query,
+    public Mono<SearchResult> doSearch(@RequestParam("q") String query, Principal user, // user sending request, must
+                                       // be authenticated user
                                        @RequestParam(required = false) String type,
-                                       @RequestParam(required = false) Boolean resolve,
-                                       @RequestParam(required = false) Boolean following,
-                                       @RequestParam(required = false) String account_id,
-                                       @RequestParam(required = false) Boolean exclude_unreviewed,
-                                       @RequestParam(required = false) String max_id,
-                                       @RequestParam(required = false) String min_id,
-                                       @RequestParam(required = false) Integer limit,
-                                       @RequestParam(required = false) Integer offset)
-    {
+                                       @RequestParam(required = false) Boolean resolve, @RequestParam(required =
+            false) Boolean following, @RequestParam(required = false) String account_id, @RequestParam(required =
+            false) Boolean exclude_unreviewed, @RequestParam(required = false) String max_id, @RequestParam(required
+            = false) String min_id, @RequestParam(required = false) Integer limit,
+                                       @RequestParam(required = false) Integer offset) {
         SearchResult result = new SearchResult();
         // return empty SearchResult obj. , until query.length() >= 3
         if (query.length() < 3) {
@@ -71,13 +73,37 @@ public class SearchController {
                         });
             }
         } else {
-            /// normal search (of local instance)
-            // TO DO: finish other search types, finish @RequestParam processing
-            return accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
-                result.accounts.addAll(accounts);
-                return result;
-            });
+            // normal search (of local instance)
+            switch (type) {
+                case "": {
+                    return Mono.zip(
+                                    accountService.filterAccountSearch(query, user, following, max_id, min_id, limit,
+                                                                       offset,
+                                                                       result),
+                                    statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset
+                                            , result))
+                            .map(t -> {
+                                result.accounts = t.getT1().accounts;
+                                result.statuses = t.getT2().statuses;
+                                return result;
+                            });
+                }
+                case "accounts": {
+                    return accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset,
+                                                              result);
+                }
+                case "statuses": {
+                    return statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result);
+                }
+                case "hashtags": {
+                    // incomplete; complete when hashtags are implemented
+                    // check RequestParams: exclude_unreviewed, max_id, min_id, offset
+                    return null;
+                }
+            }
+
         }
         return Mono.empty();
     }
+
 }
