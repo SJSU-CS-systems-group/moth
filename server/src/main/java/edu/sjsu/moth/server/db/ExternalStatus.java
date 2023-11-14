@@ -1,5 +1,7 @@
 package edu.sjsu.moth.server.db;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.querydsl.core.annotations.QueryEntity;
 import edu.sjsu.moth.generated.Application;
 import edu.sjsu.moth.generated.Card;
@@ -13,7 +15,12 @@ import java.util.List;
 
 @Document("ExternalStatus")
 @QueryEntity
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ExternalStatus extends Status {
+    @JsonProperty("uri")
+    public String uri;
+    @JsonProperty("url")
+    public String url;
 
     public ExternalStatus(String id, String createdAt, String inReplyToId, String inReplyToAccountId,
                           Boolean sensitive, String spoilerText, String visibility, String language, String uri,

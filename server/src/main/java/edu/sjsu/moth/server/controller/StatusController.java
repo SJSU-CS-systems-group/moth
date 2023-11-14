@@ -122,11 +122,10 @@ public class StatusController {
 
     @DeleteMapping("/api/v1/statuses/{id}")
     Mono<ResponseEntity<Status>> postApiV1Statuses(Principal user, @PathVariable String id) {
-        return statusService.findStatusById(id).flatMap(s->statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
+        return statusService.findStatusById(id).flatMap(s -> statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
     }
 
-
-        // spec: https://docs.joinmastodon.org/methods/timelines/#home
+    // spec: https://docs.joinmastodon.org/methods/timelines/#home
     // notes: spec don't indicate that min/max/since_id are optional, but clients don't always pass them
     @GetMapping("/api/v1/timelines/home")
     Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(Principal user,
@@ -134,7 +133,6 @@ public class StatusController {
                                                              @RequestParam(required = false) String since_id,
                                                              @RequestParam(required = false) String min_id,
                                                              @RequestParam(required = false, defaultValue = "20") int limit) {
-
         return statusService.getTimeline(user, max_id, since_id, min_id, limit).map(ResponseEntity::ok);
     }
 

@@ -1,5 +1,6 @@
 package edu.sjsu.moth.server.db;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.querydsl.core.annotations.QueryEntity;
 import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.server.controller.MothController;
@@ -13,6 +14,7 @@ import java.util.List;
 @QueryEntity
 // Definition is https://docs.joinmastodon.org/entities/Account/
 @Document("account")
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Account {
     @Id
     public String id;

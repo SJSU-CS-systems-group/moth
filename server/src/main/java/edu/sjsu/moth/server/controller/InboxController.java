@@ -11,13 +11,9 @@ import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.ExternalStatus;
-import edu.sjsu.moth.server.db.Followers;
-import edu.sjsu.moth.server.db.Following;
-
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.StatusService;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -33,11 +29,7 @@ import reactor.core.publisher.Mono;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-
-import static edu.sjsu.moth.server.util.Util.generateUniqueId;
-import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 @RestController
 public class InboxController {
@@ -75,14 +67,14 @@ public class InboxController {
         if (actor.icon != null) {
             iconLink = actor.icon.url;
         } else {
-            iconLink = null;
+            iconLink = "";
         }
 
         String imageLink;
         if (actor.image != null) {
             imageLink = actor.image.url;
         } else {
-            imageLink = null;
+            imageLink = "";
         }
 
         WebClient webClient = WebClient.builder()
@@ -98,11 +90,14 @@ public class InboxController {
                 int totalItemFollowers = jsonNodeFollowers.get("totalItems").asInt();
                 return followingResponse.map(jsonNodeFollowing -> {
                     int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
-                    return new Account(String.valueOf(generateUniqueId()), actor.preferredUsername,
+                    //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
+                    //change from String.valueOf(generateUniqueId()) to just their name
+                    //changed last status from null to actor.published
+                    return new Account(actor.preferredUsername, actor.preferredUsername,
                                        actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
                                        actor.summary, iconLink, iconLink, imageLink, imageLink,
                                        actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
-                                       actor.discoverable, false, false, false, false, actor.published, null,
+                                       actor.discoverable, false, false, false, false, actor.published, actor.published,
                                        totalItems, totalItemFollowers, totalItemFollowing);
                 });
             });
@@ -149,9 +144,10 @@ public class InboxController {
                 .flatMap(account -> {
                     //not sure about spoiler text
                     //haven't implemented media service yet, not sure about visibility
-                    ExternalStatus status = new ExternalStatus(id, createdAt, inReplyTo, inReplyTo, sensitive, "",
-                                                               "direct", language, null, null, 0, 0, 0, false, false,
-                                                               false, false, content, null, null, account, List.of(),
+                    //changed inreplyto to null
+                    ExternalStatus status = new ExternalStatus(null, createdAt, null, null, sensitive, "", "direct",
+                                                               language, null, null, 0, 0, 0, false, false, false,
+                                                               false, content, null, null, account, List.of(),
                                                                List.of(), List.of(), List.of(), null, null, content,
                                                                node.get("published").asText());
                     return statusService.saveExternal(status).map(ResponseEntity::ok);
@@ -188,7 +184,7 @@ public class InboxController {
     public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id,
                                                     @RequestParam(required = false) Integer page,
                                                     @RequestParam(required = false) Integer limit) {
-      return accountService.usersFollow(id, page, limit, "followers");
+        return accountService.usersFollow(id, page, limit, "followers");
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

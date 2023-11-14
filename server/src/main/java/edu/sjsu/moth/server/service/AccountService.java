@@ -38,6 +38,7 @@ import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZ
 public class AccountService {
     @Autowired
     WebfingerRepository webfingerRepository;
+
     @Autowired
     AccountRepository accountRepository;
 
@@ -160,8 +161,8 @@ public class AccountService {
         return accountRepository.save(a);
     }
 
-    public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id, String min_id,
-                                    Integer limit, Integer offset, SearchResult result) {
+    public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
+                                                  String min_id, Integer limit, Integer offset, SearchResult result) {
         return accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
             result.accounts.addAll(accounts);
             // check RequestParams: following, max_id, min_id, limit, offset
