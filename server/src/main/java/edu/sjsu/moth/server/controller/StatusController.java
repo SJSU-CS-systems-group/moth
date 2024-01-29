@@ -122,7 +122,7 @@ public class StatusController {
 
     @DeleteMapping("/api/v1/statuses/{id}")
     Mono<ResponseEntity<Status>> postApiV1Statuses(Principal user, @PathVariable String id) {
-        return statusService.findStatusById(id).flatMap(s -> statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
+        return statusService.findStatusById(id).flatMap(s->statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
     }
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
