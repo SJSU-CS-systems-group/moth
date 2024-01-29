@@ -147,6 +147,10 @@ public class Status {
     public String getUrl() {
         return MothController.BASE_URL + "/@" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
+    @JsonProperty("uri")
+    public void setUri(String uri){}
+    @JsonProperty("url")
+    public void setUrl(String url){}
 
 
     @Override
