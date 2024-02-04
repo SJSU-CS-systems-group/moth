@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.CredentialAccount;
+import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.Source;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
@@ -40,9 +41,9 @@ public class AccountController {
                                                            @RequestPart(required = false) String note,
                                                            @RequestPart(required = false) String avatar,
                                                            @RequestPart(required = false) String header,
-                                                           @RequestPart(required = false) Boolean locked,
-                                                           @RequestPart(required = false) Boolean bot,
-                                                           @RequestPart(required = false) Boolean discoverable,
+                                                           @RequestPart(required = false) String locked,
+                                                           @RequestPart(required = false) String bot,
+                                                           @RequestPart(required = false) String discoverable,
                                                            @RequestPart(required = false) List<AccountField> fields_attribute) {
 
         return accountService.getAccountById(user.getName()).flatMap(a -> {
@@ -66,15 +67,15 @@ public class AccountController {
                 a.fields = fields_attribute;
             }
             if (locked != null) {
-                a.locked = locked;
+                a.locked = locked.equalsIgnoreCase("true");
             }
 
             if (bot != null) {
-                a.bot = bot;
+                a.bot = bot.equalsIgnoreCase("true");
             }
 
             if (discoverable != null) {
-                a.discoverable = discoverable;
+                a.discoverable = discoverable.equalsIgnoreCase("true");
             }
 
             return accountService.updateAccount(a);
@@ -113,6 +114,19 @@ public class AccountController {
         } else {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
+    }
+
+    @GetMapping("/api/v1/accounts/relationships")
+    public ResponseEntity<List<Relationship>> getApiV1AccountsRelationships(Principal user, String[] id,
+                                                                            @RequestParam(required = false,
+                                                                                    defaultValue = "false") boolean with_suspended) {
+        var relationships = new ArrayList<Relationship>();
+        for (var i : id) {
+            relationships.add(
+                    new Relationship(i, false, false, false, false, false, false, false, false, false, false, false,
+                                     false, ""));
+        }
+        return ResponseEntity.ok(relationships);
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#get
