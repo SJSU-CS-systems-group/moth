@@ -35,6 +35,10 @@ import lombok.extern.apachecommons.CommonsLog;
 
 @CommonsLog
 public class HttpSignature {
+    private HttpSignature() {
+        throw new IllegalStateException("This is a utility class. You shouldn't instantiate it.");
+    }
+
     public static final String REQUEST_TARGET = "(request-target)";
     static public final Pattern HTTP_HEADER_FIELDS_PATTERN = Pattern.compile(
             "(?<key>\\p{Alnum}+)=\"(?<value>([^\"])*)\"");
