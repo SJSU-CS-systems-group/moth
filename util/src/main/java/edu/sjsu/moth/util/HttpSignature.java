@@ -40,7 +40,7 @@ public class HttpSignature {
     }
 
     public static final String REQUEST_TARGET = "(request-target)";
-    static public final Pattern HTTP_HEADER_FIELDS_PATTERN = Pattern.compile(
+    public static final Pattern HTTP_HEADER_FIELDS_PATTERN = Pattern.compile(
             "(?<key>\\p{Alnum}+)=\"(?<value>([^\"])*)\"");
 
     public static Signature newSigner() {
