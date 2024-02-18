@@ -111,11 +111,9 @@ public class HttpSignature {
             SignatureException {
         var toValidate = generateHeadersToSign(method, uri, headers, List.of(signedHeaders.split(" ")));
         var signer = newSigner();
-        String sigLine = null;
         signer.initVerify(publicKey);
         signer.update(toValidate);
         return signer.verify(Base64.getMimeDecoder().decode(signature));
-
     }
 
     public static PublicKey pemToPublicKey(String publicKeyPEM) {
