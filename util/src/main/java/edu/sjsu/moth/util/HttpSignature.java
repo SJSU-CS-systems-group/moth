@@ -1,9 +1,5 @@
 package edu.sjsu.moth.util;
 
-import lombok.extern.apachecommons.CommonsLog;
-import org.springframework.http.HttpHeaders;
-import org.springframework.web.reactive.function.client.WebClient;
-
 import java.net.URI;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -22,6 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import lombok.extern.apachecommons.CommonsLog;
 
 /*
  * routines to support HTTP Signatures
@@ -59,11 +60,11 @@ public class HttpSignature {
     }
 
     public static WebClient.Builder signHeaders(WebClient.Builder clientBuilder, List<String> headers,
-                                                PrivateKey signingKey, String keyUri) {
+            PrivateKey signingKey, String keyUri) {
         clientBuilder.filter((request, next) -> {
             try {
                 String sigLine = generateSignatureHeader(request.method().name(), request.url(), request.headers(),
-                                                         headers, signingKey, keyUri);
+                        headers, signingKey, keyUri);
                 request.headers().add("Signature", sigLine);
             } catch (InvalidKeyException | SignatureException e) {
                 log.error("couldn't sign request", e);
@@ -75,7 +76,7 @@ public class HttpSignature {
     }
 
     static String generateSignatureHeader(String requestMethod, URI requestURI, HttpHeaders requestHeaders,
-                                          List<String> headers, PrivateKey signingKey, String keyUri) throws SignatureException, InvalidKeyException {
+            List<String> headers, PrivateKey signingKey, String keyUri) throws SignatureException, InvalidKeyException {
         var toSign = generateHeadersToSign(requestMethod, requestURI, requestHeaders, headers);
         var signer = newSigner();
         signer.initSign(signingKey);
@@ -85,7 +86,7 @@ public class HttpSignature {
     }
 
     private static byte[] generateHeadersToSign(String requestMethod, URI requestURI, HttpHeaders requestHeaders,
-                                                List<String> headers) {
+            List<String> headers) {
         var toSign = headers.stream().map(h -> {
             if (h.equalsIgnoreCase(REQUEST_TARGET)) {
                 var uri = requestURI;
@@ -102,7 +103,7 @@ public class HttpSignature {
     }
 
     public static boolean validateSignatureHeader(String method, URI uri, HttpHeaders headers, String signedHeaders,
-                                                  PublicKey publicKey, String signature) throws InvalidKeyException,
+            PublicKey publicKey, String signature) throws InvalidKeyException,
             SignatureException {
         var toValidate = generateHeadersToSign(method, uri, headers, List.of(signedHeaders.split(" ")));
         var signer = newSigner();
@@ -147,6 +148,6 @@ public class HttpSignature {
     public static void addDigest(HttpHeaders headers, byte[] body) {
         // https://docs.joinmastodon.org/spec/security/ says we should use SHA-256
         headers.add("Digest",
-                    "sha-256=%s".formatted(Base64.getMimeEncoder().encodeToString(newSHA256Digest().digest(body))));
+                "sha-256=%s".formatted(Base64.getMimeEncoder().encodeToString(newSHA256Digest().digest(body))));
     }
 }
