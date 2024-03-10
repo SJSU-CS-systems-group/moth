@@ -12,3 +12,6 @@ here is an example config file:
     account=tooth
     #spring.debug=true
     #spring.trace=true
+    smtp.server=smart_host:port # this should be an SMTP server that can relay emails like 172.27.16.1:2525
+    smtp.localPort=2525
+
