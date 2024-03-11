@@ -50,9 +50,9 @@ public class StatusService {
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
 
+        //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
     }
-
 
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,
                                               String min_id) {
