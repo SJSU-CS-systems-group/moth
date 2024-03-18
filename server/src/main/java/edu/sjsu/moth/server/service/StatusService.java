@@ -44,11 +44,14 @@ public class StatusService {
     }
 
     public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit) {
-        // TODO: this is an intial hacked implementation. dumps all the statuses
         var qStatus = new QStatus("start");
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit).collectList();
+        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
+        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
+
+        //TODO: we may want to merge sort them, unsure if merge does that
+        return Flux.merge(external, internal).collectList();
     }
 
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,

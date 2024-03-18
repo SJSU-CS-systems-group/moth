@@ -159,9 +159,7 @@ public class InboxController {
                 .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
                 .build();
         Mono<Actor> response = webClient.get().uri(accountLink).retrieve().bodyToMono(Actor.class);
-        return response.flatMap(actor -> {
-            return actorService.save(actor);
-        });
+        return response.flatMap(actor -> actorService.save(actor));
     }
 
     @PostMapping("/users/{id}/inbox")
