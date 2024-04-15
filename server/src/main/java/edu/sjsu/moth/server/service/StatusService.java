@@ -6,15 +6,19 @@ import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
+import edu.sjsu.moth.server.db.Following;
+import edu.sjsu.moth.server.db.FollowingRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -25,6 +29,12 @@ public class StatusService {
 
     @Autowired
     ExternalStatusRepository externalStatusRepository;
+
+    @Autowired
+    FollowingRepository followingRepository;
+
+    @Autowired
+    AccountService accountService;
 
     public Mono<Status> save(Status status) {
         return statusRepository.save(status);
@@ -47,8 +57,12 @@ public class StatusService {
         var qStatus = new QStatus("start");
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
-        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit);
+        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(statuses -> filterStatusByViewable(user, statuses))
+                .take(limit);
+        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(statuses -> filterStatusByViewable(user, statuses))
+                .take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -62,6 +76,7 @@ public class StatusService {
         if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
         return predicate;
     }
+
     public Mono<List<Status>> getStatusesForId(String username, String max_id, String since_id, String min_id,
                                                Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
                                                Boolean pinned, String tagged, Integer limit) {
@@ -88,18 +103,34 @@ public class StatusService {
     }
 
     @NotNull
-    public Mono<SearchResult> filterStatusSearch(String query, String account_id, String max_id, String min_id,
-                                                 Integer limit, Integer offset, SearchResult result) {
-        return statusRepository.findByStatusLike(query).take(limit).collectList().map(statuses -> {
-            // check RequestParams: account_id, max_id, min_id, offset
-            result.statuses.addAll(statuses);
-            if (account_id != null)
-                result.statuses.stream().filter(c -> Integer.parseInt(c.id) == Integer.parseInt(account_id));
-            if (max_id != null) result.statuses.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
-            if (min_id != null) result.statuses.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
-            if (offset != null) result.statuses.subList(offset, result.statuses.size());
-            return result;
-        });
+    public Mono<SearchResult> filterStatusSearch(String query, Principal user, String account_id, String max_id,
+                                                 String min_id, Integer limit, Integer offset, SearchResult result) {
+        return statusRepository.findByStatusLike(query)
+                .flatMap(statuses -> filterStatusByViewable(user, statuses))
+                .take(limit)
+                .collectList()
+                .map(statuses -> {
+                    // check RequestParams: account_id, max_id, min_id, offset
+                    result.statuses.addAll(statuses);
+                    if (account_id != null)
+                        result.statuses.stream().filter(c -> Integer.parseInt(c.id) == Integer.parseInt(account_id));
+                    if (max_id != null)
+                        result.statuses.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
+                    if (min_id != null)
+                        result.statuses.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
+                    if (offset != null) result.statuses.subList(offset, result.statuses.size());
+                    return result;
+                });
+    }
+
+    private Flux<Status> filterStatusByViewable(Principal user, Status status) {
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMapMany(acct -> followingRepository.findItemById(acct.id)
+                        .switchIfEmpty(Mono.just(new Following(acct.id, new ArrayList<>())))
+                        .map(Following::getFollowing)
+                        .flatMapMany(followings -> (status.visibility.equals("public") || followings.contains(
+                                status.id)) ? Flux.just(status) : Flux.empty()));
     }
 
 }
