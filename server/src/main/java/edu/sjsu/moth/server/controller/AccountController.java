@@ -1,6 +1,5 @@
 package edu.sjsu.moth.server.controller;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import edu.sjsu.moth.generated.CredentialAccount;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.Source;
@@ -162,7 +161,6 @@ public class AccountController {
         return Mono.just(new ArrayList<Account>());
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
     private static class RelationshipRequest {
         public String[] id;
         public Boolean with_suspended;
