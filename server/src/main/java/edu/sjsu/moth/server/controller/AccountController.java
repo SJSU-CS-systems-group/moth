@@ -1,8 +1,10 @@
 package edu.sjsu.moth.server.controller;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import edu.sjsu.moth.generated.CredentialAccount;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.Source;
+import edu.sjsu.moth.server.annotations.RequestObject;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.service.AccountService;
@@ -25,6 +27,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -126,11 +129,10 @@ public class AccountController {
     }
 
     @GetMapping("/api/v1/accounts/relationships")
-    public ResponseEntity<List<Relationship>> getApiV1AccountsRelationships(Principal user, String[] id,
-                                                                            @RequestParam(required = false,
-                                                                                    defaultValue = "false") boolean with_suspended) {
+    public ResponseEntity<List<Relationship>> getApiV1AccountsRelationships(Principal user,
+                                                                            @RequestObject RelationshipRequest req) {
         var relationships = new ArrayList<Relationship>();
-        for (var i : id) {
+        for (var i : req.id) {
             relationships.add(
                     new Relationship(i, false, false, false, false, false, false, false, false, false, false, false,
                                      false, ""));
@@ -158,6 +160,16 @@ public class AccountController {
     public Mono<ArrayList<Account>> getBlocks(Integer max_id, Integer since_id, Integer min_id, Integer limit) {
 
         return Mono.just(new ArrayList<Account>());
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class RelationshipRequest {
+        public String[] id;
+        public Boolean with_suspended;
+
+        public String toString() {
+            return ("id=" + Arrays.toString(id) + ", with_suspended: " + with_suspended);
+        }
     }
 
 }

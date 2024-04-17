@@ -8,6 +8,7 @@ import org.springframework.core.MethodParameter;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Component;
@@ -69,6 +70,13 @@ public class RequestObjectMethodArgumentResolver extends HandlerMethodArgumentRe
         }
         var root = new ObjectNode(JsonNodeFactory.instance);
         parseParams(exchange.getRequest().getQueryParams(), root);
+        if (exchange.getRequest().getMethod().equals(HttpMethod.GET)) {
+            try {
+                return Mono.just(reader.readValue(root));
+            } catch (IOException e) {
+                return Mono.error(e);
+            }
+        }
         return DataBufferUtils.join(exchange.getRequest().getBody()).flatMap(db -> {
             var formdata = db.toString(UTF_8);
             var exps = StringUtils.delimitedListToStringArray(formdata, "&");
