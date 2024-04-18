@@ -164,10 +164,6 @@ public class AccountController {
     private static class RelationshipRequest {
         public String[] id;
         public Boolean with_suspended;
-
-        public String toString() {
-            return ("id=" + Arrays.toString(id) + ", with_suspended: " + with_suspended);
-        }
     }
 
 }
