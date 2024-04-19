@@ -80,7 +80,7 @@ public class SearchController {
                                     accountService.filterAccountSearch(query, user, following, max_id, min_id, limit,
                                                                        offset,
                                                                        result),
-                                    statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset
+                                    statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset
                                             , result))
                             .map(t -> {
                                 result.accounts = t.getT1().accounts;
@@ -93,7 +93,7 @@ public class SearchController {
                                                               result);
                 }
                 case "statuses": {
-                    return statusService.filterStatusSearch(query, account_id, max_id, min_id, limit, offset, result);
+                    return statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset, result);
                 }
                 case "hashtags": {
                     // incomplete; complete when hashtags are implemented
