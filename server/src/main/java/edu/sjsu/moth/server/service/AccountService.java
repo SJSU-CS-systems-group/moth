@@ -72,7 +72,10 @@ public class AccountService {
     }
 
     public Mono<Account> getAccount(String username) {
-        return accountRepository.findItemByAcct(username);
+
+        var test = accountRepository.findItemByAcct(username);
+        System.out.println(test);
+        return test;
     }
 
     public Mono<Account> getAccountById(String id) {
