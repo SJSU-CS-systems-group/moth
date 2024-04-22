@@ -15,6 +15,7 @@ import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.StatusService;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static edu.sjsu.moth.server.util.Util.printJsonNode;
-import edu.sjsu.moth.server.util.MothConfiguration;
 
 @RestController
 public class InboxController {
@@ -114,8 +114,6 @@ public class InboxController {
 
     @PostMapping("/inbox")
     public Mono<ResponseEntity<Object>> inbox(@RequestBody JsonNode inboxNode) {
-        //handle here
-        printJsonNode(inboxNode, " ");
         String requestType = inboxNode.get("type").asText();
         if (requestType.equals("Delete")) {
             return Mono.empty();
@@ -196,16 +194,11 @@ public class InboxController {
         String short_name = MothConfiguration.mothConfiguration.getServerName();
 
         List<Icon> icons = new ArrayList<>();
-        Icon x32 = new Icon("image/png", null, null, "moth/icons/cyber-moth-32.png",
-                            "32x32", "any maskable");
-        Icon x48 = new Icon("image/png", null, null, "moth/icons/cyber-moth-48.png",
-                            "48x48", "any maskable");
-        Icon x144 = new Icon("image/png", null, null, "moth/icons/cyber-moth-144.png",
-                             "144x144", "any maskable");
-        Icon x256 = new Icon("image/png", null, null, "moth/icons/cyber-moth-256.png",
-                             "256x256", "any maskable");
-        Icon x512 = new Icon("image/png", null, null, "moth/icons/cyber-moth-512x512.png",
-                             "512x512", "any maskable");
+        Icon x32 = new Icon("image/png", null, null, "moth/icons/cyber-moth-32.png", "32x32", "any maskable");
+        Icon x48 = new Icon("image/png", null, null, "moth/icons/cyber-moth-48.png", "48x48", "any maskable");
+        Icon x144 = new Icon("image/png", null, null, "moth/icons/cyber-moth-144.png", "144x144", "any maskable");
+        Icon x256 = new Icon("image/png", null, null, "moth/icons/cyber-moth-256.png", "256x256", "any maskable");
+        Icon x512 = new Icon("image/png", null, null, "moth/icons/cyber-moth-512x512.png", "512x512", "any maskable");
         icons.add(x32);
         icons.add(x48);
         icons.add(x144);
@@ -234,8 +227,9 @@ public class InboxController {
     //TODO: add data in Usage
     @GetMapping("/nodeinfo/2.0")
     public Mono<NodeInfo2> nodeInfo2Mono() {
-        return Mono.just(new NodeInfo2("2.0", new Software("mastodon", "4.2.8"), List.of("activitypub"), new Services(List.of(""), List.of("")),
-                                       new Usage(new Users(0, 0, 0), 0), true, new Metadata()));
+        return Mono.just(new NodeInfo2("2.0", new Software("mastodon", "4.2.8"), List.of("activitypub"),
+                                       new Services(List.of(""), List.of("")), new Usage(new Users(0, 0, 0), 0), true,
+                                       new Metadata()));
     }
 
     @GetMapping("/.well-known/nodeinfo")
@@ -269,16 +263,25 @@ public class InboxController {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonPropertyOrder({ "version", "software", "protocols", "services", "usage", "openRegistrations", "metadata" })
     public record NodeInfo2(String version, Software software, List<String> protocols, Services services, Usage usage,
-                       boolean openRegistrations, Metadata metadata) {}
+                            boolean openRegistrations, Metadata metadata) {}
 
-    public record Software(String name, String version){};
+    public record Software(String name, String version) {}
+
     // Unsure if it is List of Strings.
-    public record Services(List<String> outbound, List<String> inbound){};
-    public record Usage(Users user, int localPosts){};
-    public record Users(int total, int activeMonth, int activeHalfyear){};
-    public record Metadata(){};
-    public record Shortcut(String name, String url){};
-    public record Params(String title, String text, String url){};
-    public record ShareTarget(String url_template, String action, String method, String enctype, Params params){};
-    public record Link(String rel, String href){};
+    public record Services(List<String> outbound, List<String> inbound) {}
+
+    public record Usage(Users user, int localPosts) {}
+
+    public record Users(int total, int activeMonth, int activeHalfyear) {}
+
+    public record Metadata() {}
+
+    public record Shortcut(String name, String url) {}
+
+    public record Params(String title, String text, String url) {}
+
+    public record ShareTarget(String url_template, String action, String method, String enctype, Params params) {}
+
+    public record Link(String rel, String href) {}
+
 }
