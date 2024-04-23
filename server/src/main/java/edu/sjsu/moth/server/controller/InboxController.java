@@ -8,14 +8,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.generated.Actor;
 import edu.sjsu.moth.generated.Attachment;
 import edu.sjsu.moth.generated.CustomEmoji;
-import edu.sjsu.moth.generated.Icon;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.StatusService;
-import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -32,8 +30,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-
-import static edu.sjsu.moth.server.util.Util.printJsonNode;
 
 @RestController
 public class InboxController {
@@ -188,57 +184,6 @@ public class InboxController {
         return accountService.usersFollow(id, page, limit, "followers");
     }
 
-    @GetMapping("/manifest.json")
-    public Mono<ManifestJSON> manifest() {
-        String name = MothConfiguration.mothConfiguration.getServerName();
-        String short_name = MothConfiguration.mothConfiguration.getServerName();
-
-        List<Icon> icons = new ArrayList<>();
-        Icon x32 = new Icon("image/png", null, null, "moth/icons/cyber-moth-32.png", "32x32", "any maskable");
-        Icon x48 = new Icon("image/png", null, null, "moth/icons/cyber-moth-48.png", "48x48", "any maskable");
-        Icon x144 = new Icon("image/png", null, null, "moth/icons/cyber-moth-144.png", "144x144", "any maskable");
-        Icon x256 = new Icon("image/png", null, null, "moth/icons/cyber-moth-256.png", "256x256", "any maskable");
-        Icon x512 = new Icon("image/png", null, null, "moth/icons/cyber-moth-512x512.png", "512x512", "any maskable");
-        icons.add(x32);
-        icons.add(x48);
-        icons.add(x144);
-        icons.add(x256);
-        icons.add(x512);
-
-        String theme_color = "#FFFFFF";
-        String background_color = "#FFFFFF";
-        String display = "standalone";
-        String start_url = "/home";
-        String scope = "/";
-
-        // unsure
-        ShareTarget share_target = new ShareTarget("share?title={title}&text={text}&url={url}", "share", "GET",
-                                                   "application/x-www-form-urlencoded",
-                                                   new Params("title", "text", "url"));
-
-        List<Shortcut> shortcuts = new ArrayList<>(); //may need to change to null
-        shortcuts.add(new Shortcut("name", "url"));
-
-        return Mono.just(
-                new ManifestJSON(name, short_name, icons, theme_color, background_color, display, start_url, scope,
-                                 share_target, shortcuts));
-    }
-
-    //TODO: add data in Usage
-    @GetMapping("/nodeinfo/2.0")
-    public Mono<NodeInfo2> nodeInfo2Mono() {
-        return Mono.just(new NodeInfo2("2.0", new Software("mastodon", "4.2.8"), List.of("activitypub"),
-                                       new Services(List.of(""), List.of("")), new Usage(new Users(0, 0, 0), 0), true,
-                                       new Metadata()));
-    }
-
-    @GetMapping("/.well-known/nodeinfo")
-    public Mono<NodeInfo> nodeInfoMono() {
-        return Mono.just(new NodeInfo(
-                List.of(new Link("http://nodeinfo.diaspora.software/ns/schema/2.0", "https://mas.to/nodeinfo/2.0"))));
-        // added placeholders, hardcoded
-    }
-
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonPropertyOrder({ "@context", "id", "type", "totalItems", "first", "next", "partOf", "orderedItems" })
     public record UsersFollowResponse(String id, String type, int totalItems, String first, String next, String partOf,
@@ -248,40 +193,4 @@ public class InboxController {
             return "https://www.w3.org/ns/activitystreams";
         }
     }
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({ "name", "short_name", "icons", "theme_color", "background_color", "display", "start_url",
-            "scope", "share_target", "shortcuts" })
-    public record ManifestJSON(String name, String short_name, List<Icon> icons, String theme_color,
-                               String background_color, String display, String start_url, String scope,
-                               ShareTarget share_target, List<Shortcut> shortcuts) {}
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({ "links" })
-    public record NodeInfo(List<Link> links) {}
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({ "version", "software", "protocols", "services", "usage", "openRegistrations", "metadata" })
-    public record NodeInfo2(String version, Software software, List<String> protocols, Services services, Usage usage,
-                            boolean openRegistrations, Metadata metadata) {}
-
-    public record Software(String name, String version) {}
-
-    // Unsure if it is List of Strings.
-    public record Services(List<String> outbound, List<String> inbound) {}
-
-    public record Usage(Users user, int localPosts) {}
-
-    public record Users(int total, int activeMonth, int activeHalfyear) {}
-
-    public record Metadata() {}
-
-    public record Shortcut(String name, String url) {}
-
-    public record Params(String title, String text, String url) {}
-
-    public record ShareTarget(String url_template, String action, String method, String enctype, Params params) {}
-
-    public record Link(String rel, String href) {}
-
 }
