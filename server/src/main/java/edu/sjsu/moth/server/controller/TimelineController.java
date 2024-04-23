@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.Marker;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.service.TimelineService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,9 @@ import java.util.Map;
 
 @RestController
 public class TimelineController {
+
+    @Autowired
+    StatusService statusService;
     @Autowired
     TimelineService timelineService;
 
@@ -46,7 +50,11 @@ public class TimelineController {
     }
 
     @GetMapping("/api/v1/timelines/public")
-    public Mono<ResponseEntity<Status>> viewPublicTimeline() {
-        return Mono.empty();
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(Principal user,
+                                                             @RequestParam(required = false) String max_id,
+                                                             @RequestParam(required = false) String since_id,
+                                                             @RequestParam(required = false) String min_id,
+                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+        return statusService.getTimeline(user, max_id, since_id, min_id, limit, false).map(ResponseEntity::ok);
     }
 }
