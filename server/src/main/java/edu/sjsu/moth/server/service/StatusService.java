@@ -1,29 +1,19 @@
 package edu.sjsu.moth.server.service;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
-import edu.sjsu.moth.generated.Application;
-import edu.sjsu.moth.generated.Card;
-import edu.sjsu.moth.generated.CustomEmoji;
-import edu.sjsu.moth.generated.MediaAttachment;
-import edu.sjsu.moth.generated.Poll;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
-import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Following;
 import edu.sjsu.moth.server.db.FollowingRepository;
-import edu.sjsu.moth.server.db.Followers;
 import edu.sjsu.moth.server.db.FollowersRepository;
 import edu.sjsu.moth.server.db.GroupRepository;
-import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
-import edu.sjsu.moth.server.db.StatusTag;
 import org.jetbrains.annotations.NotNull;
-import org.reactivestreams.Publisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
@@ -34,7 +24,6 @@ import reactor.core.publisher.Mono;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Configuration
 public class StatusService {
@@ -60,16 +49,10 @@ public class StatusService {
     @Autowired
     GroupRepository groupRepository;
 
-
-//    public Mono<Status> save(Status status) {
-//        return statusRepository.save(status);
-//    }
-
     public Mono<Status> save(Status status) {
 
         var mono = Mono.empty();
 
-        //mono = followersRepository.save(new Followers("umesh", new ArrayList<>())).then(Mono.empty());
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
         for(String s: words){
