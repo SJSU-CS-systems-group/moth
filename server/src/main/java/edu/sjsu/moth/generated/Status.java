@@ -99,8 +99,7 @@ public class Status {
     }
 
     public Status(String id, String createdAt, String inReplyToId, String inReplyToAccountId, Boolean sensitive,
-                  String spoilerText, String visibility, String language, String uri, String url,
-                  Integer repliesCount, Integer reblogsCount, Integer favouritesCount, Boolean favourited,
+                  String spoilerText, String visibility, String language, Integer repliesCount, Integer reblogsCount, Integer favouritesCount, Boolean favourited,
                   Boolean reblogged, Boolean muted, Boolean bookmarked, String content, Status reblog,
                   Application application, Account account, List<MediaAttachment> mediaAttachments,
                   List<StatusMention> mentions, List<StatusTag> tags, List<CustomEmoji> emojis, Card card, Poll poll,

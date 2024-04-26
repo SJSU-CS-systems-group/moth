@@ -30,8 +30,7 @@ public class ExternalStatus extends Status {
                           List<MediaAttachment> mediaAttachments, List<StatusMention> mentions, List<StatusTag> tags,
                           List<CustomEmoji> emojis, Card card, Poll poll, String text, String edited_at) {
 
-        super(id, createdAt, inReplyToId, inReplyToAccountId, sensitive, spoilerText, visibility, language, uri, url,
-              repliesCount, reblogsCount, favouritesCount, favourited, reblogged, muted, bookmarked, content, reblog,
+        super(id, createdAt, inReplyToId, inReplyToAccountId, sensitive, spoilerText, visibility, language, repliesCount, reblogsCount, favouritesCount, favourited, reblogged, muted, bookmarked, content, reblog,
               application, account, mediaAttachments, mentions, tags, emojis, card, poll, text, edited_at);
     }
 }

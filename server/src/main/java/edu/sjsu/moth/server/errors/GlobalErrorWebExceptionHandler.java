@@ -38,7 +38,7 @@ public class GlobalErrorWebExceptionHandler extends AbstractErrorWebExceptionHan
         var stacks = cause.getStackTrace();
         for (int i = 0; i < stacks.length; i++) {
             var stack = stacks[i];
-            if (stack.getClassName().startsWith("edu.sjsu") || i == 0 || i == stacks.length - 1) {
+            if (true || stack.getClassName().startsWith("edu.sjsu") || i == 0 || i == stacks.length - 1) {
                 logBuilder.append("\n        ").append(stack);
             }
         }

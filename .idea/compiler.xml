@@ -12,5 +12,10 @@
         <module name="moth-client" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="moth-client" target="17" />
+      <module name="moth-server" target="17" />
+      <module name="moth-util" target="17" />
+    </bytecodeTargetLevel>
   </component>
 </project>

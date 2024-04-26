@@ -12,15 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.codec.multipart.FormFieldPart;
-import org.springframework.http.codec.multipart.Part;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -28,7 +25,6 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Pattern;
 
 @CommonsLog
 @RestController
@@ -43,56 +39,53 @@ public class AccountController {
 
     @PatchMapping(value = "/api/v1/accounts/update_credentials", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     public Mono<ResponseEntity<Account>> updateCredentials(@RequestHeader("Authorization") String authorizationHeader
-            , Principal user, @RequestBody Mono<MultiValueMap<String, Part>> parts) {
+            , Principal user, @RequestPart(required = false) String display_name,
+                                                           @RequestPart(required = false) String note,
+                                                           @RequestPart(required = false) String avatar,
+                                                           @RequestPart(required = false) String header,
+                                                           @RequestPart(required = false) String locked,
+                                                           @RequestPart(required = false) String bot,
+                                                           @RequestPart(required = false) String discoverable,
+                                                           @RequestPart(required = false) List<AccountField> fields_attributes) {
 
-        return parts.flatMap(map -> {
-            return accountService.getAccountById(user.getName()).flatMap(a -> {
-                ArrayList<AccountField> fields = null;
-                for (var entry : map.entrySet()) {
-                    for (var p : entry.getValue()) {
-                        if (p instanceof FormFieldPart ffp) {
-                            var v = ffp.value();
-                            String n = ffp.name();
-                            switch (n) {
-                                case "note" -> a.note = v;
-                                case "header" -> a.header = v;
-                                case "avatar" -> a.avatar = v;
-                                case "locked" -> a.locked = v.equalsIgnoreCase("true");
-                                case "bot" -> a.bot = v.equalsIgnoreCase("true");
-                                case "discoverable" -> a.discoverable = v.equalsIgnoreCase("true");
-                                default -> {
-                                    if (n.startsWith("fields_attributes[")) {
-                                        if (fields == null) {
-                                            fields = new ArrayList<>();
-                                        }
-                                        var m = Pattern.compile("fields_attributes\\[(\\d+)\\]\\[(\\w+)\\]").matcher(n);
-                                        if (m.find()) {
-                                            var i = Integer.parseInt(m.group(1));
-                                            // fill in the fields array until we get the index we need.
-                                            // we should eventually see the rest of the values
-                                            while (fields.size() <= i) {
-                                                fields.add(new AccountField("", "", null));
-                                            }
-                                            var field = fields.get(i);
-                                            switch (m.group(2)) {
-                                                case "name" -> field.name = v;
-                                                case "value" -> field.value = v;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            System.out.println(p.name() + " " + p.getClass().getName());
-                        }
-                    }
-                }
-                if (fields != null) {
-                    a.fields = fields;
-                }
-                return accountService.updateAccount(a);
-            }).map(ResponseEntity::ok);
-        });
+
+        return accountService.getAccountById(user.getName()).flatMap(a -> {
+
+            if (display_name != null) {
+                a.display_name = display_name;
+            }
+
+            if (note != null) {
+                a.note = note;
+            }
+
+            if (header != null) {
+                a.header = header;
+            }
+
+            if (avatar != null) {
+                a.avatar = avatar;
+            }
+
+            if (fields_attributes != null) {
+                a.fields = fields_attributes;
+            }
+            if (locked != null) {
+                a.locked = locked.equalsIgnoreCase("true");
+            }
+
+            if (bot != null) {
+                a.bot = bot.equalsIgnoreCase("true");
+            }
+
+            if (discoverable != null) {
+                a.discoverable = discoverable.equalsIgnoreCase("true");
+            }
+
+            return accountService.updateAccount(a);
+
+        }).map(ResponseEntity::ok);
+
     }
 
     @GetMapping("/api/v1/accounts/lookup")

@@ -6,7 +6,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface AccountRepository extends ReactiveMongoRepository<Account, String> {
+
     Mono<Account> findItemByAcct(String acct);
+
+    Mono<Account> findItemByUsername(String username);
 
     @Query("{ 'acct': { $regex: '?0', $options: 'i' } }")
         //// regex: ?#, the number referring to the args passed thru the method. it will search based off of args[#],

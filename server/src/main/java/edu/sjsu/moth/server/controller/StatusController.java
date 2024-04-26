@@ -78,7 +78,7 @@ public class StatusController {
                     // if i pass a null id to status it gets filled in by the repo with the objectid
                     var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
-                                            body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
+                                            body.language, 0, 0, 0, false, false, false, false, body.status,
                                             null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
                                             null, body.status, EmailCodeUtils.now());
                     return statusService.save(status).map(ResponseEntity::ok);
@@ -113,7 +113,7 @@ public class StatusController {
                     // if i pass a null id to status it gets filled in by the repo with the objectid
                     var s = new Status(null, EmailCodeUtils.now(), in_reply_to_id, null,
                                        sensitive != null && sensitive.equals("true"),
-                                       spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
+                                       spoiler_text == null ? "" : spoiler_text, visibility, language, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,
                                        List.of(), List.of(), List.of(), null, null, status, EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
