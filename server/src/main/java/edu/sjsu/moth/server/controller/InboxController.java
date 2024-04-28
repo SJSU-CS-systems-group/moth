@@ -110,7 +110,6 @@ public class InboxController {
 
     @PostMapping("/inbox")
     public Mono<ResponseEntity<Object>> inbox(@RequestBody JsonNode inboxNode) {
-        //handle here
         String requestType = inboxNode.get("type").asText();
         if (requestType.equals("Delete")) {
             return Mono.empty();
