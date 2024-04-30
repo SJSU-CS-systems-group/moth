@@ -6,10 +6,8 @@ import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.Followers;
-import edu.sjsu.moth.server.db.FollowersRepository;
-import edu.sjsu.moth.server.db.Following;
-import edu.sjsu.moth.server.db.FollowingRepository;
+import edu.sjsu.moth.server.db.Follow;
+import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
@@ -25,6 +23,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
@@ -43,10 +42,7 @@ public class AccountService {
     AccountRepository accountRepository;
 
     @Autowired
-    FollowersRepository followersRepository;
-
-    @Autowired
-    FollowingRepository followingRepository;
+    FollowRepository followRepository;
 
     @Autowired
     PubKeyPairRepository pubKeyPairRepository;
@@ -93,22 +89,15 @@ public class AccountService {
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
         String follower = inboxNode.get("actor").asText();
         if (requestType.equals("Follow")) {
+            var follow = new Follow(follower, id);
             // find id, grab arraylist, append
             return accountRepository.findItemByAcct(id)
                     .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
-                    .then(followersRepository.findItemById(id)
-                                  .switchIfEmpty(Mono.just(new Followers(id, new ArrayList<>())))
-                                  .flatMap(followedUser -> {
-                                      followedUser.getFollowers().add(follower);
-                                      return followersRepository.save(followedUser).thenReturn("done");
-                                  }));
+                    .then(followRepository.save(follow))
+                    .thenReturn("done");
         }
         if (requestType.equals("Undo")) {
-            // find id, grab arraylist, remove
-            return followersRepository.findItemById(id).flatMap(followedUser -> {
-                followedUser.getFollowers().remove(follower);
-                return followersRepository.save(followedUser).thenReturn("done");
-            });
+            return followRepository.delete(new Follow(follower, id)).thenReturn("done");
         }
         return Mono.empty();
     }
@@ -117,8 +106,9 @@ public class AccountService {
                                                                  @RequestParam(required = false) Integer page,
                                                                  @RequestParam(required = false) Integer limit,
                                                                  String followType) {
-        var items = followType.equals("following") ? followingRepository.findItemById(id)
-                .map(Following::getFollowing) : followersRepository.findItemById(id).map(Followers::getFollowers);
+        var items = followType.equals("following") ? followRepository.findAllByFollower_id(id)
+                .map(list -> list.stream().map(f -> f.followed_id).toList()) : followRepository.findAllByFollowed_id(id)
+                .map(list -> list.stream().map(f -> f.follower_id).toList());
         String returnID = MothController.BASE_URL + "/users/" + id + followType;
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
         if (page == null) {
@@ -148,7 +138,7 @@ public class AccountService {
         }
     }
 
-    public List<String> paginateFollowers(ArrayList<String> followers, int pageNo, int pageSize) {
+    public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
         int endIndex = Math.min(startIndex + pageSize, followers.size());
         if (startIndex >= followers.size()) {
@@ -163,24 +153,21 @@ public class AccountService {
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
-        return accountRepository.findByAcctLike(query).take(limit).collectList().map(accounts -> {
-            result.accounts.addAll(accounts);
-            // check RequestParams: following, max_id, min_id, limit, offset
-            if (following != null && following && user != null) {
-                for (int i = 0; i < result.accounts.size(); i++) {
-                    int finalI = i;
-                    followersRepository.findItemById(((Account) user).id).map(followers -> {
-                        if (!followers.followers.contains(user)) {
-                            result.accounts.remove(accounts.get(finalI));
-                        }
-                        return null;
+        return followRepository.findAllByFollower_id(((Account) user).id).flatMap(f -> {
+            var followers = f.stream().map(follow -> follow.followed_id).collect(Collectors.toSet());
+            return accountRepository.findByAcctLike(query)
+                    .filter(account -> following == null || !following || followers.contains(account.id))
+                    .take(limit)
+                    .collectList()
+                    .map(accounts -> {
+                        result.accounts.addAll(accounts);
+                        if (max_id != null)
+                            result.accounts.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
+                        if (min_id != null)
+                            result.accounts.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
+                        if (offset != null) result.accounts.subList(offset, result.accounts.size());
+                        return result;
                     });
-                }
-            }
-            if (max_id != null) result.accounts.stream().filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
-            if (min_id != null) result.accounts.stream().filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
-            if (offset != null) result.accounts.subList(offset, result.accounts.size());
-            return result;
         });
     }
 }

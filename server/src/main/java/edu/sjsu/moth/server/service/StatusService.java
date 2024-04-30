@@ -6,8 +6,6 @@ import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
-import edu.sjsu.moth.server.db.Following;
-import edu.sjsu.moth.server.db.FollowingRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,9 +27,6 @@ public class StatusService {
 
     @Autowired
     ExternalStatusRepository externalStatusRepository;
-
-    @Autowired
-    FollowingRepository followingRepository;
 
     @Autowired
     AccountService accountService;
