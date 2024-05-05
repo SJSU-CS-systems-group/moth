@@ -5,12 +5,12 @@ import org.springframework.data.annotation.Id;
 public class Follow {
 
     public static class FollowKey{
-        public String followerId;
-        public String followedId;
+        public String follower_id;
+        public String followed_id;
 
         public FollowKey(String follower_id, String followed_id){
-            this.followerId = follower_id;
-            this.followedId = followed_id;
+            this.follower_id = follower_id;
+            this.followed_id = followed_id;
         }
     }
 
