@@ -126,6 +126,7 @@ public class StatusService {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMapMany(acct -> followRepository.findAllByIdFollowerId(acct.id)
+                        .defaultIfEmpty(new Mono.just())
                         .map(list -> list.stream().map(f -> f.id.followedId).toList())
                         .flatMapMany(followings -> ((!isFollowingTimeline && status.visibility.equals("public")) || followings.contains(
                                 status.id)) ? Flux.just(status) : Flux.empty()));
