@@ -6,6 +6,7 @@ import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
+import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ public class StatusService {
 
     @Autowired
     ExternalStatusRepository externalStatusRepository;
+
+    @Autowired
+    FollowRepository followRepository;
 
     @Autowired
     AccountService accountService;
@@ -121,9 +125,8 @@ public class StatusService {
     private Flux<Status> filterStatusByViewable(Principal user, Status status, boolean isFollowingTimeline) {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
-                .flatMapMany(acct -> followingRepository.findItemById(acct.id)
-                        .switchIfEmpty(Mono.just(new Following(acct.id, new ArrayList<>())))
-                        .map(Following::getFollowing)
+                .flatMapMany(acct -> followRepository.findAllByIdFollowerId(acct.id)
+                        .map(list -> list.stream().map(f -> f.id.followedId).toList())
                         .flatMapMany(followings -> ((!isFollowingTimeline && status.visibility.equals("public")) || followings.contains(
                                 status.id)) ? Flux.just(status) : Flux.empty()));
     }

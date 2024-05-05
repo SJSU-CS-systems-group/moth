@@ -106,9 +106,9 @@ public class AccountService {
                                                                  @RequestParam(required = false) Integer page,
                                                                  @RequestParam(required = false) Integer limit,
                                                                  String followType) {
-        var items = followType.equals("following") ? followRepository.findAllByFollower_id(id)
-                .map(list -> list.stream().map(f -> f.followed_id).toList()) : followRepository.findAllByFollowed_id(id)
-                .map(list -> list.stream().map(f -> f.follower_id).toList());
+        var items = followType.equals("following") ? followRepository.findAllByIdFollowerId(id)
+                .map(list -> list.stream().map(f -> f.id.followedId).toList()) : followRepository.findAllByIdFollowedId(id)
+                .map(list -> list.stream().map(f -> f.id.followerId).toList());
         String returnID = MothController.BASE_URL + "/users/" + id + followType;
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
         if (page == null) {
@@ -153,8 +153,8 @@ public class AccountService {
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
-        return followRepository.findAllByFollower_id(((Account) user).id).flatMap(f -> {
-            var followers = f.stream().map(follow -> follow.followed_id).collect(Collectors.toSet());
+        return followRepository.findAllByIdFollowerId(((Account) user).id).flatMap(f -> {
+            var followers = f.stream().map(follow -> follow.id.followedId).collect(Collectors.toSet());
             return accountRepository.findByAcctLike(query)
                     .filter(account -> following == null || !following || followers.contains(account.id))
                     .take(limit)
