@@ -6,8 +6,8 @@ import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
-import edu.sjsu.moth.server.db.Following;
-import edu.sjsu.moth.server.db.FollowingRepository;
+import edu.sjsu.moth.server.db.Follow;
+import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Configuration
@@ -31,7 +32,7 @@ public class StatusService {
     ExternalStatusRepository externalStatusRepository;
 
     @Autowired
-    FollowingRepository followingRepository;
+    FollowRepository followRepository;
 
     @Autowired
     AccountService accountService;
@@ -126,11 +127,11 @@ public class StatusService {
     private Flux<Status> filterStatusByViewable(Principal user, Status status, boolean isFollowingTimeline) {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
-                .flatMapMany(acct -> followingRepository.findItemById(acct.id)
-                        .switchIfEmpty(Mono.just(new Following(acct.id, new ArrayList<>())))
-                        .map(Following::getFollowing)
-                        .flatMapMany(followings -> ((!isFollowingTimeline && status.visibility.equals("public")) || followings.contains(
-                                status.id)) ? Flux.just(status) : Flux.empty()));
+                .flatMapMany(acct -> followRepository.findAllByFollowerId(acct.id)
+                        .defaultIfEmpty(Collections.emptyList())
+                        .map(list -> list.stream().map(f -> f.id.followed_id).toList())
+                        .flatMapMany(followings -> ((status.account.id.equals(acct.id)) || (!isFollowingTimeline && status.visibility.equals("public")) || followings.contains(
+                            status.account.id)) ? Flux.just(status) : Flux.empty()));
     }
 
 }
