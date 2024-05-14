@@ -35,16 +35,16 @@ public class TimelineController {
     }
 
     @GetMapping("/api/v1/markers")
-    public Mono<ResponseEntity<Map<String, Marker>>> getApiV1Markers(Principal user, @RequestParam(name =
-            "timeline" + "[]") List<String> timeline) {
+    public Mono<ResponseEntity<Map<String, Marker>>> getApiV1Markers(Principal user, @RequestParam(name = "timeline[]")
+    List<String> timeline) {
         if (user == null) return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         return timelineService.getMarkersForUser(user.getName(), timeline).map(ResponseEntity::ok);
     }
 
     @PostMapping("/api/v1/markers")
     public Mono<ResponseEntity<Map<String, Marker>>> postApiV1Markers(Principal user, @RequestParam(name = "home" +
-            "[last_read_id]", required = false) String homeLast, @RequestParam(name = "notifications[last_read_id]",
-            required = false) String notificationsLast) {
+            "[last_read_id]", required = false) String homeLast, @RequestParam(name = "notifications" +
+            "[last_read_id]", required = false) String notificationsLast) {
         if (user == null) return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         return timelineService.setMarkerForUser(user.getName(), homeLast, notificationsLast).map(ResponseEntity::ok);
     }
@@ -54,7 +54,8 @@ public class TimelineController {
                                                              @RequestParam(required = false) String max_id,
                                                              @RequestParam(required = false) String since_id,
                                                              @RequestParam(required = false) String min_id,
-                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+                                                             @RequestParam(required = false, defaultValue = "20")
+                                                             int limit) {
         return statusService.getTimeline(user, max_id, since_id, min_id, limit, false).map(ResponseEntity::ok);
     }
 }
