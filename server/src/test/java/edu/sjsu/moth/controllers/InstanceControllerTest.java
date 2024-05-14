@@ -18,8 +18,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @WebFluxTest()
-@ContextConfiguration(classes = { InstanceController.class, ContentSecurityPolicyConfiguration.class }, initializers
-        = MothTestInitializer.class)
+@ContextConfiguration(classes = { InstanceController.class,
+        ContentSecurityPolicyConfiguration.class }, initializers = MothTestInitializer.class)
 public class InstanceControllerTest {
 
     @MockBean
@@ -36,12 +36,7 @@ public class InstanceControllerTest {
 
     @Test
     public void testGetRules() {
-        webTestClient.get()
-                .uri("/rules")
-                .exchange()
-                .expectStatus()
-                .isOk()
-                .expectBodyList(InstanceController.Rule.class)
+        webTestClient.get().uri("/rules").exchange().expectStatus().isOk().expectBodyList(InstanceController.Rule.class)
                 .consumeWith(response -> {
                     List<InstanceController.Rule> rules = response.getResponseBody();
                     assertNotNull(rules);

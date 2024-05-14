@@ -3,7 +3,6 @@
 // CHANGES MADE:
 //   * NONE SO FAR
 
-
 package edu.sjsu.moth.generated;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -11,11 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-    "type",
-    "href",
-    "name"
-})
+@JsonPropertyOrder({ "type", "href", "name" })
 public class Tag {
 
     @JsonProperty("type")
@@ -27,7 +22,6 @@ public class Tag {
 
     /**
      * No args constructor for use in serialization
-     * 
      */
     public Tag() {
     }
@@ -42,21 +36,22 @@ public class Tag {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Tag.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this))).append('[');
+        sb.append(Tag.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
+                .append('[');
         sb.append("type");
         sb.append('=');
-        sb.append(((this.type == null)?"<null>":this.type));
+        sb.append(((this.type == null) ? "<null>" : this.type));
         sb.append(',');
         sb.append("href");
         sb.append('=');
-        sb.append(((this.href == null)?"<null>":this.href));
+        sb.append(((this.href == null) ? "<null>" : this.href));
         sb.append(',');
         sb.append("name");
         sb.append('=');
-        sb.append(((this.name == null)?"<null>":this.name));
+        sb.append(((this.name == null) ? "<null>" : this.name));
         sb.append(',');
-        if (sb.charAt((sb.length()- 1)) == ',') {
-            sb.setCharAt((sb.length()- 1), ']');
+        if (sb.charAt((sb.length() - 1)) == ',') {
+            sb.setCharAt((sb.length() - 1), ']');
         } else {
             sb.append(']');
         }
@@ -66,9 +61,9 @@ public class Tag {
     @Override
     public int hashCode() {
         int result = 1;
-        result = ((result* 31)+((this.name == null)? 0 :this.name.hashCode()));
-        result = ((result* 31)+((this.href == null)? 0 :this.href.hashCode()));
-        result = ((result* 31)+((this.type == null)? 0 :this.type.hashCode()));
+        result = ((result * 31) + ((this.name == null) ? 0 : this.name.hashCode()));
+        result = ((result * 31) + ((this.href == null) ? 0 : this.href.hashCode()));
+        result = ((result * 31) + ((this.type == null) ? 0 : this.type.hashCode()));
         return result;
     }
 
@@ -81,7 +76,9 @@ public class Tag {
             return false;
         }
         Tag rhs = ((Tag) other);
-        return ((((this.name == rhs.name)||((this.name!= null)&&this.name.equals(rhs.name)))&&((this.href == rhs.href)||((this.href!= null)&&this.href.equals(rhs.href))))&&((this.type == rhs.type)||((this.type!= null)&&this.type.equals(rhs.type))));
+        return ((((this.name == rhs.name) || ((this.name != null) && this.name.equals(rhs.name))) &&
+                ((this.href == rhs.href) || ((this.href != null) && this.href.equals(rhs.href)))) &&
+                ((this.type == rhs.type) || ((this.type != null) && this.type.equals(rhs.type))));
     }
 
 }

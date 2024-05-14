@@ -27,10 +27,8 @@ public class TimelineService {
     }
 
     public Mono<Map<String, Marker>> getMarkersForUser(String name, List<String> timeline) {
-        return timelineRepository.findById(name)
-                .defaultIfEmpty(getEmptyTimelineRecord(name))
-                .map(r -> timeline.stream()
-                        .map(k -> Map.entry(k, r.markers.getOrDefault(k, EMPTY_MARKER)))
+        return timelineRepository.findById(name).defaultIfEmpty(getEmptyTimelineRecord(name))
+                .map(r -> timeline.stream().map(k -> Map.entry(k, r.markers.getOrDefault(k, EMPTY_MARKER)))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 

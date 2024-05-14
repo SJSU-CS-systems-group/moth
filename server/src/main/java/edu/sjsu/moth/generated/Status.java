@@ -147,18 +147,17 @@ public class Status {
     public String getUrl() {
         return MothController.BASE_URL + "/@" + (account == null ? "" : account.acct) + "/statuses/" + id;
     }
-    @JsonProperty("uri")
-    public void setUri(String uri){}
-    @JsonProperty("url")
-    public void setUrl(String url){}
 
+    @JsonProperty("uri")
+    public void setUri(String uri) {}
+
+    @JsonProperty("url")
+    public void setUrl(String url) {}
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Status.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Status.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("id");
         sb.append('=');
@@ -328,29 +327,25 @@ public class Status {
         if (!(other instanceof Status rhs)) {
             return false;
         }
-        return (((((((((((((((((((((((((((Objects.equals(this.spoilerText, rhs.spoilerText)) && (Objects.equals(
-                this.reblogsCount, rhs.reblogsCount))) && (Objects.equals(this.language,
-                                                                          rhs.language))) && (Objects.equals(this.poll,
-                                                                                                             rhs.poll))) && (Objects.equals(
-                this.content, rhs.content))) && (Objects.equals(this.repliesCount,
-                                                                rhs.repliesCount))) && (Objects.equals(this.reblog,
-                                                                                                       rhs.reblog))) && (Objects.equals(
-                this.createdAt, rhs.createdAt))) && (Objects.equals(this.mediaAttachments,
-                                                                    rhs.mediaAttachments))) && (Objects.equals(this.id,
-                                                                                                               rhs.id))) && (Objects.equals(
-                this.reblogged, rhs.reblogged))) && (Objects.equals(this.muted, rhs.muted))) && (Objects.equals(
-                this.emojis, rhs.emojis))) && (Objects.equals(this.visibility, rhs.visibility))) && (Objects.equals(
-                this.bookmarked, rhs.bookmarked))) && (Objects.equals(this.favouritesCount,
-                                                                      rhs.favouritesCount))) && (Objects.equals(
-                this.sensitive,
-                rhs.sensitive))) && ((this.getUri() == rhs.getUri()) || ((this.getUri() != null) && this.getUri()
-                .equals(rhs.getUri())))) && ((this.getUrl() == rhs.getUrl()) || ((this.getUrl() != null) && this.getUrl()
-                .equals(rhs.getUrl())))) && (Objects.equals(this.inReplyToId, rhs.inReplyToId))) && (Objects.equals(
-                this.tags, rhs.tags))) && (Objects.equals(this.application, rhs.application))) && (Objects.equals(
-                this.favourited, rhs.favourited))) && (Objects.equals(this.mentions, rhs.mentions))) && (Objects.equals(
-                this.inReplyToAccountId, rhs.inReplyToAccountId))) && (Objects.equals(this.account,
-                                                                                      rhs.account))) && (Objects.equals(
-                this.card, rhs.card)));
+        return (((((((((((((((((((((((((((Objects.equals(this.spoilerText, rhs.spoilerText)) &&
+                (Objects.equals(this.reblogsCount, rhs.reblogsCount))) &&
+                (Objects.equals(this.language, rhs.language))) && (Objects.equals(this.poll, rhs.poll))) &&
+                (Objects.equals(this.content, rhs.content))) &&
+                (Objects.equals(this.repliesCount, rhs.repliesCount))) && (Objects.equals(this.reblog, rhs.reblog))) &&
+                (Objects.equals(this.createdAt, rhs.createdAt))) &&
+                (Objects.equals(this.mediaAttachments, rhs.mediaAttachments))) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.reblogged, rhs.reblogged))) && (Objects.equals(this.muted, rhs.muted))) &&
+                (Objects.equals(this.emojis, rhs.emojis))) && (Objects.equals(this.visibility, rhs.visibility))) &&
+                (Objects.equals(this.bookmarked, rhs.bookmarked))) &&
+                (Objects.equals(this.favouritesCount, rhs.favouritesCount))) &&
+                (Objects.equals(this.sensitive, rhs.sensitive))) &&
+                ((this.getUri() == rhs.getUri()) || ((this.getUri() != null) && this.getUri().equals(rhs.getUri())))) &&
+                ((this.getUrl() == rhs.getUrl()) || ((this.getUrl() != null) && this.getUrl().equals(rhs.getUrl())))) &&
+                (Objects.equals(this.inReplyToId, rhs.inReplyToId))) && (Objects.equals(this.tags, rhs.tags))) &&
+                (Objects.equals(this.application, rhs.application))) &&
+                (Objects.equals(this.favourited, rhs.favourited))) && (Objects.equals(this.mentions, rhs.mentions))) &&
+                (Objects.equals(this.inReplyToAccountId, rhs.inReplyToAccountId))) &&
+                (Objects.equals(this.account, rhs.account))) && (Objects.equals(this.card, rhs.card)));
     }
 
 }

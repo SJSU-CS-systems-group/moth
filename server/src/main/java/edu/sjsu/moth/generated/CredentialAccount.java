@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Objects;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({ "id", "username", "acct", "display_name", "locked", "bot", "created_at", "note", "url", "avatar"
-        , "avatar_static", "header", "header_static", "followers_count", "following_count", "statuses_count",
+@JsonPropertyOrder({ "id", "username", "acct", "display_name", "locked", "bot", "created_at", "note", "url", "avatar",
+        "avatar_static", "header", "header_static", "followers_count", "following_count", "statuses_count",
         "last_status_at", "source", "emojis", "fields" })
 public class CredentialAccount {
 
@@ -98,10 +98,8 @@ public class CredentialAccount {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(CredentialAccount.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
-                .append('[');
+        sb.append(CredentialAccount.class.getName()).append('@')
+                .append(Integer.toHexString(System.identityHashCode(this))).append('[');
         sb.append("id");
         sb.append('=');
         sb.append(((this.id == null) ? "<null>" : this.id));
@@ -224,21 +222,18 @@ public class CredentialAccount {
         if (!(other instanceof CredentialAccount rhs)) {
             return false;
         }
-        return ((((((((((((((((((((Objects.equals(this.emojis, rhs.emojis)) && (Objects.equals(this.note,
-                                                                                               rhs.note))) && (Objects.equals(
-                this.statusesCount, rhs.statusesCount))) && (Objects.equals(this.displayName,
-                                                                            rhs.displayName))) && (Objects.equals(
-                this.bot, rhs.bot))) && (Objects.equals(this.avatar, rhs.avatar))) && (Objects.equals(this.source,
-                                                                                                      rhs.source))) && (Objects.equals(
-                this.followingCount, rhs.followingCount))) && (Objects.equals(this.url, rhs.url))) && (Objects.equals(
-                this.createdAt, rhs.createdAt))) && (Objects.equals(this.lastStatusAt,
-                                                                    rhs.lastStatusAt))) && (Objects.equals(this.header,
-                                                                                                           rhs.header))) && (Objects.equals(
-                this.id, rhs.id))) && (Objects.equals(this.followersCount, rhs.followersCount))) && (Objects.equals(
-                this.locked, rhs.locked))) && (Objects.equals(this.avatarStatic, rhs.avatarStatic))) && (Objects.equals(
-                this.fields, rhs.fields))) && (Objects.equals(this.acct, rhs.acct))) && (Objects.equals(this.username,
-                                                                                                        rhs.username))) && (Objects.equals(
-                this.headerStatic, rhs.headerStatic)));
+        return ((((((((((((((((((((Objects.equals(this.emojis, rhs.emojis)) && (Objects.equals(this.note, rhs.note))) &&
+                (Objects.equals(this.statusesCount, rhs.statusesCount))) &&
+                (Objects.equals(this.displayName, rhs.displayName))) && (Objects.equals(this.bot, rhs.bot))) &&
+                (Objects.equals(this.avatar, rhs.avatar))) && (Objects.equals(this.source, rhs.source))) &&
+                (Objects.equals(this.followingCount, rhs.followingCount))) && (Objects.equals(this.url, rhs.url))) &&
+                (Objects.equals(this.createdAt, rhs.createdAt))) &&
+                (Objects.equals(this.lastStatusAt, rhs.lastStatusAt))) && (Objects.equals(this.header, rhs.header))) &&
+                (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.followersCount, rhs.followersCount))) &&
+                (Objects.equals(this.locked, rhs.locked))) && (Objects.equals(this.avatarStatic, rhs.avatarStatic))) &&
+                (Objects.equals(this.fields, rhs.fields))) && (Objects.equals(this.acct, rhs.acct))) &&
+                (Objects.equals(this.username, rhs.username))) &&
+                (Objects.equals(this.headerStatic, rhs.headerStatic)));
     }
 
 }

@@ -31,8 +31,7 @@ public class ContentSecurityPolicyConfiguration {
 
     public Mono<OAuth2AuthenticatedPrincipal> introspect(String token) {
         return tokenRepository.findItemByToken(token)
-                .switchIfEmpty(Mono.error(new BadOpaqueTokenException("unknown token")))
-                .map(this::sanitizeToken)
+                .switchIfEmpty(Mono.error(new BadOpaqueTokenException("unknown token"))).map(this::sanitizeToken)
                 .map(t -> new DefaultOAuth2AuthenticatedPrincipal(t.user, Map.of("sub", t.user, "src", "oauth", "email",
                                                                                  t.email), Set.of()));
     }
@@ -71,8 +70,8 @@ public class ContentSecurityPolicyConfiguration {
             String acceptLanguage = exchange.getRequest().getHeaders().getFirst(HttpHeaders.ACCEPT_LANGUAGE);
             // to improve this code, i would say you could technically process the data grabbed above by "Q" value to
             // switch to the most 'preferred' value by the User.
-            Locale resolvedLocale = (acceptLanguage != null) ? Locale.forLanguageTag(
-                    acceptLanguage) : Locale.getDefault();
+            Locale resolvedLocale =
+                    (acceptLanguage != null) ? Locale.forLanguageTag(acceptLanguage) : Locale.getDefault();
             LocaleContextHolder.setLocale(resolvedLocale);
             return chain.filter(exchange);
         }

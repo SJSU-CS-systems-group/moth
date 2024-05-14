@@ -35,9 +35,8 @@ import java.util.List;
 @Component
 public class RequestObjectMethodArgumentResolver extends HandlerMethodArgumentResolverSupport {
     /* from Jackson2CodecSupport */
-    public static final List<MimeType> defaultMimeTypes = List.of(MediaType.APPLICATION_JSON,
-                                                                  new MediaType("application", "*+json"),
-                                                                  MediaType.APPLICATION_NDJSON);
+    public static final List<MimeType> defaultMimeTypes =
+            List.of(MediaType.APPLICATION_JSON, new MediaType("application", "*+json"), MediaType.APPLICATION_NDJSON);
     public static final Charset UTF_8 = StandardCharsets.UTF_8;
 
     ObjectMapper mapper = Jackson2ObjectMapperBuilder.json().build();
@@ -49,14 +48,14 @@ public class RequestObjectMethodArgumentResolver extends HandlerMethodArgumentRe
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         var hasParam = parameter.hasParameterAnnotation(RequestObject.class);
-        var canCreate = mapper.canDeserialize(
-                mapper.constructType(ResolvableType.forMethodParameter(parameter).getType()));
+        var canCreate =
+                mapper.canDeserialize(mapper.constructType(ResolvableType.forMethodParameter(parameter).getType()));
         return hasParam && canCreate;
     }
 
     @Override
-    public @NotNull Mono<Object> resolveArgument(MethodParameter parameter, @NotNull BindingContext bindingContext,
-                                                 ServerWebExchange exchange) {
+    public @NotNull Mono<Object> resolveArgument(MethodParameter parameter,
+                                                 @NotNull BindingContext bindingContext, ServerWebExchange exchange) {
         var contentType = exchange.getRequest().getHeaders().getContentType();
         var reader = mapper.readerFor(parameter.getParameterType());
         if (defaultMimeTypes.stream().anyMatch(ct -> ct.isCompatibleWith(contentType))) {

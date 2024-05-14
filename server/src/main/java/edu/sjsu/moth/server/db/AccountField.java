@@ -9,9 +9,9 @@ public class AccountField {
     public String verified_at;
 
     @JsonCreator
-    public AccountField(@JsonProperty("name") String name,
-                        @JsonProperty("value") String value,
-                        @JsonProperty("verified_at") String verified_at) {
+    public AccountField(
+            @JsonProperty("name") String name,
+            @JsonProperty("value") String value, @JsonProperty("verified_at") String verified_at) {
         this.name = name;
         this.value = value;
         this.verified_at = verified_at;

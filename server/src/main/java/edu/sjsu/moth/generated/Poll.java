@@ -64,9 +64,7 @@ public class Poll {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Poll.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Poll.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("id");
         sb.append('=');
@@ -140,14 +138,12 @@ public class Poll {
         if (!(other instanceof Poll rhs)) {
             return false;
         }
-        return ((((((((((Objects.equals(this.emojis, rhs.emojis)) && (Objects.equals(this.expired,
-                                                                                     rhs.expired))) && (Objects.equals(
-                this.votesCount, rhs.votesCount))) && (Objects.equals(this.votersCount,
-                                                                      rhs.votersCount))) && (Objects.equals(
-                this.multiple, rhs.multiple))) && (Objects.equals(this.options, rhs.options))) && (Objects.equals(
-                this.voted, rhs.voted))) && (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.expiresAt,
-                                                                                                  rhs.expiresAt))) && (Objects.equals(
-                this.ownVotes, rhs.ownVotes)));
+        return ((((((((((Objects.equals(this.emojis, rhs.emojis)) && (Objects.equals(this.expired, rhs.expired))) &&
+                (Objects.equals(this.votesCount, rhs.votesCount))) &&
+                (Objects.equals(this.votersCount, rhs.votersCount))) &&
+                (Objects.equals(this.multiple, rhs.multiple))) && (Objects.equals(this.options, rhs.options))) &&
+                (Objects.equals(this.voted, rhs.voted))) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.expiresAt, rhs.expiresAt))) && (Objects.equals(this.ownVotes, rhs.ownVotes)));
     }
 
 }

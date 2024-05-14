@@ -77,8 +77,7 @@ public class GlobalErrorWebExceptionHandler extends AbstractErrorWebExceptionHan
      */
     private Mono<ServerResponse> renderErrorResponse(ServerRequest request) {
         var errorAttributes = getErrorAttributes(request, ErrorAttributeOptions.defaults());
-        return ServerResponse.status((Integer) errorAttributes.get("status"))
-                .contentType(MediaType.APPLICATION_JSON)
+        return ServerResponse.status((Integer) errorAttributes.get("status")).contentType(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(
                         Map.of("path", errorAttributes.getOrDefault("path", "missing path"), "detail",
                                errorAttributes.getOrDefault("error", "missing error"))));

@@ -7,8 +7,8 @@ import org.springframework.data.querydsl.ReactiveQuerydslPredicateExecutor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public interface StatusRepository extends ReactiveMongoRepository<Status, String>,
-                                          ReactiveQuerydslPredicateExecutor<Status> {
+public interface StatusRepository
+        extends ReactiveMongoRepository<Status, String>, ReactiveQuerydslPredicateExecutor<Status> {
 
     @Query("{status:'?0'}")
     Mono<Status> findItemByStatus(String status);

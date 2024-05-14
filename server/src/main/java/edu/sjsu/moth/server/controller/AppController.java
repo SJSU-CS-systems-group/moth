@@ -49,10 +49,10 @@ import static edu.sjsu.moth.server.controller.AppController.ExceptionMessageForm
 public class AppController {
     public static final String LOGIN_ERR_FORMAT = "/oauth/authorize?client_id=%s&redirect_uri=%s&error=%s";
     // from config file
-    final public List<ExceptionMessageFormat> emfList = List.of(
-            emf(EmailService.BadCodeException.class, "AppBadCode", List.of(AuthService.registrationEmail())),
-            emf(EmailService.RegistrationNotFound.class, "AppRegistrationNotFound",
-                List.of(AuthService.registrationEmail())));
+    final public List<ExceptionMessageFormat> emfList =
+            List.of(emf(EmailService.BadCodeException.class, "AppBadCode", List.of(AuthService.registrationEmail())),
+                    emf(EmailService.RegistrationNotFound.class, "AppRegistrationNotFound",
+                        List.of(AuthService.registrationEmail())));
 
     @Autowired
     AuthService authService;
@@ -65,8 +65,9 @@ public class AppController {
 
     //https://docs.joinmastodon.org/methods/accounts/#create
     @PostMapping("/api/v1/accounts")
-    public Mono<ResponseEntity<Object>> registerAccount(@RequestHeader("Authorization") String authorization,
-                                                        @RequestBody RegistrationRequest request, Locale locale) throws RegistrationException, RateLimitException {
+    public Mono<ResponseEntity<Object>> registerAccount(
+            @RequestHeader("Authorization") String authorization,
+            @RequestBody RegistrationRequest request, Locale locale) throws RegistrationException, RateLimitException {
         //validate authorization header with bearer token authentication
         //authorization token has to be valid before registering
         MastodonRegistration.validateRegistrationRequest(request);
@@ -74,9 +75,9 @@ public class AppController {
         //generate and return TokenResponse with access token
         var token = authorization.split(" ")[1]; // skip "Bearer"
         return authService.registerAccount(token, request.username, request.email, request.password)
-                .then(Mono.just(ResponseEntity.ok((Object) new AuthService.TokenResponse(token, "*"))))
-                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                                      .body(new ErrorResponse(error2Message(e, locale)))));
+                .then(Mono.just(ResponseEntity.ok((Object) new AuthService.TokenResponse(token, "*")))).onErrorResume(
+                        e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                               .body(new ErrorResponse(error2Message(e, locale)))));
     }
 
     public String error2Message(Throwable e, Locale locale) {
@@ -100,8 +101,9 @@ public class AppController {
     }
 
     @GetMapping("/oauth/authorize")
-    public String getOauthAuthorize(@RequestParam String client_id, @RequestParam String redirect_uri,
-                                    @RequestParam(required = false) String error) {
+    public String getOauthAuthorize(
+            @RequestParam String client_id,
+            @RequestParam String redirect_uri, @RequestParam(required = false) String error) {
         // resolves locale to user locale; resolves the locale based on the "Accept-Language" header in the
         // request packet. resolved via the WebFilterChain.
         Context context = new Context(LocaleContextHolder.getLocale());
@@ -112,13 +114,13 @@ public class AppController {
     }
 
     @GetMapping("/oauth/login")
-    Mono<ResponseEntity<String>> getOauthLogin(@RequestParam String client_id, @RequestParam String redirect_uri,
-                                               @RequestParam String user, @RequestParam String password,
-                                               Locale locale) {
+    Mono<ResponseEntity<String>> getOauthLogin(
+            @RequestParam String client_id,
+            @RequestParam String redirect_uri,
+            @RequestParam String user, @RequestParam String password, Locale locale) {
         // the parameter comes in as "user" but it's actually the email
         return authService.login(user, password, client_id)
-                .flatMap(code -> Util.getMonoURI(redirect_uri + "?code=" + code))
-                .onErrorResume(t -> Util.getMonoURI(
+                .flatMap(code -> Util.getMonoURI(redirect_uri + "?code=" + code)).onErrorResume(t -> Util.getMonoURI(
                         LOGIN_ERR_FORMAT.formatted(client_id, redirect_uri, Util.URLencode(error2Message(t, locale)))))
                 .map(uri -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT).location(uri).build());
     }

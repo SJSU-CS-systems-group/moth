@@ -42,8 +42,9 @@ public class AccountController {
     }
 
     @PatchMapping(value = "/api/v1/accounts/update_credentials", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-    public Mono<ResponseEntity<Account>> updateCredentials(@RequestHeader("Authorization") String authorizationHeader
-            , Principal user, @RequestBody Mono<MultiValueMap<String, Part>> parts) {
+    public Mono<ResponseEntity<Account>> updateCredentials(
+            @RequestHeader("Authorization") String authorizationHeader, Principal user,
+            @RequestBody Mono<MultiValueMap<String, Part>> parts) {
 
         return parts.flatMap(map -> {
             return accountService.getAccountById(user.getName()).flatMap(a -> {
@@ -97,8 +98,7 @@ public class AccountController {
 
     @GetMapping("/api/v1/accounts/lookup")
     public Mono<ResponseEntity<Account>> lookUpAccount(@RequestParam String acct) {
-        return accountService.getAccount(acct)
-                .map(ResponseEntity::ok)
+        return accountService.getAccount(acct).map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
@@ -114,13 +114,11 @@ public class AccountController {
     //source: https://docs.joinmastodon.org/methods/accounts/#verify_credentials
     //note that the CredentialAccount has the same info but a different format that Account :'(
     @GetMapping("/api/v1/accounts/verify_credentials")
-    public Mono<ResponseEntity<CredentialAccount>> verifyCredentials(Principal user,
-                                                                     @RequestHeader("Authorization") String authorizationHeader) {
+    public Mono<ResponseEntity<CredentialAccount>> verifyCredentials(Principal user, @RequestHeader("Authorization")
+    String authorizationHeader) {
         if (user != null) {
-            return accountService.getAccount(user.getName())
-                    .map(this::convertAccount2CredentialAccount)
-                    .map(ResponseEntity::ok)
-                    .switchIfEmpty(
+            return accountService.getAccount(user.getName()).map(this::convertAccount2CredentialAccount)
+                    .map(ResponseEntity::ok).switchIfEmpty(
                             Mono.fromRunnable(() -> log.error("couldn't find " + user.getName())).then(Mono.empty()));
         } else {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());

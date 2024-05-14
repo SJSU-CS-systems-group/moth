@@ -33,10 +33,13 @@ public class SearchController {
     public Mono<SearchResult> doSearch(@RequestParam("q") String query, Principal user, // user sending request, must
                                        // be authenticated user
                                        @RequestParam(required = false) String type,
-                                       @RequestParam(required = false) Boolean resolve, @RequestParam(required =
-            false) Boolean following, @RequestParam(required = false) String account_id, @RequestParam(required =
-            false) Boolean exclude_unreviewed, @RequestParam(required = false) String max_id, @RequestParam(required
-            = false) String min_id, @RequestParam(required = false) Integer limit,
+                                       @RequestParam(required = false) Boolean resolve,
+                                       @RequestParam(required = false) Boolean following,
+                                       @RequestParam(required = false) String account_id,
+                                       @RequestParam(required = false) Boolean exclude_unreviewed,
+                                       @RequestParam(required = false) String max_id,
+                                       @RequestParam(required = false) String min_id,
+                                       @RequestParam(required = false) Integer limit,
                                        @RequestParam(required = false) Integer offset) {
         SearchResult result = new SearchResult();
         // return empty SearchResult obj. , until query.length() >= 3
@@ -55,17 +58,10 @@ public class SearchController {
             String domain = "https://" + splitQuery[1] + "/api/v2/search"; // use as domain below
             if (splitQuery.length == 2) {
                 Integer finalLimit = limit; // necessary as local var ref from lambda must be final
-                return WebClient.builder()
-                        .baseUrl(domain)
-                        .build()
-                        .get()
-                        .uri(uriBuilder -> uriBuilder.queryParam("q", splitQuery[0])
-                                .queryParam("limit", finalLimit)
-                                .queryParamIfPresent("type", Optional.ofNullable(type))
-                                .build())
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
-                        .bodyToMono(SearchResult.class)
+                return WebClient.builder().baseUrl(domain).build().get()
+                        .uri(uriBuilder -> uriBuilder.queryParam("q", splitQuery[0]).queryParam("limit", finalLimit)
+                                .queryParamIfPresent("type", Optional.ofNullable(type)).build())
+                        .accept(MediaType.APPLICATION_JSON).retrieve().bodyToMono(SearchResult.class)
                         .onErrorResume(WebClientException.class, e -> {
                             System.err.println("Error: " + e.getMessage());
                             e.printStackTrace();
@@ -77,23 +73,22 @@ public class SearchController {
             switch (type) {
                 case "": {
                     return Mono.zip(
-                                    accountService.filterAccountSearch(query, user, following, max_id, min_id, limit,
-                                                                       offset,
-                                                                       result),
-                                    statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset
-                                            , result))
-                            .map(t -> {
-                                result.accounts = t.getT1().accounts;
-                                result.statuses = t.getT2().statuses;
-                                return result;
-                            });
+                            accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset,
+                                                               result),
+                            statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset,
+                                                             result)).map(t -> {
+                        result.accounts = t.getT1().accounts;
+                        result.statuses = t.getT2().statuses;
+                        return result;
+                    });
                 }
                 case "accounts": {
                     return accountService.filterAccountSearch(query, user, following, max_id, min_id, limit, offset,
                                                               result);
                 }
                 case "statuses": {
-                    return statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset, result);
+                    return statusService.filterStatusSearch(query, user, account_id, max_id, min_id, limit, offset,
+                                                            result);
                 }
                 case "hashtags": {
                     // incomplete; complete when hashtags are implemented

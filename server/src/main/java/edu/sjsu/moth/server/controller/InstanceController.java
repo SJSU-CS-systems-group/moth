@@ -23,9 +23,8 @@ public class InstanceController {
             new String[] { "image/jpeg", "image/png", "image/gif", "image/webp", "video/webm", "video/mp4",
                     "video" + "/quicktime", "video/ogg", "audio/wave", "audio/wav", "audio/x-wav", "audio/x-pn-wave",
                     "audio" + "/vnd.wave", "audio/ogg", "audio/vorbis", "audio/mpeg", "audio/mp3", "audio/webm",
-                    "audio/flac", "audio/aac", "audio/m4a", "audio/x-m4a", "audio/mp4", "audio/3gpp", "video/x-ms-asf"
-            },
-            IMAGE_SIZE_LIMIT, IMAGE_MATRIX_LIMIT, VIDEO_SIZE_LIMIT, 60, VIDEO_MATRIX_LIMIT);
+                    "audio/flac", "audio/aac", "audio/m4a", "audio/x-m4a", "audio/mp4", "audio/3gpp",
+                    "video/x-ms-asf" }, IMAGE_SIZE_LIMIT, IMAGE_MATRIX_LIMIT, VIDEO_SIZE_LIMIT, 60, VIDEO_MATRIX_LIMIT);
     private static final String CONTACT_ACCOUNT = MothConfiguration.mothConfiguration.getAccountName();
     private static final URLs URLS = new URLs("wss://" + MothConfiguration.mothConfiguration.getServerName());
     private static final StatsV1 STATSV1 = new StatsV1(0, 0, 0);
@@ -34,8 +33,8 @@ public class InstanceController {
     private static final ConfigurationV1 CONFIGURATIONV1 = new ConfigurationV1(STATUSES, MEDIA_ATTACHMENTSV1, POLLS);
     private static final Accounts ACCOUNTS = new Accounts(10);
     private static final Translation TRANSLATION = new Translation(true);
-    private static final ConfigurationV2 CONFIGURATIONV2 = new ConfigurationV2(URLS, ACCOUNTS, STATUSES,
-                                                                               MEDIA_ATTACHMENTSV1, POLLS, TRANSLATION);
+    private static final ConfigurationV2 CONFIGURATIONV2 =
+            new ConfigurationV2(URLS, ACCOUNTS, STATUSES, MEDIA_ATTACHMENTSV1, POLLS, TRANSLATION);
     private static final Rule[] RULES = MothConfiguration.mothConfiguration.getRules();
 
     @Autowired

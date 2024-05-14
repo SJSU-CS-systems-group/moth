@@ -44,9 +44,7 @@ public class Icon {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Icon.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Icon.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("type");
         sb.append('=');
@@ -100,11 +98,9 @@ public class Icon {
         if (!(other instanceof Icon rhs)) {
             return false;
         }
-        return (((Objects.equals(this.mediaType, rhs.mediaType)) && (Objects.equals(this.type,
-                                                                                    rhs.type))) && (Objects.equals(
-                this.url, rhs.url)) && (Objects.equals(this.src, rhs.src)) && (Objects.equals(this.sizes,
-                                                                                              rhs.sizes)) && (Objects.equals(
-                this.purpose, rhs.purpose)));
+        return (((Objects.equals(this.mediaType, rhs.mediaType)) && (Objects.equals(this.type, rhs.type))) &&
+                (Objects.equals(this.url, rhs.url)) && (Objects.equals(this.src, rhs.src)) &&
+                (Objects.equals(this.sizes, rhs.sizes)) && (Objects.equals(this.purpose, rhs.purpose)));
     }
 
 }

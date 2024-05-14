@@ -54,16 +54,15 @@ public class StatusService {
         return statusRepository.findById(id);
     }
 
-    public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit, boolean isFollowingTimeline) {
+    public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit,
+                                          boolean isFollowingTimeline) {
         var qStatus = new QStatus("start");
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline))
-                .take(limit);
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline))
-                .take(limit);
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -107,9 +106,7 @@ public class StatusService {
     public Mono<SearchResult> filterStatusSearch(String query, Principal user, String account_id, String max_id,
                                                  String min_id, Integer limit, Integer offset, SearchResult result) {
         return statusRepository.findByStatusLike(query)
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, false))
-                .take(limit)
-                .collectList()
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, false)).take(limit).collectList()
                 .map(statuses -> {
                     // check RequestParams: account_id, max_id, min_id, offset
                     result.statuses.addAll(statuses);
@@ -126,12 +123,13 @@ public class StatusService {
 
     private Flux<Status> filterStatusByViewable(Principal user, Status status, boolean isFollowingTimeline) {
         return accountService.getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
-                .flatMapMany(acct -> followRepository.findAllByFollowerId(acct.id)
-                        .defaultIfEmpty(Collections.emptyList())
-                        .map(list -> list.stream().map(f -> f.id.followed_id).toList())
-                        .flatMapMany(followings -> ((status.account.id.equals(acct.id)) || (!isFollowingTimeline && status.visibility.equals("public")) || followings.contains(
-                            status.account.id)) ? Flux.just(status) : Flux.empty()));
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMapMany(
+                        acct -> followRepository.findAllByFollowerId(acct.id).defaultIfEmpty(Collections.emptyList())
+                                .map(list -> list.stream().map(f -> f.id.followed_id).toList()).flatMapMany(
+                                        followings -> ((status.account.id.equals(acct.id)) ||
+                                                (!isFollowingTimeline && status.visibility.equals("public")) ||
+                                                followings.contains(status.account.id)) ? Flux.just(status) :
+                                                Flux.empty()));
     }
 
 }

@@ -67,8 +67,9 @@ public class AuthService {
     }
 
     public Mono<AppRegistration> registerApp(String clientName, String redirectUris, String scopes, String website) {
-        var registration = new AppRegistration(appCounter.getAndIncrement(), clientName, redirectUris, website,
-                                               genNonce(33), genNonce(33), VAPID_KEY);
+        var registration =
+                new AppRegistration(appCounter.getAndIncrement(), clientName, redirectUris, website, genNonce(33),
+                                    genNonce(33), VAPID_KEY);
         // we should have a scheduled thread to clean up expired registrations, but for now we will do it on the fly
         registrations.put(registration.client_id, new AppRegistrationEntry(registration, LocalDateTime.now(), scopes));
         return Mono.just(registration);
@@ -97,10 +98,10 @@ public class AuthService {
 
         // if code is null, we will fill it in the email later
         var email = code == null ? null : code2Email.get(code);
-        var mono = email == null ? generateAccessToken("", "", appname, website) : emailService.registrationForEmail(
-                        email)
-                .flatMap(r -> generateAccessToken(r.username, email, registration.registration.name(),
-                                                  registration.registration.website));
+        var mono = email == null ? generateAccessToken("", "", appname, website) :
+                emailService.registrationForEmail(email).flatMap(
+                        r -> generateAccessToken(r.username, email, registration.registration.name(),
+                                                 registration.registration.website));
         return mono.map(t -> new TokenResponse(t.token, scope));
     }
 

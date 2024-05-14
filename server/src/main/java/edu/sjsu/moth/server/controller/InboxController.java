@@ -77,9 +77,8 @@ public class InboxController {
             imageLink = "";
         }
 
-        WebClient webClient = WebClient.builder()
-                .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
-                .build();
+        WebClient webClient =
+                WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
         Mono<JsonNode> outboxResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
         Mono<JsonNode> followersResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
         Mono<JsonNode> followingResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
@@ -137,26 +136,23 @@ public class InboxController {
 
         //Making an actor and then converting to account
         String accountLink = node.get("actor").asText();
-        return actorService.getActor(accountLink)
-                .switchIfEmpty(createActor(accountLink))
-                .flatMap(actor -> convertToAccount(actor))
-                .flatMap(account -> {
+        return actorService.getActor(accountLink).switchIfEmpty(createActor(accountLink))
+                .flatMap(actor -> convertToAccount(actor)).flatMap(account -> {
                     //not sure about spoiler text
                     //haven't implemented media service yet, not sure about visibility
                     //changed inreplyto to null
-                    ExternalStatus status = new ExternalStatus(null, createdAt, null, null, sensitive, "", "direct",
-                                                               language, null, null, 0, 0, 0, false, false, false,
-                                                               false, content, null, null, account, List.of(),
-                                                               List.of(), List.of(), List.of(), null, null, content,
-                                                               node.get("published").asText());
+                    ExternalStatus status =
+                            new ExternalStatus(null, createdAt, null, null, sensitive, "", "direct", language, null,
+                                               null, 0, 0, 0, false, false, false, false, content, null, null, account,
+                                               List.of(), List.of(), List.of(), List.of(), null, null, content,
+                                               node.get("published").asText());
                     return statusService.saveExternal(status).map(ResponseEntity::ok);
                 });
     }
 
     public Mono<Actor> createActor(String accountLink) {
-        WebClient webClient = WebClient.builder()
-                .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
-                .build();
+        WebClient webClient =
+                WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
         Mono<Actor> response = webClient.get().uri(accountLink).retrieve().bodyToMono(Actor.class);
         return response.flatMap(actor -> actorService.save(actor));
     }
@@ -171,16 +167,16 @@ public class InboxController {
     }
 
     @GetMapping("/users/{id}/following")
-    public Mono<UsersFollowResponse> usersFollowing(@PathVariable String id,
-                                                    @RequestParam(required = false) Integer page,
-                                                    @RequestParam(required = false) Integer limit) {
+    public Mono<UsersFollowResponse> usersFollowing(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
         return accountService.usersFollow(id, page, limit, "following");
     }
 
     @GetMapping("/users/{id}/followers")
-    public Mono<UsersFollowResponse> usersFollowers(@PathVariable String id,
-                                                    @RequestParam(required = false) Integer page,
-                                                    @RequestParam(required = false) Integer limit) {
+    public Mono<UsersFollowResponse> usersFollowers(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
         return accountService.usersFollow(id, page, limit, "followers");
     }
 

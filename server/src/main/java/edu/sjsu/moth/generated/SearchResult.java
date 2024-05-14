@@ -41,9 +41,7 @@ public class SearchResult {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(SearchResult.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(SearchResult.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("accounts");
         sb.append('=');
@@ -83,6 +81,7 @@ public class SearchResult {
             return false;
         }
         SearchResult rhs = ((SearchResult) other);
-        return (((Objects.equals(this.statuses, rhs.statuses)) && (Objects.equals(this.accounts, rhs.accounts))) && (Objects.equals(this.hashtags, rhs.hashtags)));
+        return (((Objects.equals(this.statuses, rhs.statuses)) && (Objects.equals(this.accounts, rhs.accounts))) &&
+                (Objects.equals(this.hashtags, rhs.hashtags)));
     }
 }

@@ -38,9 +38,7 @@ public class Image {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Image.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Image.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("type");
         sb.append('=');
@@ -80,7 +78,8 @@ public class Image {
             return false;
         }
         Image rhs = ((Image) other);
-        return (((Objects.equals(this.mediaType, rhs.mediaType)) && (Objects.equals(this.type, rhs.type))) && (Objects.equals(this.url, rhs.url)));
+        return (((Objects.equals(this.mediaType, rhs.mediaType)) && (Objects.equals(this.type, rhs.type))) &&
+                (Objects.equals(this.url, rhs.url)));
     }
 
 }

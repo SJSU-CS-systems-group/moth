@@ -31,9 +31,8 @@ public class MediaService {
     }
 
     public Mono<GridFSStream> getMongoFileInputStreamResource(String filename) {
-        return mongoStorage.findOne(new Query(Criteria.where("filename").is(filename)))
-                .flatMap(f -> mongoStorage.getResource(f)
-                        .map(r -> r.getDownloadStream(8192))
+        return mongoStorage.findOne(new Query(Criteria.where("filename").is(filename))).flatMap(
+                f -> mongoStorage.getResource(f).map(r -> r.getDownloadStream(8192))
                         .map(fda -> new GridFSStream(f, fda)));
     }
 

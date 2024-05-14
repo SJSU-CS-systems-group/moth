@@ -21,10 +21,9 @@ public class EmailCodeUtils {
     public final static Pbkdf2PasswordEncoder PASSWORD_ENCODER = new Pbkdf2PasswordEncoder("frog", 13, 10_000,
                                                                                            Pbkdf2PasswordEncoder.SecretKeyFactoryAlgorithm.PBKDF2WithHmacSHA256);
     // defining a new epoch gets a few decades of bits back!
-    public static long NEW_EPOCH = new Calendar.Builder().setDate(2023, 1, 1)
-            .setTimeZone(TimeZone.getTimeZone("UTC"))
-            .build()
-            .getTimeInMillis();
+    public static long NEW_EPOCH =
+            new Calendar.Builder().setDate(2023, 1, 1).setTimeZone(TimeZone.getTimeZone("UTC")).build()
+                    .getTimeInMillis();
 
     static {
         PASSWORD_ENCODER.setEncodeHashAsBase64(true);

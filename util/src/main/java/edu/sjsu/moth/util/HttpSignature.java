@@ -35,8 +35,8 @@ import java.util.stream.Collectors;
 @CommonsLog
 public class HttpSignature {
     public static final String REQUEST_TARGET = "(request-target)";
-    static public final Pattern HTTP_HEADER_FIELDS_PATTERN = Pattern.compile(
-            "(?<key>\\p{Alnum}+)=\"(?<value>([^\"])*)\"");
+    static public final Pattern HTTP_HEADER_FIELDS_PATTERN =
+            Pattern.compile("(?<key>\\p{Alnum}+)=\"(?<value>([^\"])*)\"");
 
     public static Signature newSigner() {
         try {
@@ -62,8 +62,9 @@ public class HttpSignature {
                                                 PrivateKey signingKey, String keyUri) {
         clientBuilder.filter((request, next) -> {
             try {
-                String sigLine = generateSignatureHeader(request.method().name(), request.url(), request.headers(),
-                                                         headers, signingKey, keyUri);
+                String sigLine =
+                        generateSignatureHeader(request.method().name(), request.url(), request.headers(), headers,
+                                                signingKey, keyUri);
                 request.headers().add("Signature", sigLine);
             } catch (InvalidKeyException | SignatureException e) {
                 log.error("couldn't sign request", e);

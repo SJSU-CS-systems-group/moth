@@ -41,11 +41,9 @@ public class ContactAccountChecker implements ApplicationRunner {
             var contactEmail = MothConfiguration.mothConfiguration.getContactEmail();
             emailService.registerEmail(contactEmail, randomPassword)
                     // we are going to push ahead even if the email is already registered
-                    .onErrorComplete()
-                    .then(Mono.fromRunnable(() -> log.info("created registration for contact")))
+                    .onErrorComplete().then(Mono.fromRunnable(() -> log.info("created registration for contact")))
                     .then(accountService.createAccount(contact, contactEmail, randomPassword))
-                    .then(Mono.fromRunnable(() -> log.info("created account for contact")))
-                    .block();
+                    .then(Mono.fromRunnable(() -> log.info("created account for contact"))).block();
         } else {
             log.info("✅ contact account %s found".formatted(contact));
         }
