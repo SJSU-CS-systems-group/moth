@@ -6,6 +6,7 @@ import edu.sjsu.moth.generated.Source;
 import edu.sjsu.moth.server.annotations.RequestObject;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
+import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.service.AccountService;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -160,6 +162,21 @@ public class AccountController {
 
         return Mono.just(new ArrayList<Account>());
     }
+
+
+    @PostMapping("/api/v1/accounts/{id}/follow")
+    public Mono<ResponseEntity<Follow>> followUser(@PathVariable("id") String followedId, Principal user){
+        return accountService.getAccountById(user.getName()).flatMap(a -> accountService.saveFollow(a.id, followedId))
+                .map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/api/v1/accounts/{id}/following")
+    public Mono<InboxController.UsersFollowResponse> userFollowing(@PathVariable String id,
+                                                                   @RequestParam(required = false) Integer page,
+                                                                   @RequestParam(required = false) Integer limit) {
+        return accountService.usersFollow(id, page, limit, "following");
+    }
+
 
     private static class RelationshipRequest {
         public String[] id;

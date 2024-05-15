@@ -22,4 +22,8 @@ public class Follow {
     public Follow(String follower, String id) {
         this.id = new FollowKey(follower, id);
     }
+
+    public Follow(){
+
+    }
 }
