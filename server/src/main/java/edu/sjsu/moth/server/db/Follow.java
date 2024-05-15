@@ -23,7 +23,7 @@ public class Follow {
         this.id = new FollowKey(follower, id);
     }
 
-    public Follow(){
+    public Follow() {
 
     }
 }

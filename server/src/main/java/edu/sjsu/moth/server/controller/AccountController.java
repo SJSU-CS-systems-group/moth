@@ -161,20 +161,18 @@ public class AccountController {
         return Mono.just(new ArrayList<Account>());
     }
 
-
     @PostMapping("/api/v1/accounts/{id}/follow")
-    public Mono<ResponseEntity<Follow>> followUser(@PathVariable("id") String followedId, Principal user){
+    public Mono<ResponseEntity<Follow>> followUser(@PathVariable("id") String followedId, Principal user) {
         return accountService.getAccountById(user.getName()).flatMap(a -> accountService.saveFollow(a.id, followedId))
                 .map(ResponseEntity::ok);
     }
 
     @GetMapping("/api/v1/accounts/{id}/following")
-    public Mono<InboxController.UsersFollowResponse> userFollowing(@PathVariable String id,
-                                                                   @RequestParam(required = false) Integer page,
-                                                                   @RequestParam(required = false) Integer limit) {
+    public Mono<InboxController.UsersFollowResponse> userFollowing(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
         return accountService.usersFollow(id, page, limit, "following");
     }
-
 
     private static class RelationshipRequest {
         public String[] id;
