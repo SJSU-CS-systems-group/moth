@@ -43,6 +43,7 @@ public class StatusService {
     AccountService accountService;
 
     public Mono<Status> save(Status status) {
+        // create a Mono that we can tack onto
         var mono = Mono.empty();
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
@@ -51,9 +52,11 @@ public class StatusService {
                 accountsmentioned.add(s);
         }
 
+        // check to see if the post mentions a group account. if it does create a mono for a status post by that group
         for(String s : accountsmentioned){
             String groupName = s.substring(1);
             Mono<Object> finalMono = mono;
+            // tack the new group post Mono onto mono
             mono = mono.then(accountRepository.findItemByAcct(groupName).
                     flatMap(a ->{
                                 for(AccountField af : a.fields){
