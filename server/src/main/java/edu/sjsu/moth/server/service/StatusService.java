@@ -4,6 +4,8 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.server.db.AccountField;
+import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Follow;
@@ -29,6 +31,9 @@ public class StatusService {
     StatusRepository statusRepository;
 
     @Autowired
+    AccountRepository accountRepository;
+
+    @Autowired
     ExternalStatusRepository externalStatusRepository;
 
     @Autowired
@@ -38,8 +43,49 @@ public class StatusService {
     AccountService accountService;
 
     public Mono<Status> save(Status status) {
-        return statusRepository.save(status);
+        // create a Mono that we can tack onto
+        var mono = Mono.empty();
+        ArrayList<String> accountsmentioned = new ArrayList<>();
+        String[] words = status.content.split(" ");
+        for(String s: words){
+            if(s.charAt(0) == '@')
+                accountsmentioned.add(s);
+        }
+
+        // check to see if the post mentions a group account. if it does create a mono for a status post by that group
+        for(String s : accountsmentioned){
+            String groupName = s.substring(1);
+            Mono<Object> finalMono = mono;
+            // tack the new group post Mono onto mono
+            mono = mono.then(accountRepository.findItemByAcct(groupName).
+                    flatMap(a ->{
+                                for(AccountField af : a.fields){
+                                    if(af.name.equalsIgnoreCase("Group") && af.value.equalsIgnoreCase("True")){
+                                        Status groupStatus = new Status(null, status.createdAt, status.inReplyToId, status.inReplyToAccountId, status.sensitive,
+                                                                        status.spoilerText, status.visibility, status.language, status.getUri(), status.getUrl(), status.repliesCount, status.reblogsCount,
+                                                                        status.favouritesCount, status.favourited, status.reblogged, status.muted, status.bookmarked,
+                                                                        status.content, status.reblog,  status.application, a,
+                                                                        status.mediaAttachments,  status.mentions, status.tags,
+                                                                        status.emojis, status.card, status.poll, status.text, status.edited_at);
+
+                                        return finalMono.then(followRepository.findAllByFollowedId(groupName).collectList().flatMap(list-> {
+
+                                            for(Follow f: list){
+                                                if(f.id.follower_id.equals(status.account.id)){
+                                                    return statusRepository.save(groupStatus).then(Mono.fromRunnable(() -> System.out.println("Gets Executed.....1")));
+                                                }
+                                            }
+                                            return Mono.empty();
+                                        }).switchIfEmpty(Mono.fromRunnable(() -> System.out.println("Gets Executed.....2"))));
+                                    }
+                                }
+                                return Mono.empty();
+                            }
+            ));
+        }
+        return mono.then(statusRepository.save(status));
     }
+
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
         return externalStatusRepository.save(status);
@@ -123,13 +169,9 @@ public class StatusService {
 
     private Flux<Status> filterStatusByViewable(Principal user, Status status, boolean isFollowingTimeline) {
         return accountService.getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMapMany(
-                        acct -> followRepository.findAllByFollowerId(acct.id).defaultIfEmpty(Collections.emptyList())
-                                .map(list -> list.stream().map(f -> f.id.followed_id).toList()).flatMapMany(
-                                        followings -> ((status.account.id.equals(acct.id)) ||
-                                                (!isFollowingTimeline && status.visibility.equals("public")) ||
-                                                followings.contains(status.account.id)) ? Flux.just(status) :
-                                                Flux.empty()));
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMapMany(acct -> followRepository.findAllByFollowerId(acct.id)
+                        .flatMap(following -> ((status.account.id.equals(acct.id)) || (!isFollowingTimeline && status.visibility.equals("public")) || following.id.followed_id.equals(status.account.id)) ? Flux.just(status) : Flux.empty()));
     }
 
 }

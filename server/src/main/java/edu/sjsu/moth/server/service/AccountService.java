@@ -103,8 +103,8 @@ public class AccountService {
                                                                  @RequestParam(required = false)
                                                                  Integer limit, String followType) {
         var items = followType.equals("following") ? followRepository.findAllByFollowerId(id)
-                .map(list -> list.stream().map(f -> f.id.followed_id).toList()) :
-                followRepository.findAllByFollowedId(id).map(list -> list.stream().map(f -> f.id.follower_id).toList());
+                .map(followedUser -> followedUser.id.followed_id).take(limit).collectList() : followRepository.findAllByFollowedId(id)
+                .map(followerUser -> followerUser.id.follower_id).take(limit).collectList();
         String returnID = MothController.BASE_URL + "/users/" + id + followType;
         int pageSize = limit != null ? limit : DEFAULT_PAGE_SIZE;
         if (page == null) {
@@ -134,6 +134,13 @@ public class AccountService {
         }
     }
 
+    public Mono<Follow> saveFollow(String followerId, String followedId) {
+        Follow follow = new Follow(followerId, followedId);
+        return followRepository.save(follow);
+    }
+
+
+
     public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
         int endIndex = Math.min(startIndex + pageSize, followers.size());
@@ -149,8 +156,8 @@ public class AccountService {
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
-        return followRepository.findAllByFollowerId(((Account) user).id).flatMap(f -> {
-            var followers = f.stream().map(follow -> follow.id.followed_id).collect(Collectors.toSet());
+        return followRepository.findAllByFollowerId(((Account) user).id).collect(Collectors.toSet()).flatMap(
+                followers -> {
             return accountRepository.findByAcctLike(query)
                     .filter(account -> following == null || !following || followers.contains(account.id)).take(limit)
                     .collectList().map(accounts -> {
