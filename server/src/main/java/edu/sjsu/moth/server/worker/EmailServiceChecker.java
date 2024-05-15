@@ -35,10 +35,8 @@ public class EmailServiceChecker implements ApplicationRunner {
                 }
                 return true;
             });
-            emailService.sendMail(EmailBuilder.startingBlank()
-                                          .to(AuthService.registrationEmail())
-                                          .from(AuthService.registrationEmail())
-                                          .withSubject(randSubject)
+            emailService.sendMail(EmailBuilder.startingBlank().to(AuthService.registrationEmail())
+                                          .from(AuthService.registrationEmail()).withSubject(randSubject)
                                           .withPlainText("checking email"));
             var responseSeen = false;
             try {

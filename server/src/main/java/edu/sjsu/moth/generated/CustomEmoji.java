@@ -44,9 +44,7 @@ public class CustomEmoji {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(CustomEmoji.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(CustomEmoji.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("shortcode");
         sb.append('=');
@@ -96,7 +94,11 @@ public class CustomEmoji {
             return false;
         }
         CustomEmoji rhs = ((CustomEmoji) other);
-        return (((((Objects.equals(this.staticUrl, rhs.staticUrl)) && (Objects.equals(this.shortcode, rhs.shortcode))) && (Objects.equals(this.category, rhs.category))) && (Objects.equals(this.visibleInPicker, rhs.visibleInPicker))) && (Objects.equals(this.url, rhs.url)));
+        return ((
+                (((Objects.equals(this.staticUrl, rhs.staticUrl)) && (Objects.equals(this.shortcode, rhs.shortcode))) &&
+                        (Objects.equals(this.category, rhs.category))) &&
+                        (Objects.equals(this.visibleInPicker, rhs.visibleInPicker))) &&
+                (Objects.equals(this.url, rhs.url)));
     }
 
 }

@@ -38,9 +38,7 @@ public class Attachment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Attachment.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Attachment.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("type");
         sb.append('=');
@@ -80,7 +78,8 @@ public class Attachment {
             return false;
         }
         Attachment rhs = ((Attachment) other);
-        return (((Objects.equals(this.name, rhs.name)) && (Objects.equals(this.type, rhs.type))) && (Objects.equals(this.value, rhs.value)));
+        return (((Objects.equals(this.name, rhs.name)) && (Objects.equals(this.type, rhs.type))) &&
+                (Objects.equals(this.value, rhs.value)));
     }
 
 }

@@ -62,9 +62,7 @@ public class Report {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Report.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Report.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("id");
         sb.append('=');
@@ -139,7 +137,13 @@ public class Report {
             return false;
         }
         Report rhs = ((Report) other);
-        return ((((((((((Objects.equals(this.createdAt, rhs.createdAt)) && (Objects.equals(this.ruleIds, rhs.ruleIds))) && (Objects.equals(this.actionTaken, rhs.actionTaken))) && (Objects.equals(this.comment, rhs.comment))) && (Objects.equals(this.targetAccount, rhs.targetAccount))) && (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.category, rhs.category))) && (Objects.equals(this.statusIds, rhs.statusIds))) && (Objects.equals(this.forwarded, rhs.forwarded))) && (Objects.equals(this.actionTakenAt, rhs.actionTakenAt)));
+        return ((((((((((Objects.equals(this.createdAt, rhs.createdAt)) &&
+                (Objects.equals(this.ruleIds, rhs.ruleIds))) && (Objects.equals(this.actionTaken, rhs.actionTaken))) &&
+                (Objects.equals(this.comment, rhs.comment))) &&
+                (Objects.equals(this.targetAccount, rhs.targetAccount))) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.category, rhs.category))) && (Objects.equals(this.statusIds, rhs.statusIds))) &&
+                (Objects.equals(this.forwarded, rhs.forwarded))) &&
+                (Objects.equals(this.actionTakenAt, rhs.actionTakenAt)));
     }
 
 }

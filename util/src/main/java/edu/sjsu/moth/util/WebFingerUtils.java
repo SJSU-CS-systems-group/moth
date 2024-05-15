@@ -19,8 +19,8 @@ import java.util.regex.Pattern;
 
 public class WebFingerUtils {
 
-    public static final Map<String, String> CONTENT_TYPE_HEADERS = Map.of("Content-type",
-                                                                          MothMimeType.APPLICATION_ACTIVITY_VALUE);
+    public static final Map<String, String> CONTENT_TYPE_HEADERS =
+            Map.of("Content-type", MothMimeType.APPLICATION_ACTIVITY_VALUE);
     static private final Pattern USER_URL_PATTERN = Pattern.compile("https://([^/]+).*/([^/]+)");
 
     static private <T> Mono<T> createGetClient(String uri, Map<String, String> headers, Class<T> clazz) {
@@ -48,8 +48,9 @@ public class WebFingerUtils {
     }
 
     private static String PEMEncode(byte[] bytes, String armorLabel) {
-        return "-----BEGIN " + armorLabel + "-----\n" + Base64.getMimeEncoder(72, new byte[] { '\n' })
-                .encodeToString(bytes) + "\n-----END " + armorLabel + "-----\n";
+        return "-----BEGIN " + armorLabel + "-----\n" +
+                Base64.getMimeEncoder(72, new byte[] { '\n' }).encodeToString(bytes) + "\n-----END " + armorLabel +
+                "-----\n";
     }
 
     public static PubPrivKeyPEM genPubPrivKeyPem() {

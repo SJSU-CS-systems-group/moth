@@ -106,15 +106,15 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
         }
 
         private MongoCollection<Document> getEmailRegistrationCollection(Properties props) {
-            return MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db")))
-                    .getDatabase("test")
+            return MongoClients.create("mongodb://%s:27017/".formatted(props.getProperty("db"))).getDatabase("test")
                     .getCollection("emailregistration");
         }
 
         @Command(description = "delete the record for an email", mixinStandardHelpOptions = true)
-        int deleteEmail(@CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
-                        @CommandLine.Parameters(paramLabel = "email") String email, @CommandLine.Option(names = "--no"
-                + "-dryrun", defaultValue = "False") boolean noDryrun) {
+        int deleteEmail(
+                @CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
+                @CommandLine.Parameters(paramLabel = "email") String email,
+                @CommandLine.Option(names = "--no" + "-dryrun", defaultValue = "False") boolean noDryrun) {
             var props = loadProperties(cfg);
             var regDb = getEmailRegistrationCollection(props);
             var normalizeEmail = normalizeEmail(email);
@@ -137,11 +137,13 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
         }
 
         @Command(description = "add or update the mapping of an email", mixinStandardHelpOptions = true)
-        int updateEmail(@CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
-                        @CommandLine.Parameters(paramLabel = "email") String email, @CommandLine.Option(names = "-u",
-                paramLabel = "username", description = "set username") String username,
-                        @CommandLine.Parameters(paramLabel = "password") String password, @CommandLine.Option(names =
-                "--no-dryrun", defaultValue = "False") boolean noDryrun) {
+        int updateEmail(
+                @CommandLine.Parameters(paramLabel = "mothConfigFile") File cfg,
+                @CommandLine.Parameters(paramLabel = "email") String email,
+                @CommandLine.Option(names = "-u", paramLabel = "username", description = "set username")
+                String username,
+                @CommandLine.Parameters(paramLabel = "password") String password,
+                @CommandLine.Option(names = "--no-dryrun", defaultValue = "False") boolean noDryrun) {
             var props = loadProperties(cfg);
 
             var regDb = getEmailRegistrationCollection(props);
@@ -154,8 +156,7 @@ public class Main implements CommandLineRunner, ExitCodeGenerator {
                 updating = true;
                 System.out.printf("found %s in the database, will update\n", rec.entrySet());
             }
-            var newRec = new Document().append("_id", normalizeEmail(email))
-                    .append("email", email)
+            var newRec = new Document().append("_id", normalizeEmail(email)).append("email", email)
                     .append("saltedPassword", encodePassword(password));
             if (username != null) {
                 var prevRec = regDb.find(Filters.eq("username", username)).first();

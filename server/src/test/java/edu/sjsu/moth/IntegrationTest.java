@@ -29,8 +29,8 @@ import java.util.Random;
 
 @AutoConfigureDataMongo
 // not sure why i need to pass IntegrationTestController here, i thought it would autodetect...
-@SpringBootTest(classes = { MothServerMain.class, IntegrationTestController.class }, webEnvironment =
-        SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(classes = { MothServerMain.class,
+        IntegrationTestController.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ComponentScan(basePackageClasses = MothServerMain.class)
 public class IntegrationTest {
     public static final String TOKEN_TEST_ENDPOINT = "/token/test";
@@ -63,10 +63,8 @@ public class IntegrationTest {
 
     @BeforeAll
     static void setup() {
-        eMongod = Mongod.builder()
-                .processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
-                .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT)))
-                .build()
+        eMongod = Mongod.builder().processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
+                .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT))).build()
                 .start(Version.Main.V6_0);
         System.setProperty("spring.data.mongodb.port", Integer.toString(RAND_MONGO_PORT));
     }
@@ -89,35 +87,18 @@ public class IntegrationTest {
     @Test
     public void testHelloBearerToken() {
         // Since there is no bearer token, the user should be null
-        var body = webTestClient.get()
-                .uri(TOKEN_TEST_ENDPOINT)
-                .exchange()
-                .expectStatus()
-                .isOk()
-                .expectBody()
-                .returnResult()
-                .getResponseBody();
+        var body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT).exchange().expectStatus().isOk().expectBody()
+                .returnResult().getResponseBody();
         Assertions.assertEquals("hello sub null", new String(body));
 
         // Now try with a token that we put in the database, we should see the user dude
         tokenRepository.save(new Token("XXXX", "dude", "dude@dude.com", "app", "web", LocalDateTime.now())).block();
-        body = webTestClient.get()
-                .uri(TOKEN_TEST_ENDPOINT)
-                .header("Authorization", "Bearer XXXX")
-                .exchange()
-                .expectStatus()
-                .isOk()
-                .expectBody()
-                .returnResult()
-                .getResponseBody();
+        body = webTestClient.get().uri(TOKEN_TEST_ENDPOINT).header("Authorization", "Bearer XXXX").exchange()
+                .expectStatus().isOk().expectBody().returnResult().getResponseBody();
         Assertions.assertEquals("hello sub dude", new String(body));
 
         // Now try with a token not in the database
-        webTestClient.get()
-                .uri(TOKEN_TEST_ENDPOINT)
-                .header("Authorization", "Bearer YYYY")
-                .exchange()
-                .expectStatus()
+        webTestClient.get().uri(TOKEN_TEST_ENDPOINT).header("Authorization", "Bearer YYYY").exchange().expectStatus()
                 .isUnauthorized();
     }
 }

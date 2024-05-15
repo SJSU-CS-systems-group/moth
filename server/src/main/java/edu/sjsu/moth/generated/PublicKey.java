@@ -38,9 +38,7 @@ public class PublicKey {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(PublicKey.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(PublicKey.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("id");
         sb.append('=');
@@ -80,7 +78,8 @@ public class PublicKey {
             return false;
         }
         PublicKey rhs = ((PublicKey) other);
-        return (((Objects.equals(this.owner, rhs.owner)) && (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.publicKeyPem, rhs.publicKeyPem)));
+        return (((Objects.equals(this.owner, rhs.owner)) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.publicKeyPem, rhs.publicKeyPem)));
     }
 
 }

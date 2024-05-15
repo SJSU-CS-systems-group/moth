@@ -68,8 +68,7 @@ public class StatusController {
         }
 
         return accountService.getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
-                .flatMap(acct -> {
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
                     if (body.media_ids != null) for (var id : body.media_ids) {
                         var attachment = mediaService.lookupCachedAttachment(id);
@@ -86,8 +85,20 @@ public class StatusController {
     }
 
     @PostMapping(value = "/api/v1/statuses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user, @RequestPart(name = "status") String status,
-                                                   @RequestPart(name = "media_ids", required = false) String[] media_ids, @RequestPart(name = "poll", required = false) V1PostStatus.V1PostPoll poll, @RequestPart(name = "in_reply_to_id", required = false) String in_reply_to_id, @RequestPart(name = "sensitive", required = false) String sensitive, @RequestPart(name = "spoiler_text", required = false) String spoiler_text, @RequestPart(name = "visibility") String visibility, @RequestPart(name = "language") String language, @RequestPart(name = "scheduled_at", required = false) String scheduled_at) {
+    Mono<ResponseEntity<Object>> postApiV1Statuses(Principal user,
+                                                   @RequestPart(name = "status") String status,
+                                                   @RequestPart(name = "media_ids", required = false)
+                                                   String[] media_ids, @RequestPart(name = "poll", required = false)
+                                                   V1PostStatus.V1PostPoll poll,
+                                                   @RequestPart(name = "in_reply_to_id", required = false)
+                                                   String in_reply_to_id,
+                                                   @RequestPart(name = "sensitive", required = false) String sensitive,
+                                                   @RequestPart(name = "spoiler_text", required = false)
+                                                   String spoiler_text,
+                                                   @RequestPart(name = "visibility") String visibility,
+                                                   @RequestPart(name = "language") String language,
+                                                   @RequestPart(name = "scheduled_at", required = false)
+                                                   String scheduled_at) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                      .body(new AppController.ErrorResponse("The access token is invalid")));
@@ -103,8 +114,7 @@ public class StatusController {
         }
 
         return accountService.getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
-                .flatMap(acct -> {
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
                     if (media_ids != null) for (var id : media_ids) {
                         var attachment = mediaService.lookupCachedAttachment(id);
@@ -122,7 +132,7 @@ public class StatusController {
 
     @DeleteMapping("/api/v1/statuses/{id}")
     Mono<ResponseEntity<Status>> postApiV1Statuses(Principal user, @PathVariable String id) {
-        return statusService.findStatusById(id).flatMap(s->statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
+        return statusService.findStatusById(id).flatMap(s -> statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
     }
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
@@ -132,7 +142,8 @@ public class StatusController {
                                                              @RequestParam(required = false) String max_id,
                                                              @RequestParam(required = false) String since_id,
                                                              @RequestParam(required = false) String min_id,
-                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+                                                             @RequestParam(required = false, defaultValue = "20")
+                                                             int limit) {
         return statusService.getTimeline(user, max_id, since_id, min_id, limit, true).map(ResponseEntity::ok);
     }
 
@@ -149,15 +160,16 @@ public class StatusController {
             /* Boolean. Filter for pinned statuses only. Defaults to false, which includes all statuses. Pinned
             statuses do not receive special priority in the order of the returned results. */ Boolean pinned,
             /* String. Filter for statuses using a specific hashtag */ String tagged) {
-        return accountService.getAccountById(id)
-                .flatMap(acct -> statusService.getStatusesForId(acct.username, max_id, since_id, min_id, only_media,
-                                                                exclude_replies, exclude_reblogs, pinned, tagged,
-                                                                limit))
+        return accountService.getAccountById(id).flatMap(
+                        acct -> statusService.getStatusesForId(acct.username, max_id, since_id, min_id, only_media,
+                                                               exclude_replies, exclude_reblogs, pinned, tagged, limit))
                 .map(ResponseEntity::ok);
     }
 
     @GetMapping("/api/v1/trends/statuses")
-    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(@RequestParam(required = false, defaultValue = "0") int offset, @RequestParam(required = false, defaultValue = "20") int limit) {
+    Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(
+            @RequestParam(required = false, defaultValue = "0") int offset,
+            @RequestParam(required = false, defaultValue = "20") int limit) {
 
         return statusService.getAllStatuses(offset, limit).collectList().map(ResponseEntity::ok);
     }

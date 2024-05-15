@@ -19,9 +19,9 @@ public class Endpoints {
     public String sharedInbox;
 
     /**
-     
-No args constructor for use in serialization*/
-  public Endpoints() {}
+     * No args constructor for use in serialization
+     */
+    public Endpoints() {}
 
     public Endpoints(String sharedInbox) {
         super();
@@ -31,9 +31,7 @@ No args constructor for use in serialization*/
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Endpoints.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Endpoints.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("sharedInbox");
         sb.append('=');

@@ -89,8 +89,7 @@ public class MothController {
     @GetMapping("/users/{id}")
     Mono<ResponseEntity<Object>> getProfile(@PathVariable String id) {
         return accountService.getAccount(id)
-                .flatMap(acct -> accountService.getPublicKey(id, true).map(p -> Pair.of(p, acct)))
-                .map(p -> {
+                .flatMap(acct -> accountService.getPublicKey(id, true).map(p -> Pair.of(p, acct))).map(p -> {
                     var pubPem = p.getFirst();
                     var account = p.getSecond();
                     LOG.fine("getting profile for " + id);
@@ -161,8 +160,8 @@ public class MothController {
 
     @GetMapping("/.well-known/nodeinfo")
     public Mono<NodeInfo> nodeInfoMono() {
-        return Mono.just(new NodeInfo(
-                List.of(new Link("http://nodeinfo.diaspora.software/ns/schema/2.0", "https://" + MothConfiguration.mothConfiguration.getServerName() + "/nodeinfo/2.0"))));
+        return Mono.just(new NodeInfo(List.of(new Link("http://nodeinfo.diaspora.software/ns/schema/2.0", "https://" +
+                MothConfiguration.mothConfiguration.getServerName() + "/nodeinfo/2.0"))));
         // added placeholders, hardcoded
     }
 

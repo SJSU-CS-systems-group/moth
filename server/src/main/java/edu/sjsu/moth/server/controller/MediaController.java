@@ -34,11 +34,9 @@ public class MediaController {
     MediaService mediaService;
 
     private Mono<ResponseEntity<Flux<DataBuffer>>> generateResponseFromGridFSResource(MediaService.GridFSStream gfs) {
-        return Mono.just(ResponseEntity.ok()
-                                 .contentType(MediaType.parseMediaType(
-                                         gfs.file().getMetadata().get("_contentType").toString()))
-                                 .contentLength(gfs.file().getLength())
-                                 .body(gfs.fdb()));
+        return Mono.just(ResponseEntity.ok().contentType(
+                        MediaType.parseMediaType(gfs.file().getMetadata().get("_contentType").toString()))
+                                 .contentLength(gfs.file().getLength()).body(gfs.fdb()));
     }
 
     @GetMapping("/media/attachments/uploads/{id}")
@@ -81,8 +79,9 @@ public class MediaController {
             return Mono.empty();
         }).collectList().flatMap(m -> {
             if (!m.contains("original")) return Mono.error(new IOException("no file was uploaded"));
-            var attachment = new FillableMediaAttachment(id, fileName, m.contains("small") ? filePreviewName : "",
-                                                         ctx.meta, ctx.description, ctx.type);
+            var attachment =
+                    new FillableMediaAttachment(id, fileName, m.contains("small") ? filePreviewName : "", ctx.meta,
+                                                ctx.description, ctx.type);
             // this is a hack that takes advantage of the hope that an attachment upload will proceed a status
             // post within a few minutes. we need to map the media id to the MediaAttachments
             // TODO: create a media attachments collection

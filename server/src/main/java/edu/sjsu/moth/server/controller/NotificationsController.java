@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.data.mongodb.core.query.Query;
 import reactor.core.publisher.Mono;
+
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +34,7 @@ public class NotificationsController {
 
     // NotificationWithUser class that extends Notification to include user info
     @Document(collection = "notificationwithuser")
-    public static class NotificationWithUser{
+    public static class NotificationWithUser {
         Notification notification;
         String user;
 
@@ -41,22 +42,28 @@ public class NotificationsController {
             this.notification = notification;
             this.user = user;
         }
+
         public String getId() {
             return notification.getId();
         }
     }
 
     @GetMapping("/api/v1/notifications")
-    public Mono<ResponseEntity<List<NotificationWithUser>>> getAllNotifications(
-            Principal principal,
-            @RequestParam(required = false) String max_id,
-            @RequestParam(required = false) String since_id,
-            @RequestParam(required = false) String min_id,
-            @RequestParam(defaultValue = "15") int limit,
-            @RequestParam(required = false) String[] types,
-            @RequestParam(required = false) String[] exclude_types,
-            @RequestParam(required = false) String account_id
-    ) {
+    public Mono<ResponseEntity<List<NotificationWithUser>>> getAllNotifications(Principal principal,
+                                                                                @RequestParam(required = false)
+                                                                                String max_id,
+                                                                                @RequestParam(required = false)
+                                                                                String since_id,
+                                                                                @RequestParam(required = false)
+                                                                                String min_id,
+                                                                                @RequestParam(defaultValue = "15")
+                                                                                int limit,
+                                                                                @RequestParam(required = false)
+                                                                                String[] types,
+                                                                                @RequestParam(required = false)
+                                                                                String[] exclude_types,
+                                                                                @RequestParam(required = false)
+                                                                                String account_id) {
         //if user is not authenticated, return 401
         if (principal == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
@@ -87,8 +94,7 @@ public class NotificationsController {
 
         //execute query with reactiveMongoTemplate and create NotificationWithUser instances
         return reactiveMongoTemplate.find(query, Notification.class)
-                .map(notification -> new NotificationWithUser(notification, principal.getName()))
-                .collectList()
+                .map(notification -> new NotificationWithUser(notification, principal.getName())).collectList()
                 .flatMap(notifications -> {
                     HttpHeaders headers = new HttpHeaders();
                     HttpStatus statusCode = HttpStatus.OK;
@@ -107,8 +113,7 @@ public class NotificationsController {
 
                     //return notifications list with appropriate headers
                     return Mono.just(ResponseEntity.ok().headers(headers).body(notifications));
-                })
-                .defaultIfEmpty(ResponseEntity.ok().body(Collections.emptyList()));
+                }).defaultIfEmpty(ResponseEntity.ok().body(Collections.emptyList()));
     }
 
     private String createNextLink(List<NotificationWithUser> notifications, int limit, String max_id) {
@@ -128,8 +133,8 @@ public class NotificationsController {
     }
 
     private String createLink(int limit, String rel, String max_id, String since_id) {
-        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromPath("/api/v1/notifications")
-                .queryParam("limit", limit);
+        UriComponentsBuilder uriBuilder =
+                UriComponentsBuilder.fromPath("/api/v1/notifications").queryParam("limit", limit);
 
         if (max_id != null) {
             uriBuilder.queryParam("max_id", max_id);

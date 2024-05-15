@@ -50,9 +50,7 @@ public class Source {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Source.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Source.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append("privacy");
         sb.append('=');
@@ -106,11 +104,10 @@ public class Source {
         if (!(other instanceof Source rhs)) {
             return false;
         }
-        return ((((((Objects.equals(this.note, rhs.note)) && (Objects.equals(this.privacy,
-                                                                             rhs.privacy))) && (Objects.equals(
-                this.language, rhs.language))) && (Objects.equals(this.followRequestsCount,
-                                                                  rhs.followRequestsCount))) && (Objects.equals(
-                this.sensitive, rhs.sensitive))) && (Objects.equals(this.fields, rhs.fields)));
+        return ((((((Objects.equals(this.note, rhs.note)) && (Objects.equals(this.privacy, rhs.privacy))) &&
+                (Objects.equals(this.language, rhs.language))) &&
+                (Objects.equals(this.followRequestsCount, rhs.followRequestsCount))) &&
+                (Objects.equals(this.sensitive, rhs.sensitive))) && (Objects.equals(this.fields, rhs.fields)));
     }
 
 }

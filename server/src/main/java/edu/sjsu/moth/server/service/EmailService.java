@@ -92,8 +92,8 @@ public class EmailService implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         var dkimPubKeyPair = pubKeyPairRepository.findItemByAcct(PubKeyPairRepository.DKIM_ACCT_ID).block();
         if (dkimPubKeyPair == null) {
-            dkimPubKeyPair = pubKeyPairRepository.save(AccountService.genPubKeyPair(PubKeyPairRepository.DKIM_ACCT_ID))
-                    .block();
+            dkimPubKeyPair =
+                    pubKeyPairRepository.save(AccountService.genPubKeyPair(PubKeyPairRepository.DKIM_ACCT_ID)).block();
             if (dkimPubKeyPair == null) {
                 log.error("❌ could not create DKIM public key");
                 System.exit(2);
@@ -110,10 +110,8 @@ public class EmailService implements ApplicationRunner {
             log.warn("SMTP configuration not fully present. skipping email set up.");
             return;
         }
-        mailer = MailerBuilder.withDebugLogging(false)
-                .withSMTPServer(cfg.getSMTPServerHost(), cfg.getSMTPServerPort())
-                .withTransportStrategy(TransportStrategy.SMTP)
-                .withProperty("mail.smtp.localhost", domain)
+        mailer = MailerBuilder.withDebugLogging(false).withSMTPServer(cfg.getSMTPServerHost(), cfg.getSMTPServerPort())
+                .withTransportStrategy(TransportStrategy.SMTP).withProperty("mail.smtp.localhost", domain)
                 .buildMailer();
         var myMailObjectFactory = new BaseMailObjectFactory() {
             @Override
@@ -121,15 +119,12 @@ public class EmailService implements ApplicationRunner {
                 return new MyBaseMailObject();
             }
         };
-        var serverConfig = ServerConfig.builder()
-                .withListenPort(cfg.getSMTPLocalPort())
-                .withListenHost("::")
+        var serverConfig = ServerConfig.builder().withListenPort(cfg.getSMTPLocalPort()).withListenHost("::")
                 .withCommandHandlers(
                         List.of(new Ehlo(domain), new Helo(domain), new Mail(myMailObjectFactory), new Rcpt(),
                                 new Data(), new Quit(), new Rset(), new Noop()))
                 .withExtensions(List.of(new EightBitMime(), new SmtpUtf8(), new Pipelining()))
-                .withConnectHandler(new Connect(domain))
-                .build();
+                .withConnectHandler(new Connect(domain)).build();
         var server = new NettySmtpServer(serverConfig);
         server.start();
     }
@@ -185,11 +180,8 @@ public class EmailService implements ApplicationRunner {
     }
 
     public @NotNull CompletableFuture<Void> sendMail(EmailPopulatingBuilder emailBuilder) {
-        var dkimCfg = DkimConfig.builder()
-                .dkimPrivateKeyData(dkimPrivateKey)
-                .dkimSelector("moth")
-                .dkimSigningDomain(MothConfiguration.mothConfiguration.getServerName())
-                .build();
+        var dkimCfg = DkimConfig.builder().dkimPrivateKeyData(dkimPrivateKey).dkimSelector("moth")
+                .dkimSigningDomain(MothConfiguration.mothConfiguration.getServerName()).build();
         return mailer.sendMail(emailBuilder.signWithDomainKey(dkimCfg).buildEmail());
     }
 
@@ -254,11 +246,8 @@ public class EmailService implements ApplicationRunner {
                 // this will notify all the listeners and remove them if they are done listening
                 listeners.removeIf(f -> !f.apply(from, subject));
                 var emailId = extractEmail(from);
-                var eb = EmailBuilder.startingBlank()
-                        .from(AuthService.registrationEmail())
-                        .to(from)
-                        .withHeader("In-Reply-To", messageId)
-                        .withHeader("References", messageId);
+                var eb = EmailBuilder.startingBlank().from(AuthService.registrationEmail()).to(from)
+                        .withHeader("In-Reply-To", messageId).withHeader("References", messageId);
                 var registration = subject.contains("regist");
                 var reset = subject.contains("reset");
                 var replySubject = "re: " + subject;
@@ -274,9 +263,9 @@ public class EmailService implements ApplicationRunner {
                             var password = Util.generatePassword();
                             reg.saltedPassword = EmailCodeUtils.encodePassword(password);
                             reg.lastEmail = EmailCodeUtils.now();
-                            return emailRegistrationRepository.save(reg)
-                                    .thenReturn(eb.withSubject(getMessage("emailSubjectPasswordReset"))
-                                                        .withPlainText(getMessage("emailNewPassword", password)));
+                            return emailRegistrationRepository.save(reg).thenReturn(
+                                    eb.withSubject(getMessage("emailSubjectPasswordReset"))
+                                            .withPlainText(getMessage("emailNewPassword", password)));
                         }
                     }).switchIfEmpty(Mono.defer(() -> {
                         if (registration) {
@@ -292,8 +281,7 @@ public class EmailService implements ApplicationRunner {
                     }));
                 }
                 mono.doOnNext(email -> log.info("sending " + email.getSubject() + " to " + email.getRecipients()))
-                        .map(EmailService.this::sendMail)
-                        .block();
+                        .map(EmailService.this::sendMail).block();
             }
             return super.complete(session);
         }

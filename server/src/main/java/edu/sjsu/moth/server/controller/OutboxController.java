@@ -23,8 +23,8 @@ public class OutboxController {
     }
 
     @GetMapping("/users/{id}/outbox")
-    public OutboxSenderResponse fetchOutboxLink(@PathVariable String id,
-                                                @RequestParam(required = false) Integer limit) {
+    public OutboxSenderResponse fetchOutboxLink(
+            @PathVariable String id, @RequestParam(required = false) Integer limit) {
 
         /**
          * JSON:

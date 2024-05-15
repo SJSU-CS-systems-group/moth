@@ -58,10 +58,8 @@ public class MediaAttachment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(MediaAttachment.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
-                .append('[');
+        sb.append(MediaAttachment.class.getName()).append('@')
+                .append(Integer.toHexString(System.identityHashCode(this))).append('[');
         sb.append("id");
         sb.append('=');
         sb.append(((this.id == null) ? "<null>" : this.id));
@@ -130,7 +128,12 @@ public class MediaAttachment {
             return false;
         }
         MediaAttachment rhs = ((MediaAttachment) other);
-        return (((((((((Objects.equals(this.previewUrl, rhs.previewUrl)) && (Objects.equals(this.meta, rhs.meta))) && (Objects.equals(this.blurhash, rhs.blurhash))) && (Objects.equals(this.description, rhs.description))) && (Objects.equals(this.remoteUrl, rhs.remoteUrl))) && (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.type, rhs.type))) && (Objects.equals(this.url, rhs.url))) && (Objects.equals(this.textUrl, rhs.textUrl)));
+        return (((((((((Objects.equals(this.previewUrl, rhs.previewUrl)) && (Objects.equals(this.meta, rhs.meta))) &&
+                (Objects.equals(this.blurhash, rhs.blurhash))) &&
+                (Objects.equals(this.description, rhs.description))) &&
+                (Objects.equals(this.remoteUrl, rhs.remoteUrl))) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.type, rhs.type))) && (Objects.equals(this.url, rhs.url))) &&
+                (Objects.equals(this.textUrl, rhs.textUrl)));
     }
 
 }

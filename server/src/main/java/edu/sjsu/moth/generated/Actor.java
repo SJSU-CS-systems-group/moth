@@ -113,9 +113,7 @@ public class Actor {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(Actor.class.getName())
-                .append('@')
-                .append(Integer.toHexString(System.identityHashCode(this)))
+        sb.append(Actor.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
                 .append('[');
         sb.append(',');
         sb.append("id");
@@ -226,8 +224,8 @@ public class Actor {
     public int hashCode() {
         int result = 1;
         result = ((result * 31) + ((this.featured == null) ? 0 : this.featured.hashCode()));
-        result = ((result * 31) + ((this.manuallyApprovesFollowers == null) ? 0 :
-                this.manuallyApprovesFollowers.hashCode()));
+        result = ((result * 31) +
+                ((this.manuallyApprovesFollowers == null) ? 0 : this.manuallyApprovesFollowers.hashCode()));
         result = ((result * 31) + ((this.indexable == null) ? 0 : this.indexable.hashCode()));
         result = ((result * 31) + ((this.icon == null) ? 0 : this.icon.hashCode()));
         result = ((result * 31) + ((this.publicKey == null) ? 0 : this.publicKey.hashCode()));
@@ -262,9 +260,20 @@ public class Actor {
             return false;
         }
         Actor rhs = ((Actor) other);
-        return (((((((((((((((((((((((((Objects.equals(this.featured, rhs.featured)) && (Objects.equals(this.manuallyApprovesFollowers,
-                                                                                                        rhs.manuallyApprovesFollowers))) && (Objects.equals(this.indexable,
-                                                                                                       rhs.indexable))) && (Objects.equals(this.icon, rhs.icon))) && (Objects.equals(this.publicKey, rhs.publicKey))) && (Objects.equals(this.type, rhs.type))) && (Objects.equals(this.attachment, rhs.attachment)))) && (Objects.equals(this.id, rhs.id))) && (Objects.equals(this.memorial, rhs.memorial))) && (Objects.equals(this.tag, rhs.tag))) && (Objects.equals(this.summary, rhs.summary))) && (Objects.equals(this.image, rhs.image))) && (Objects.equals(this.endpoints, rhs.endpoints))) && (Objects.equals(this.preferredUsername,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        rhs.preferredUsername))) && (Objects.equals(this.devices, rhs.devices))) && (Objects.equals(this.published, rhs.published))) && (Objects.equals(this.outbox, rhs.outbox))) && (Objects.equals(this.featuredTags, rhs.featuredTags))) && (Objects.equals(this.url, rhs.url))) && (Objects.equals(this.followers, rhs.followers))) && (Objects.equals(this.discoverable, rhs.discoverable))) && (Objects.equals(this.following, rhs.following))) && (Objects.equals(this.name, rhs.name))) && (Objects.equals(this.inbox, rhs.inbox)));
+        return (((((((((((((((((((((((((Objects.equals(this.featured, rhs.featured)) &&
+                (Objects.equals(this.manuallyApprovesFollowers, rhs.manuallyApprovesFollowers))) &&
+                (Objects.equals(this.indexable, rhs.indexable))) && (Objects.equals(this.icon, rhs.icon))) &&
+                (Objects.equals(this.publicKey, rhs.publicKey))) && (Objects.equals(this.type, rhs.type))) &&
+                (Objects.equals(this.attachment, rhs.attachment)))) && (Objects.equals(this.id, rhs.id))) &&
+                (Objects.equals(this.memorial, rhs.memorial))) && (Objects.equals(this.tag, rhs.tag))) &&
+                (Objects.equals(this.summary, rhs.summary))) && (Objects.equals(this.image, rhs.image))) &&
+                (Objects.equals(this.endpoints, rhs.endpoints))) &&
+                (Objects.equals(this.preferredUsername, rhs.preferredUsername))) &&
+                (Objects.equals(this.devices, rhs.devices))) && (Objects.equals(this.published, rhs.published))) &&
+                (Objects.equals(this.outbox, rhs.outbox))) && (Objects.equals(this.featuredTags, rhs.featuredTags))) &&
+                (Objects.equals(this.url, rhs.url))) && (Objects.equals(this.followers, rhs.followers))) &&
+                (Objects.equals(this.discoverable, rhs.discoverable))) &&
+                (Objects.equals(this.following, rhs.following))) && (Objects.equals(this.name, rhs.name))) &&
+                (Objects.equals(this.inbox, rhs.inbox)));
     }
 }

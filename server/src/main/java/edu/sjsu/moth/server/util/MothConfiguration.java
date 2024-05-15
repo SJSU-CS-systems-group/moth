@@ -10,11 +10,12 @@ import java.util.List;
 import java.util.Properties;
 
 public class MothConfiguration {
-    private static final List<RequiredProperty> REQUIRED_PROPERTY_LIST = List.of(
-            new RequiredProperty("server.port", "server.port is the port to listen to on."),
-            new RequiredProperty("server.name", "server.name is the host name of the server."),
-            new RequiredProperty("db", "address of mongodb server"), new RequiredProperty("account", "account of user"),
-            new RequiredProperty("contact.email", "email of contact account"));
+    private static final List<RequiredProperty> REQUIRED_PROPERTY_LIST =
+            List.of(new RequiredProperty("server.port", "server.port is the port to listen to on."),
+                    new RequiredProperty("server.name", "server.name is the host name of the server."),
+                    new RequiredProperty("db", "address of mongodb server"),
+                    new RequiredProperty("account", "account of user"),
+                    new RequiredProperty("contact.email", "email of contact account"));
 
     public static MothConfiguration mothConfiguration;
     public final Properties properties = new Properties();
