@@ -175,6 +175,11 @@ public class AccountController {
         return accountService.usersFollow(id, page, limit, "following");
     }
 
+    @GetMapping("/api/v2/suggestions")
+    public Mono<ArrayList<String>> userSuggest() {
+        return Mono.just(new ArrayList<>());
+    }
+
     private static class RelationshipRequest {
         public String[] id;
         public Boolean with_suspended;

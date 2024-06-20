@@ -140,7 +140,8 @@ public class StatusController {
     @GetMapping("/api/v1/timelines/home")
     Mono<ResponseEntity<List<Status>>> getApiV1TimelinesHome(Principal user,
                                                              @RequestParam(required = false) String max_id,
-                                                             @RequestParam(required = false) String since_id,
+                                                             @RequestParam(required = false, defaultValue = "0")
+                                                             String since_id,
                                                              @RequestParam(required = false) String min_id,
                                                              @RequestParam(required = false, defaultValue = "20")
                                                              int limit) {
