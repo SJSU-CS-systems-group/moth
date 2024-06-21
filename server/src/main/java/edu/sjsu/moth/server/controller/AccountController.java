@@ -170,8 +170,14 @@ public class AccountController {
     @GetMapping("/api/v1/accounts/{id}/following")
     public Mono<InboxController.UsersFollowResponse> userFollowing(
             @PathVariable String id,
-            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false, defaultValue = "40") Integer limit) {
         return accountService.usersFollow(id, page, limit, "following");
+    }
+
+    @GetMapping("/api/v2/suggestions")
+    public Mono<ArrayList<String>> userSuggest() {
+        return Mono.just(new ArrayList<>());
     }
 
     private static class RelationshipRequest {

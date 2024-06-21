@@ -98,10 +98,8 @@ public class AccountService {
         return Mono.empty();
     }
 
-    public Mono<InboxController.UsersFollowResponse> usersFollow(String id,
-                                                                 @RequestParam(required = false) Integer page,
-                                                                 @RequestParam(required = false)
-                                                                 Integer limit, String followType) {
+    public Mono<InboxController.UsersFollowResponse> usersFollow(String id, Integer page, Integer limit,
+                                                                 String followType) {
         var items = followType.equals("following") ?
                 followRepository.findAllByFollowerId(id).map(followedUser -> followedUser.id.followed_id).take(limit)
                         .collectList() :

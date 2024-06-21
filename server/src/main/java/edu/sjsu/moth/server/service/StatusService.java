@@ -1,6 +1,9 @@
 package edu.sjsu.moth.server.service;
 
+import com.querydsl.core.types.Ops;
+import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
@@ -11,6 +14,7 @@ import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -102,13 +106,16 @@ public class StatusService {
 
     public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit,
                                           boolean isFollowingTimeline) {
-        var qStatus = new QStatus("start");
+        var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                //.switchIfEmpty(Mono.fromRunnable(() -> System.out.println("No status found")))
+                //.doOnNext(x -> System.out.println("before filter: " + x))
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline));
+        //.doOnNext(x -> System.out.println("after filter: " + x)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -116,10 +123,15 @@ public class StatusService {
 
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,
                                               String min_id) {
-        if (max_id != null) predicate = predicate.and(new QStatus("max").id.lt(max_id));
-        if (since_id != null) predicate = predicate.and(new QStatus("since").id.gt(since_id));
+        Path<ObjectId> statusIdPath = Expressions.path(ObjectId.class, QStatus.status.id.getMetadata());
+        if (max_id != null) predicate = predicate.and(
+                Expressions.predicate(Ops.LT, statusIdPath, Expressions.constant(new ObjectId(convertToHex(max_id)))));
+        if (since_id != null) predicate = predicate.and(Expressions.predicate(Ops.GT, statusIdPath,
+                                                                              Expressions.constant(new ObjectId(
+                                                                                      convertToHex(since_id)))));
         // this isn't right. i'm not sure how to express close
-        if (min_id != null) predicate = predicate.and(new QStatus("min").id.gt(min_id));
+        if (min_id != null) predicate = predicate.and(
+                Expressions.predicate(Ops.GT, statusIdPath, Expressions.constant(new ObjectId(convertToHex(min_id)))));
         return predicate;
     }
 
@@ -168,19 +180,21 @@ public class StatusService {
     }
 
     private Flux<Status> filterStatusByViewable(Principal user, Status status, boolean isFollowingTimeline) {
+
         return accountService.getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMapMany(
-                        acct -> followRepository.findAllByFollowerId(acct.id).flatMap(following ->
-                                                                                              ((status.account.id.equals(
-                                                                                                      acct.id)) ||
-                                                                                                      (!isFollowingTimeline &&
-                                                                                                              status.visibility.equals(
-                                                                                                                      "public")) ||
-                                                                                                      following.id.followed_id.equals(
-                                                                                                              status.account.id)) ?
-                                                                                                      Flux.just(
-                                                                                                              status) :
-                                                                                                      Flux.empty()));
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMapMany(acct -> {
+                    if (status.account.id.equals(acct.id)) {
+                        return Flux.just(status);
+                    }
+                    if (!isFollowingTimeline && status.visibility.equals("public")) return Flux.just(status);
+                    return followRepository.findAllByFollowerId(acct.id).flatMap(
+                            following -> following.id.followed_id.equals(status.account.id) ? Flux.just(status) :
+                                    Flux.empty());
+                });
+    }
+
+    private String convertToHex(String payload) {
+        return String.format("%1$24s", payload).replace(' ', '0');
     }
 
 }
