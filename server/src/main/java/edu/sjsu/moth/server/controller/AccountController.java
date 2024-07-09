@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FormFieldPart;
 import org.springframework.http.codec.multipart.Part;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
@@ -31,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @CommonsLog
 @RestController
@@ -128,15 +131,17 @@ public class AccountController {
     }
 
     @GetMapping("/api/v1/accounts/relationships")
-    public ResponseEntity<List<Relationship>> getApiV1AccountsRelationships(Principal user,
+    public Mono<ResponseEntity<List<Relationship>>> getApiV1AccountsRelationships(Principal user,
                                                                             @RequestObject RelationshipRequest req) {
-        var relationships = new ArrayList<Relationship>();
-        for (var i : req.id) {
-            relationships.add(
-                    new Relationship(i, false, false, false, false, false, false, false, false, false, false, false,
-                                     false, ""));
-        }
-        return ResponseEntity.ok(relationships);
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
+                    List<Mono<Relationship>> relationshipMonos = Arrays.stream(req.id).map(id -> accountService.checkRelationship(acct.id, id))
+                            .collect(Collectors.toList());
+                    return Flux.merge(relationshipMonos)
+                            .collectList()
+                            .map(ResponseEntity::ok);
+                });
+
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#get
@@ -162,8 +167,9 @@ public class AccountController {
     }
 
     @PostMapping("/api/v1/accounts/{id}/follow")
-    public Mono<ResponseEntity<Follow>> followUser(@PathVariable("id") String followedId, Principal user) {
-        return accountService.getAccountById(user.getName()).flatMap(a -> accountService.saveFollow(a.id, followedId))
+    public Mono<ResponseEntity<Relationship>> followUser(@PathVariable("id") String followedId, Principal user) {
+
+        return accountService.getAccountById(user.getName()).flatMap(a -> accountService.followUser(a.id, followedId))
                 .map(ResponseEntity::ok);
     }
 

@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
@@ -16,6 +17,7 @@ import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
 
@@ -135,8 +137,10 @@ public class AccountService {
     }
 
     public Mono<Follow> saveFollow(String followerId, String followedId) {
-        Follow follow = new Follow(followerId, followedId);
-        return followRepository.save(follow);
+        return followRepository.findIfFollows(followerId, followedId).switchIfEmpty(Mono.defer(() -> {
+            Follow follow = new Follow(followerId, followedId);
+            return followRepository.save(follow);
+        }));
     }
 
     public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
@@ -154,19 +158,41 @@ public class AccountService {
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
-        return followRepository.findAllByFollowerId(((Account) user).id).collect(Collectors.toSet())
-                .flatMap(followers -> {
-                    return accountRepository.findByAcctLike(query)
-                            .filter(account -> following == null || !following || followers.contains(account.id))
-                            .take(limit).collectList().map(accounts -> {
-                                result.accounts.addAll(accounts);
-                                if (max_id != null) result.accounts.stream()
-                                        .filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
-                                if (min_id != null) result.accounts.stream()
-                                        .filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
-                                if (offset != null) result.accounts.subList(offset, result.accounts.size());
-                                return result;
-                            });
-                });
+        return getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> followRepository.findAllByFollowerId(acct.id).collect(Collectors.toSet())
+                        .flatMap(followers -> accountRepository.findByAcctLike(query)
+                                .filter(account -> following == null || !following || followers.contains(account.id))
+                                .take(limit).collectList().map(accounts -> {
+                                    result.accounts.addAll(accounts);
+                                    if (max_id != null) result.accounts.stream()
+                                            .filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
+                                    if (min_id != null) result.accounts.stream()
+                                            .filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
+                                    if (offset != null) result.accounts.subList(offset, result.accounts.size());
+                                    return result;
+                                })));
+    }
+
+    public Mono<Relationship> followUser(String followerId, String followedId){
+        var followResult = saveFollow(followerId, followedId);
+        return followResult.flatMap(followStatus -> followRepository.findIfFollows(followedId, followerId)
+                .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false, false, false, false, ""))
+                .switchIfEmpty(Mono.just(new Relationship(followerId, true, false, false, false, false, false, false, false, false, false, false, false, ""))));
+    }
+
+    public Mono<Relationship> checkRelationship(String followerId, String followedId){
+        var followed = followRepository.findIfFollows(followerId, followedId).hasElement();
+        return followed.flatMap(isFollow -> {
+            if (isFollow) {
+                return followRepository.findIfFollows(followedId, followerId)
+                        .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false, false, false, false, ""))
+                        .switchIfEmpty(Mono.just(new Relationship(followerId, true, false, false, false, false, false, false, false, false, false, false, false, "")));
+            }
+            else {
+                return followRepository.findIfFollows(followedId, followerId)
+                        .map(follow -> new Relationship(followerId, false, false, false, true, false, false, false, false, false, false, false, false, ""))
+                        .switchIfEmpty(Mono.just(new Relationship(followerId, false, false, false, false, false, false, false, false, false, false, false, false, "")));
+            }
+        });
     }
 }
