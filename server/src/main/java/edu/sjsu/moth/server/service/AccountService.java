@@ -100,6 +100,12 @@ public class AccountService {
         return Mono.empty();
     }
 
+    public Mono<ArrayList<Account>> usersFollow(String id, String max_id, String since_id, String min_id, Integer limit){
+        return followRepository.findAllByFollowerId(id)
+                .flatMap(follow -> accountRepository.findById(follow.id.followed_id))
+                .collect(ArrayList::new, ArrayList::add);
+    }
+
     public Mono<InboxController.UsersFollowResponse> usersFollow(String id, Integer page, Integer limit,
                                                                  String followType) {
         var items = followType.equals("following") ?
