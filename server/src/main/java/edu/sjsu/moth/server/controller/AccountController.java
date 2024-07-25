@@ -131,15 +131,14 @@ public class AccountController {
     }
 
     @GetMapping("/api/v1/accounts/relationships")
-    public Mono<ResponseEntity<List<Relationship>>> getApiV1AccountsRelationships(Principal user,
-                                                                            @RequestObject RelationshipRequest req) {
+    public Mono<ResponseEntity<List<Relationship>>> getApiV1AccountsRelationships(Principal user, @RequestObject
+    RelationshipRequest req) {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
-                    List<Mono<Relationship>> relationshipMonos = Arrays.stream(req.id).map(id -> accountService.checkRelationship(acct.id, id))
-                            .collect(Collectors.toList());
-                    return Flux.merge(relationshipMonos)
-                            .collectList()
-                            .map(ResponseEntity::ok);
+                    List<Mono<Relationship>> relationshipMonos =
+                            Arrays.stream(req.id).map(id -> accountService.checkRelationship(acct.id, id))
+                                    .collect(Collectors.toList());
+                    return Flux.merge(relationshipMonos).collectList().map(ResponseEntity::ok);
                 });
 
     }
@@ -182,19 +181,20 @@ public class AccountController {
 //    }
 
     @GetMapping("/api/v1/accounts/{id}/following")
-    public Mono<ArrayList<Account>> userFollowing(@PathVariable("id") String id,
-                                                  @RequestParam(required = false) String max_id,
-                                                  @RequestParam(required = false, defaultValue = "0") String since_id,
-                                                  @RequestParam(required = false) String min_id,
-                                                  @RequestParam(required = false, defaultValue = "20") int limit) {
+    public Mono<ArrayList<Account>> userFollowing(
+            @PathVariable("id") String id,
+            @RequestParam(required = false) String max_id,
+            @RequestParam(required = false, defaultValue = "0") String since_id,
+            @RequestParam(required = false) String min_id,
+            @RequestParam(required = false, defaultValue = "20") int limit) {
         return accountService.usersFollow(id, max_id, since_id, min_id, limit);
     }
 
     @GetMapping("/api/v1/follow_requests")
-    public Mono<ArrayList<Account>> followRequests(@RequestParam(required = false) String max_id,
-                                          @RequestParam(required = false, defaultValue = "0") String since_id,
-                                          @RequestParam(required = false, defaultValue = "20") int limit)
-    {
+    public Mono<ArrayList<Account>> followRequests(
+            @RequestParam(required = false) String max_id,
+            @RequestParam(required = false, defaultValue = "0") String since_id,
+            @RequestParam(required = false, defaultValue = "20") int limit) {
         return Mono.just(new ArrayList<Account>());
     }
 

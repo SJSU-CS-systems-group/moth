@@ -100,7 +100,8 @@ public class AccountService {
         return Mono.empty();
     }
 
-    public Mono<ArrayList<Account>> usersFollow(String id, String max_id, String since_id, String min_id, Integer limit){
+    public Mono<ArrayList<Account>> usersFollow(String id, String max_id, String since_id, String min_id,
+                                                Integer limit) {
         return followRepository.findAllByFollowerId(id)
                 .flatMap(follow -> accountRepository.findById(follow.id.followed_id))
                 .collect(ArrayList::new, ArrayList::add);
@@ -164,9 +165,9 @@ public class AccountService {
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
-        return getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> followRepository.findAllByFollowerId(acct.id).collect(Collectors.toSet())
-                        .flatMap(followers -> accountRepository.findByAcctLike(query)
+        return getAccount(user.getName()).switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> followRepository.findAllByFollowerId(acct.id).collect(Collectors.toSet()).flatMap(
+                        followers -> accountRepository.findByAcctLike(query)
                                 .filter(account -> following == null || !following || followers.contains(account.id))
                                 .take(limit).collectList().map(accounts -> {
                                     result.accounts.addAll(accounts);
@@ -179,25 +180,30 @@ public class AccountService {
                                 })));
     }
 
-    public Mono<Relationship> followUser(String followerId, String followedId){
+    public Mono<Relationship> followUser(String followerId, String followedId) {
         var followResult = saveFollow(followerId, followedId);
         return followResult.flatMap(followStatus -> followRepository.findIfFollows(followedId, followerId)
-                .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false, false, false, false, ""))
-                .switchIfEmpty(Mono.just(new Relationship(followerId, true, false, false, false, false, false, false, false, false, false, false, false, ""))));
+                .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false,
+                                                false, false, false, "")).switchIfEmpty(Mono.just(
+                        new Relationship(followerId, true, false, false, false, false, false, false, false, false,
+                                         false, false, false, ""))));
     }
 
-    public Mono<Relationship> checkRelationship(String followerId, String followedId){
+    public Mono<Relationship> checkRelationship(String followerId, String followedId) {
         var followed = followRepository.findIfFollows(followerId, followedId).hasElement();
         return followed.flatMap(isFollow -> {
             if (isFollow) {
                 return followRepository.findIfFollows(followedId, followerId)
-                        .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false, false, false, false, ""))
-                        .switchIfEmpty(Mono.just(new Relationship(followerId, true, false, false, false, false, false, false, false, false, false, false, false, "")));
-            }
-            else {
+                        .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false,
+                                                        false, false, false, false, false, "")).switchIfEmpty(Mono.just(
+                                new Relationship(followerId, true, false, false, false, false, false, false, false,
+                                                 false, false, false, false, "")));
+            } else {
                 return followRepository.findIfFollows(followedId, followerId)
-                        .map(follow -> new Relationship(followerId, false, false, false, true, false, false, false, false, false, false, false, false, ""))
-                        .switchIfEmpty(Mono.just(new Relationship(followerId, false, false, false, false, false, false, false, false, false, false, false, false, "")));
+                        .map(follow -> new Relationship(followerId, false, false, false, true, false, false, false,
+                                                        false, false, false, false, false, "")).switchIfEmpty(Mono.just(
+                                new Relationship(followerId, false, false, false, false, false, false, false, false,
+                                                 false, false, false, false, "")));
             }
         });
     }
