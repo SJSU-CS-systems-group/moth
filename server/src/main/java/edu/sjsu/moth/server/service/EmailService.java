@@ -182,7 +182,7 @@ public class EmailService implements ApplicationRunner {
     public @NotNull CompletableFuture<Void> sendMail(EmailPopulatingBuilder emailBuilder) {
         var dkimCfg = DkimConfig.builder().dkimPrivateKeyData(dkimPrivateKey).dkimSelector("moth")
                 .dkimSigningDomain(MothConfiguration.mothConfiguration.getServerName()).build();
-        return mailer.sendMail(emailBuilder.signWithDomainKey(dkimCfg).buildEmail());
+        return mailer.sendMail(emailBuilder.buildEmail());
     }
 
     /**
