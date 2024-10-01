@@ -100,10 +100,17 @@ public class AccountService {
         return Mono.empty();
     }
 
-    public Mono<ArrayList<Account>> usersFollow(String id, String max_id, String since_id, String min_id,
-                                                Integer limit) {
+    public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
+                                                   Integer limit) {
         return followRepository.findAllByFollowerId(id)
                 .flatMap(follow -> accountRepository.findById(follow.id.followed_id))
+                .collect(ArrayList::new, ArrayList::add);
+    }
+
+    public Mono<ArrayList<Account>> userFollowingInfo(String id, String max_id, String since_id, String min_id,
+                                                      Integer limit) {
+        return followRepository.findAllByFollowedId(id)
+                .flatMap(follow -> accountRepository.findById(follow.id.follower_id))
                 .collect(ArrayList::new, ArrayList::add);
     }
 

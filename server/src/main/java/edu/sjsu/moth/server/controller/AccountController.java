@@ -187,7 +187,17 @@ public class AccountController {
             @RequestParam(required = false, defaultValue = "0") String since_id,
             @RequestParam(required = false) String min_id,
             @RequestParam(required = false, defaultValue = "20") int limit) {
-        return accountService.usersFollow(id, max_id, since_id, min_id, limit);
+        return accountService.userFollowInfo(id, max_id, since_id, min_id, limit);
+    }
+
+    @GetMapping("/api/v1/accounts/{id}/followers")
+    public Mono<ArrayList<Account>> userFollowers(
+            @PathVariable("id") String id,
+            @RequestParam(required = false) String max_id,
+            @RequestParam(required = false, defaultValue = "0") String since_id,
+            @RequestParam(required = false) String min_id,
+            @RequestParam(required = false, defaultValue = "20") int limit) {
+        return accountService.userFollowingInfo(id, max_id, since_id, min_id, limit);
     }
 
     @GetMapping("/api/v1/follow_requests")
