@@ -14,6 +14,7 @@ import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.StatusService;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import reactor.core.publisher.Mono;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -169,15 +171,35 @@ public class InboxController {
     @GetMapping("/users/{id}/following")
     public Mono<UsersFollowResponse> usersFollowing(
             @PathVariable String id,
-            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer limit) {
         return accountService.usersFollow(id, page, limit, "following");
     }
 
     @GetMapping("/users/{id}/followers")
     public Mono<UsersFollowResponse> usersFollowers(
             @PathVariable String id,
-            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer limit) {
         return accountService.usersFollow(id, page, limit, "followers");
+    }
+
+    @GetMapping("/users/{id}/collections/featured")
+    public Mono<ResponseEntity<OrderedCollection>> getFeaturedCollection(@PathVariable String id) {
+        String collectionId =
+                MothConfiguration.mothConfiguration.getServerName() + "/users/" + id + "/collections/featured";
+        OrderedCollection featuredCollection = new OrderedCollection(collectionId, 0, Collections.emptyList());
+
+        return Mono.just(ResponseEntity.ok(featuredCollection));
+    }
+
+    @GetMapping("/users/{id}/collections/tags")
+    public Mono<ResponseEntity<OrderedCollection>> getTagsCollection(@PathVariable String id) {
+        String collectionId =
+                MothConfiguration.mothConfiguration.getServerName() + "/users/" + id + "/collections/tags";
+        OrderedCollection tagsCollection = new OrderedCollection(collectionId, 0, Collections.emptyList());
+
+        return Mono.just(ResponseEntity.ok(tagsCollection));
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -187,6 +209,15 @@ public class InboxController {
         @JsonProperty("@context")
         public String getContext() {
             return "https://www.w3.org/ns/activitystreams";
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonPropertyOrder({ "@context", "id", "type", "totalItems", "orderedItems" })
+    public record OrderedCollection(@JsonProperty("@context") String context, String id, String type, int totalItems,
+                                    List<Object> orderedItems) {
+        public OrderedCollection(String id, int totalItems, List<Object> orderedItems) {
+            this("https://www.w3.org/ns/activitystreams", id, "OrderedCollection", totalItems, orderedItems);
         }
     }
 }
