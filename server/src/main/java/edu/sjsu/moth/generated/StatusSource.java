@@ -9,11 +9,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "id",
-        "text",
-        "spoiler_text"
-})
+@JsonPropertyOrder({ "id", "text", "spoiler_text" })
 
 public class StatusSource {
     @JsonProperty("id")
@@ -25,7 +21,6 @@ public class StatusSource {
 
     /**
      * No args constructor for use in serialization
-     *
      */
     public StatusSource() {
     }
@@ -70,21 +65,22 @@ public class StatusSource {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(StatusSource.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this))).append('[');
+        sb.append(StatusSource.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
+                .append('[');
         sb.append("id");
         sb.append('=');
-        sb.append(((this.id == null)?"<null>":this.id));
+        sb.append(((this.id == null) ? "<null>" : this.id));
         sb.append(',');
         sb.append("text");
         sb.append('=');
-        sb.append(((this.text == null)?"<null>":this.text));
+        sb.append(((this.text == null) ? "<null>" : this.text));
         sb.append(',');
         sb.append("spoilerText");
         sb.append('=');
-        sb.append(((this.spoilerText == null)?"<null>":this.spoilerText));
+        sb.append(((this.spoilerText == null) ? "<null>" : this.spoilerText));
         sb.append(',');
-        if (sb.charAt((sb.length()- 1)) == ',') {
-            sb.setCharAt((sb.length()- 1), ']');
+        if (sb.charAt((sb.length() - 1)) == ',') {
+            sb.setCharAt((sb.length() - 1), ']');
         } else {
             sb.append(']');
         }
@@ -94,9 +90,9 @@ public class StatusSource {
     @Override
     public int hashCode() {
         int result = 1;
-        result = ((result* 31)+((this.spoilerText == null)? 0 :this.spoilerText.hashCode()));
-        result = ((result* 31)+((this.id == null)? 0 :this.id.hashCode()));
-        result = ((result* 31)+((this.text == null)? 0 :this.text.hashCode()));
+        result = ((result * 31) + ((this.spoilerText == null) ? 0 : this.spoilerText.hashCode()));
+        result = ((result * 31) + ((this.id == null) ? 0 : this.id.hashCode()));
+        result = ((result * 31) + ((this.text == null) ? 0 : this.text.hashCode()));
         return result;
     }
 
@@ -108,8 +104,7 @@ public class StatusSource {
         if (!(other instanceof StatusSource rhs)) {
             return false;
         }
-        return ((((Objects.equals(this.spoilerText, rhs.spoilerText)) &&
-                (Objects.equals(this.id, rhs.id))) &&
+        return ((((Objects.equals(this.spoilerText, rhs.spoilerText)) && (Objects.equals(this.id, rhs.id))) &&
                 (Objects.equals(this.text, rhs.text))));
     }
 

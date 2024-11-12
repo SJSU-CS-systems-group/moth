@@ -103,8 +103,9 @@ public class StatusService {
                     }
                 }
                 return Mono.empty();
-            }));}
-            return mono.then(statusRepository.save(status));
+            }));
+        }
+        return mono.then(statusRepository.save(status));
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
