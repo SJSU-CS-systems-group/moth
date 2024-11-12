@@ -68,7 +68,7 @@ public class InstanceController {
                                                                               "thumbnail.png"),
                                                                                    FilesController.instanceFileURL(
                                                                                            "thumbnail.png"))),
-                               new String[] { "en" }, CONFIGURATIONV2, new RegistrationsV2(false, false, null),
+                               new String[] { "en" }, CONFIGURATIONV2, new RegistrationsV2(true, false, null),
                                new Contact("", c), RULES)));
     }
 
