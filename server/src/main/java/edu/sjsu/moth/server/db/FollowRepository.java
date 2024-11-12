@@ -16,4 +16,10 @@ public interface FollowRepository extends ReactiveMongoRepository<Follow, Follow
 
     @Query("{'_id.follower_id': ?0, '_id.followed_id': ?1}")
     Mono<Follow> findIfFollows(String followerId, String followedId);
+
+    @Query(value = "{'_id.followed_id': ?0}", count = true)
+    Mono<Long> countAllByFollowedId(String followedId);
+
+    @Query(value = "{'_id.follower_id': ?0}", count = true)
+    Mono<Long> countAllByFollowerId(String followerId);
 }
