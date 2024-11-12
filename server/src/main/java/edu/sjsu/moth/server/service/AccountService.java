@@ -94,8 +94,8 @@ public class AccountService {
             return accountRepository.findItemByAcct(id)
                     .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
                     .flatMap(account -> {
-                        return accountRepository.findItemByAcct(follower)
-                                .switchIfEmpty(Mono.error(new RuntimeException("Error: Follower account does not exist")))
+                        return accountRepository.findItemByAcct(follower).switchIfEmpty(
+                                        Mono.error(new RuntimeException("Error: Follower account does not exist")))
                                 .flatMap(followerAccount -> {
                                     return followRepository.save(follow)
                                             .then(followRepository.countAllByFollowedId(account.id)
@@ -105,10 +105,10 @@ public class AccountService {
                                                           }))
                                             .then(followRepository.countAllByFollowerId(followerAccount.id)
                                                           .flatMap(followingCount -> {
-                                                              followerAccount.following_count = followingCount.intValue();
+                                                              followerAccount.following_count =
+                                                                      followingCount.intValue();
                                                               return accountRepository.save(followerAccount);
-                                                          }))
-                                            .thenReturn("done");
+                                                          })).thenReturn("done");
                                 });
                     });
         }
