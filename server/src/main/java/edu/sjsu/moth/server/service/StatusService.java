@@ -7,6 +7,7 @@ import com.querydsl.core.types.dsl.Expressions;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
@@ -25,7 +26,6 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 @Configuration
@@ -45,6 +45,23 @@ public class StatusService {
 
     @Autowired
     AccountService accountService;
+
+    public Mono<StatusSource> findStatusSource(String id) {
+        return statusRepository.findById(id).map(status -> {
+            StatusSource statusSource = new StatusSource();
+            statusSource.setId(status.id);
+            statusSource.setText(status.content);
+            statusSource.setSpoilerText(status.spoilerText);
+            return statusSource;
+        });
+    }
+
+    public Mono<Status> edit(String id, String newStatus) {
+        return statusRepository.findById(id).flatMap(status -> {
+            status.content = newStatus;
+            return statusRepository.save(status);
+        });
+    }
 
     public Mono<Status> save(Status status) {
         // create a Mono that we can tack onto
