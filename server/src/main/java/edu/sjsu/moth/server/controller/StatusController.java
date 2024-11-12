@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -36,6 +38,16 @@ public class StatusController {
 
     @Autowired
     MediaService mediaService;
+
+    @GetMapping("api/v1/statuses/{id}/source")
+    Mono<StatusSource> getStatusSource(@PathVariable String id) {
+        return statusService.findStatusSource(id);
+    }
+
+    @PutMapping(value = "/api/v1/statuses/{id}")
+    Mono<Status> editStatus(@RequestBody V1PostStatus newStatus, @PathVariable String id) {
+        return statusService.edit(id, newStatus.status);
+    }
 
     @GetMapping("/api/v1/statuses/{id}/context")
     ResponseEntity<Object> getApiV1StatusContext(@PathVariable String id) {
