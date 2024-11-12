@@ -90,35 +90,28 @@ public class AccountService {
 
         if (requestType.equals("Follow")) {
             var follow = new Follow(follower, id);
-            // find id, grab arraylist, append
 
-            // check if the account to follow exists
             return accountRepository.findItemByAcct(id)
                     .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
-                    .then(followRepository.save(follow)).thenReturn("done");
                     .flatMap(account -> {
-                // check if the follower's account exists
-                return accountRepository.findItemByAcct(follower)
-                        .switchIfEmpty(Mono.error(new RuntimeException("Error: Follower account does not exist")))
-                        .flatMap(followerAccount -> {
-                            // save follow
-                            return followRepository.save(follow)
-                                    .then(followRepository.countAllByFollowedId(account.id).flatMap(followersCount -> {
-                                        // update follower count of the followed account
-                                        account.followers_count = followersCount.intValue();
-                                        return accountRepository.save(account);
-                                    })).then(followRepository.countAllByFollowerId(followerAccount.id)
-                                                     .flatMap(followingCount -> {
-                                                         // update following count of the follower account
-                                                         followerAccount.following_count = followingCount.intValue();
-                                                         return accountRepository.save(followerAccount);
-                                                     })).thenReturn("done");
-                        });
-            });
-
-        } else if (requestType.equals("Undo")) {
+                        return accountRepository.findItemByAcct(follower)
+                                .switchIfEmpty(Mono.error(new RuntimeException("Error: Follower account does not exist")))
+                                .flatMap(followerAccount -> {
+                                    return followRepository.save(follow)
+                                            .then(followRepository.countAllByFollowedId(account.id)
+                                                          .flatMap(followersCount -> {
+                                                              account.followers_count = followersCount.intValue();
+                                                              return accountRepository.save(account);
+                                                          }))
+                                            .then(followRepository.countAllByFollowerId(followerAccount.id)
+                                                          .flatMap(followingCount -> {
+                                                              followerAccount.following_count = followingCount.intValue();
+                                                              return accountRepository.save(followerAccount);
+                                                          }))
+                                            .thenReturn("done");
+                                });
+                    });
         }
-
         return Mono.error(new RuntimeException("Error: Unsupported request type"));
     }
 
