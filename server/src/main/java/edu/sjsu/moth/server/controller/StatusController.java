@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
@@ -39,16 +40,26 @@ public class StatusController {
     @Autowired
     MediaService mediaService;
 
-    @GetMapping("api/v1/statuses/{id}/source")
-    Mono<StatusSource> getStatusSource(@PathVariable String id) {
-        return statusService.findStatusSource(id);
-    }
-
+    // Status Editing:
+    // Edit a status
     @PutMapping(value = "/api/v1/statuses/{id}")
     Mono<Status> editStatus(@RequestBody V1PostStatus newStatus, @PathVariable String id) {
         return statusService.edit(id, newStatus.status);
     }
 
+    // Get status source (plaintext version of status)
+    @GetMapping("api/v1/statuses/{id}/source")
+    Mono<StatusSource> getStatusSource(@PathVariable String id) {
+        return statusService.findStatusSource(id);
+    }
+
+    // Get status edit history
+    @GetMapping("api/v1/statuses/{id}/history")
+    Mono<ArrayList<StatusEdit>> getStatusHistory(@PathVariable String id) {
+        return statusService.findHistory(id);
+    }
+
+    // Get previous and after statuses in thread
     @GetMapping("/api/v1/statuses/{id}/context")
     ResponseEntity<Object> getApiV1StatusContext(@PathVariable String id) {
         return ResponseEntity.ok(Map.of("ancestors", List.of(), "descendants", List.of()));

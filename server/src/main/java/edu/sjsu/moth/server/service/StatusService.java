@@ -7,6 +7,7 @@ import com.querydsl.core.types.dsl.Expressions;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
@@ -14,6 +15,8 @@ import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
+import edu.sjsu.moth.server.db.StatusEditCollection;
+import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -46,6 +49,13 @@ public class StatusService {
     @Autowired
     AccountService accountService;
 
+    @Autowired
+    StatusHistoryRepository statusHistoryRepository;
+
+    public Mono<ArrayList<StatusEdit>> findHistory(String id) {
+        return statusHistoryRepository.findById(id).map(edits -> edits.collection);
+    }
+
     public Mono<StatusSource> findStatusSource(String id) {
         return statusRepository.findById(id).map(status -> {
             StatusSource statusSource = new StatusSource();
@@ -59,7 +69,7 @@ public class StatusService {
     public Mono<Status> edit(String id, String newStatus) {
         return statusRepository.findById(id).flatMap(status -> {
             status.content = newStatus;
-            return statusRepository.save(status);
+            return save(status);
         });
     }
 
@@ -105,7 +115,10 @@ public class StatusService {
                 return Mono.empty();
             }));
         }
-        return mono.then(statusRepository.save(status));
+
+        return mono.then(statusRepository.save(status))
+                .flatMap(s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
+                        .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
