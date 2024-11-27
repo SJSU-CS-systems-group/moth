@@ -116,8 +116,8 @@ public class StatusService {
             }));
         }
 
-        return mono.then(statusRepository.save(status))
-                .flatMap(s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
+        return mono.then(statusRepository.save(status)).flatMap(
+                s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
                         .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
     }
 

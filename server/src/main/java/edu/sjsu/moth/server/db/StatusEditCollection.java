@@ -30,7 +30,9 @@ public class StatusEditCollection {
     }
 
     public StatusEditCollection addEdit(Status s) {
-        StatusEdit edit = new StatusEdit(s.content, s.spoilerText, s.sensitive, s.createdAt, s.account, s.mediaAttachments, s.emojis);
+        StatusEdit edit =
+                new StatusEdit(s.content, s.spoilerText, s.sensitive, s.createdAt, s.account, s.mediaAttachments,
+                               s.emojis);
         collection.add(edit);
         return this;
     }
