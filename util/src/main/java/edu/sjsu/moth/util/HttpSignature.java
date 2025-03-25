@@ -75,8 +75,8 @@ public class HttpSignature {
         return clientBuilder;
     }
 
-    static String generateSignatureHeader(String requestMethod, URI requestURI, HttpHeaders requestHeaders,
-                                          List<String> headers, PrivateKey signingKey, String keyUri) throws SignatureException, InvalidKeyException {
+    public static String generateSignatureHeader(String requestMethod, URI requestURI, HttpHeaders requestHeaders,
+                                                 List<String> headers, PrivateKey signingKey, String keyUri) throws SignatureException, InvalidKeyException {
         var toSign = generateHeadersToSign(requestMethod, requestURI, requestHeaders, headers);
         var signer = newSigner();
         signer.initSign(signingKey);
