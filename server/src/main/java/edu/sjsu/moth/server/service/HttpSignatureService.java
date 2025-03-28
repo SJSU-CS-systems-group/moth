@@ -12,15 +12,19 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.security.InvalidKeyException;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SignatureException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @CommonsLog
@@ -30,6 +34,8 @@ public class HttpSignatureService {
             List.of(HttpSignature.REQUEST_TARGET, "host", "date", "digest");
     private static final List<String> DEFAULT_HEADERS_TO_SIGN_WITHOUT_BODY =
             List.of(HttpSignature.REQUEST_TARGET, "host", "date");
+    private static final int TIMESTAMP_TOLERANCE_SECONDS = 12 * 60 * 60; // TODO : should be configurable
+    private static final long PUBLIC_KEY_CACHE_TTL_SECONDS = 300; // 5 minutes
 
     private final PubKeyPairRepository pubKeyPairRepository;
     private final WebClient webClient;
@@ -138,6 +144,110 @@ public class HttpSignatureService {
         } catch (SignatureException | InvalidKeyException e) {
             log.error("Failed to generate signature for request", e);
             return Mono.just(request); // Return original request if signing fails
+        }
+    }
+
+    // https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/controllers/concerns/signature_verification.rb
+    public Mono<Boolean> verifySignature(ServerWebExchange exchange) {
+        HttpHeaders headers = exchange.getRequest().getHeaders();
+        String signatureHeader = headers.getFirst("Signature");
+
+        if (signatureHeader == null) {
+            log.warn("No Signature header in request to " + exchange.getRequest().getPath());
+            return Mono.just(false);
+            // TODO : more error handling?
+        }
+
+        try {
+            // Split Signature into its separate parameters
+            Map<String, String> fields = HttpSignature.extractFields(signatureHeader);
+            String keyId = fields.get("keyId");
+            String headersToVerify = fields.get("headers");
+            String signature = fields.get("signature");
+
+            if (keyId == null || headersToVerify == null || signature == null) {
+                log.warn("Incomplete signature header: " + signatureHeader);
+                return Mono.just(false);
+            }
+            if (headersToVerify.contains("date")) {
+                String dateHeader = headers.getFirst(HttpHeaders.DATE);
+                if (!isDateValid(dateHeader)) {
+                    log.warn("Invalid or expired date in request: " + dateHeader);
+                    return Mono.just(false);
+                }
+            }
+
+            // Fetch public key from keyId URL
+            return fetchPublicKey(keyId).flatMap(publicKey -> {
+                try {
+                    // Verify signature
+                    boolean isValid = HttpSignature.validateSignatureHeader(exchange.getRequest().getMethod().name(),
+                                                                            exchange.getRequest().getURI(), headers,
+                                                                            headersToVerify, publicKey, signature);
+
+                    if (!isValid) {
+                        log.warn("Invalid signature for request from keyId: " + keyId);
+                    }
+
+                    return Mono.just(isValid);
+                } catch (Exception e) {
+                    log.error("Error verifying signature", e);
+                    return Mono.just(false);
+                }
+            }).defaultIfEmpty(false);
+        } catch (Exception e) {
+            log.error("Error processing signature header", e);
+            return Mono.just(false);
+        }
+    }
+
+    public Mono<PublicKey> fetchPublicKey(String keyId) {
+        // mastodon has separate remote key fetching service (https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/services/activitypub/fetch_remote_key_service.rb)
+        // TODO : Check cache first
+        // TODO : check if its local users? optimisation
+
+        // Fetch if not local (keyId -> actor > publicKey > publicKeyPem)
+        String actorUrl = keyId.split("#")[0];
+        return webClient.get().uri(actorUrl).retrieve().bodyToMono(Map.class).flatMap(actor -> {
+            try {
+                Map<String, Object> publicKeyObject = (Map<String, Object>) actor.get("publicKey");
+                if (publicKeyObject == null) {
+                    log.warn("No publicKey in actor document: " + actorUrl);
+                    return Mono.empty();
+                }
+
+                String publicKeyPem = (String) publicKeyObject.get("publicKeyPem");
+                if (publicKeyPem == null) {
+                    log.warn("No publicKeyPem in actor document: " + actorUrl);
+                    return Mono.empty();
+                }
+                PublicKey publicKey = HttpSignature.pemToPublicKey(publicKeyPem);
+
+                return Mono.just(publicKey);
+            } catch (Exception e) {
+                log.error("Error extracting public key from actor", e);
+                return Mono.empty();
+            }
+        }).onErrorResume(e -> {
+            log.error("Error fetching actor document: " + actorUrl, e);
+            return Mono.empty();
+        });
+    }
+
+    private boolean isDateValid(String dateHeader) {
+        if (dateHeader == null) {
+            return false;
+        }
+
+        try {
+            ZonedDateTime date = ZonedDateTime.parse(dateHeader, DateTimeFormatter.RFC_1123_DATE_TIME); // Parsed
+            ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC); // Current time
+
+            long secondsDifference = Math.abs(ChronoUnit.SECONDS.between(date, now));
+            return secondsDifference <= TIMESTAMP_TOLERANCE_SECONDS; // within the past 12 hours
+        } catch (Exception e) {
+            log.warn("Invalid date format: " + dateHeader, e);
+            return false;
         }
     }
 
