@@ -4,10 +4,13 @@ import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
+import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
+import edu.sjsu.moth.server.service.VisibilityService;
 import edu.sjsu.moth.util.EmailCodeUtils;
+import org.apache.commons.logging.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,8 +29,10 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 @RestController
 public class StatusController {
@@ -40,6 +45,7 @@ public class StatusController {
     @Autowired
     MediaService mediaService;
 
+    Logger LOG = Logger.getLogger(StatusController.class.getName());
     // Status Editing:
     // Edit a status
     @PutMapping(value = "/api/v1/statuses/{id}")
@@ -136,6 +142,30 @@ public class StatusController {
                                      .body(new AppController.ErrorResponse("scheduled posts are not supported")));
         }
 
+        /*
+            Collect local mentions. This is not an efficient regex.
+            A more efficient regex can be found here
+            https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
+         */
+        List<StatusMention> mentions = new ArrayList<>();
+        Arrays.stream(status.split(" "))
+                .filter(x -> x.startsWith("@"))
+                .forEach(name -> {
+                    String username = name.split("@")[1];
+                    StatusMention
+                            statusMention = accountService.getAccountById(username)
+                                .switchIfEmpty(Mono.error(new UsernameNotFoundException("Mentioned account not found: " + name)))
+                                .map(acc -> {
+                                    StatusMention mention = new StatusMention(acc.id, acc.username, acc.url, acc.acct);
+
+                                    LOG.info("Adding mention: " + mention);
+                                    return mention;
+                                })
+                                .block();
+                    mentions.add(statusMention);
+                });
+
+        LOG.info("extracted mentions: " + mentions);
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
@@ -148,7 +178,7 @@ public class StatusController {
                                        sensitive != null && sensitive.equals("true"),
                                        spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,
-                                       List.of(), List.of(), List.of(), null, null, status, EmailCodeUtils.now());
+                                       mentions, List.of(), List.of(), null, null, status, EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
     }
