@@ -107,7 +107,7 @@ public class StatusController {
                     var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, mediaAttachments, List.of(), List.of(), List.of(), null,
+                                            null, null, acct, mediaAttachments, new ArrayList<>(), List.of(), List.of(), null,
                                             null, body.status, EmailCodeUtils.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
@@ -142,30 +142,6 @@ public class StatusController {
                                      .body(new AppController.ErrorResponse("scheduled posts are not supported")));
         }
 
-        /*
-            Collect local mentions. This is not an efficient regex.
-            A more efficient regex can be found here
-            https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
-         */
-        List<StatusMention> mentions = new ArrayList<>();
-        Arrays.stream(status.split(" "))
-                .filter(x -> x.startsWith("@"))
-                .forEach(name -> {
-                    String username = name.split("@")[1];
-                    StatusMention
-                            statusMention = accountService.getAccountById(username)
-                                .switchIfEmpty(Mono.error(new UsernameNotFoundException("Mentioned account not found: " + name)))
-                                .map(acc -> {
-                                    StatusMention mention = new StatusMention(acc.id, acc.username, acc.url, acc.acct);
-
-                                    LOG.info("Adding mention: " + mention);
-                                    return mention;
-                                })
-                                .block();
-                    mentions.add(statusMention);
-                });
-
-        LOG.info("extracted mentions: " + mentions);
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
                     var mediaAttachments = new ArrayList<MediaAttachment>();
@@ -178,7 +154,7 @@ public class StatusController {
                                        sensitive != null && sensitive.equals("true"),
                                        spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,
-                                       mentions, List.of(), List.of(), null, null, status, EmailCodeUtils.now());
+                                       new ArrayList<>(), List.of(), List.of(), null, null, status, EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
     }
