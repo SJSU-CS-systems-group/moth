@@ -1,6 +1,9 @@
 package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.controller.InboxController;
@@ -13,18 +16,40 @@ import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
 import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
 import java.security.Principal;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
@@ -89,30 +114,143 @@ public class AccountService {
         String follower = inboxNode.get("actor").asText();
 
         if (requestType.equals("Follow")) {
-            var follow = new Follow(follower, id);
+            try {
+                //To test this send a follow request from another mastodon app
+                var follow = new Follow(follower, id);
+                var domain = MothConfiguration.mothConfiguration.getServerName();
+                var targetDomain = new URL(follower).getHost();
+                if (!targetDomain.equals(domain)) {
+                    //Once we receive a Follow request from a user, we should send them back an Accept response.
+                    Mono<Void> res = sendAcceptMessage(inboxNode, id, domain, targetDomain);
+                    res.subscribe(); // important to actually trigger it
+                }
+                return accountRepository.findItemByAcct(id)
+                        // The account value here is always null and throwing this error.
+                        .switchIfEmpty(Mono.error(new RuntimeException("Error: User account does not exist")))
+                        .flatMap(account -> {
 
-            return accountRepository.findItemByAcct(id)
-                    .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
-                    .flatMap(account -> {
-                        return accountRepository.findItemByAcct(follower).switchIfEmpty(
-                                        Mono.error(new RuntimeException("Error: Follower account does not exist")))
-                                .flatMap(followerAccount -> {
-                                    return followRepository.save(follow)
-                                            .then(followRepository.countAllByFollowedId(account.id)
-                                                          .flatMap(followersCount -> {
-                                                              account.followers_count = followersCount.intValue();
-                                                              return accountRepository.save(account);
-                                                          }))
-                                            .then(followRepository.countAllByFollowerId(followerAccount.id)
-                                                          .flatMap(followingCount -> {
-                                                              followerAccount.following_count =
-                                                                      followingCount.intValue();
-                                                              return accountRepository.save(followerAccount);
-                                                          })).thenReturn("done");
-                                });
-                    });
+                            return accountRepository.findItemByAcct(follower).switchIfEmpty(
+                                            Mono.error(new RuntimeException("Error: Follower account does not exist")))
+                                    .flatMap(followerAccount -> {
+                                        return followRepository.save(follow)
+                                                .then(followRepository.countAllByFollowedId(account.id)
+                                                              .flatMap(followersCount -> {
+                                                                  account.followers_count = followersCount.intValue();
+                                                                  return accountRepository.save(account);
+                                                              }))
+                                                .then(followRepository.countAllByFollowerId(followerAccount.id)
+                                                              .flatMap(followingCount -> {
+                                                                  followerAccount.following_count =
+                                                                          followingCount.intValue();
+                                                                  return accountRepository.save(followerAccount);
+                                                              })).thenReturn("done");
+                                    });
+                        });
+
+            } catch (MalformedURLException e) {
+                return Mono.error(new RuntimeException("Error: Malformed actor URL"));
+            }
+        } else if (requestType.equals("Accept")) {
+            //The accept code has to be completed, when we receive an Accept message for a Follow request
+            System.out.println("Received Accept activity: " + inboxNode.toPrettyString());
+            return Mono.just("Accept received");
+        }else if(requestType.equals("Undo")) {
+            //The Undo code has to be completed, when we receive an unfollow request
+            System.out.println("Received Undo activity: " + inboxNode.toPrettyString());
+            return Mono.just("Undo received");
         }
+
         return Mono.error(new RuntimeException("Error: Unsupported request type"));
+    }
+
+    //This is to send an accept message to the follower server, so that they know the request has been accepted otherwise it will be in a pending state
+    public Mono<Void> sendAcceptMessage(JsonNode body, String name, String domain, String targetDomain) {
+        String id = UUID.randomUUID().toString();
+        String actorUrl = "https://" + domain + "/users/" + name;
+
+        ObjectNode message = JsonNodeFactory.instance.objectNode();
+        message.put("@context", "https://www.w3.org/ns/activitystreams");
+        message.put("id", "https://" + domain + "/" + id);
+        message.put("type", "Accept");
+        message.put("actor", actorUrl);
+        message.set("object", body);
+
+        return signAndSend(message, name, domain, targetDomain);
+    }
+
+    private Mono<Void> signAndSend(JsonNode message, String name, String domain, String targetDomain) {
+        String actorUrl = "https://" + domain + "/users/" + name;
+        String inbox = message.get("object").get("actor").asText() + "/inbox";
+        String inboxPath = inbox.replace("https://" + targetDomain, "");
+        // The below code is a placeholder to sign and send a request to the other server
+        return pubKeyPairRepository.findItemByAcct(name).flatMap(keyPair -> {
+            try {
+                PrivateKey pvtKey = getPrivateKeyFromPEM(keyPair.privateKeyPEM);
+
+                String json = new ObjectMapper().writeValueAsString(message);
+                String digest = Base64.getEncoder().encodeToString(
+                        MessageDigest.getInstance("SHA-256").digest(json.getBytes(StandardCharsets.UTF_8)));
+
+                DateTimeFormatter httpDateFormat = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
+                String date = ZonedDateTime.now(ZoneId.of("GMT")).format(httpDateFormat);
+
+
+                String stringToSign =
+                        "(request-target): post " + inboxPath + "\n" +
+                                "host: " + targetDomain + "\n" +
+                                "date: " + date + "\n" +
+                                "digest: SHA-256=" + digest;
+                Signature signer = Signature.getInstance("SHA256withRSA");
+                signer.initSign(pvtKey);
+                signer.update(stringToSign.getBytes(StandardCharsets.UTF_8));
+                String signatureB64 = Base64.getEncoder().encodeToString(signer.sign());
+
+                String signatureHeader =
+                        "keyId=\"" + actorUrl + "#main-key" + "\",headers=\"(request-target) host date digest\",signature=\"" +
+                                signatureB64 + "\"";
+
+                WebClient webClient =
+                        WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+
+                return webClient.post().uri(inbox)
+                        .header("Host", targetDomain)
+                        .header("Date", date)
+                        .header("Digest", "SHA-256=" + digest)
+                        .header("Signature", signatureHeader)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(message)
+                        .retrieve()
+                        .onStatus(HttpStatusCode::is4xxClientError, clientResponse ->
+                                clientResponse.bodyToMono(String.class)
+                                        .flatMap(body -> {
+                                            System.err.println("4xx error body: " + body);
+                                            return Mono.error(new RuntimeException("Client error: " + body));
+                                        }))
+                        .onStatus(HttpStatusCode::is5xxServerError, clientResponse ->
+                                clientResponse.bodyToMono(String.class)
+                                        .flatMap(body -> {
+                                            System.err.println("5xx error body: " + body);
+                                            return Mono.error(new RuntimeException("Server error: " + body));
+                                        }))
+
+                        .bodyToMono(String.class)
+                        .doOnNext(response -> System.out.println("Response: " + response))
+                        .then();
+
+            } catch (Exception e) {
+                return Mono.error(new RuntimeException("Signing failed", e));
+            }
+        });
+    }
+
+    public PrivateKey getPrivateKeyFromPEM(String pem) throws Exception {
+        String cleanedPem = pem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s+", ""); // Remove any newlines or extra spaces
+
+        byte[] encoded = Base64.getDecoder().decode(cleanedPem);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA"); // or "EC" for EC keys
+        return keyFactory.generatePrivate(keySpec);
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
