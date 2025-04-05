@@ -4,6 +4,7 @@ import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.service.HttpSignatureService;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.util.HttpSignature;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,9 +17,12 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -27,11 +31,21 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,8 +77,15 @@ class SimplifiedHttpSignatureServiceTest {
             wZ3frm2JIy/Es69M
             -----END PRIVATE KEY-----
             """;
+    private static final PublicKey HARDCODED_PUBLIC_KEY = HttpSignature.pemToPublicKey(HARDCODED_PUBLIC_KEY_PEM);
+    private static final PrivateKey HARDCODED_PRIVATE_KEY = HttpSignature.pemToPrivateKey(HARDCODED_PRIVATE_KEY_PEM);
     private static final String TEST_ACCOUNT_ID = "testuser";
+    private static final String TEST_SERVER_NAME = "test.server"; // Assuming this value
+    private static final String TEST_KEY_ID = "https://" + TEST_SERVER_NAME + "/users/" + TEST_ACCOUNT_ID + "#main-key";
+    private static final String REMOTE_ACTOR_URL = "https://remote.example/actor";
+    private static final String REMOTE_KEY_ID = REMOTE_ACTOR_URL + "#main-key";
     private final DataBufferFactory dataBufferFactory = new DefaultDataBufferFactory();
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2025-04-08T05:55:00Z"), ZoneOffset.UTC);
 
     @Mock
     private PubKeyPairRepository pubKeyPairRepository;
@@ -72,6 +93,16 @@ class SimplifiedHttpSignatureServiceTest {
     private WebClient.Builder webClientBuilder;
     @Mock
     private WebClient webClient;
+    @Mock
+    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+    @Mock
+    private WebClient.RequestHeadersSpec requestHeadersSpec;
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
+    @Mock
+    private ServerWebExchange exchange;
+    @Mock
+    private ServerHttpRequest serverRequest;
     private HttpSignatureService httpSignatureService;
 
     @BeforeAll
@@ -112,7 +143,8 @@ class SimplifiedHttpSignatureServiceTest {
             // Assert: Verify a request is returned and it "contains" a Signature header
             StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
                 System.out.println(signedRequest.headers().get("Signature"));
-                assertTrue(signedRequest.headers().containsKey("Signature"), "Should contain Signature header");
+                assertTrue(signedRequest.headers().containsKey("Signature"),
+                           "Should contain Signature header"); // TODO : check thoroughly
                 String sigHeader = signedRequest.headers().getFirst("Signature");
                 return sigHeader != null && sigHeader.startsWith("keyId=") && sigHeader.contains("headers=") &&
                         sigHeader.contains("signature=");
@@ -137,5 +169,47 @@ class SimplifiedHttpSignatureServiceTest {
             return sigHeader != null && sigHeader.startsWith("keyId=") && sigHeader.contains("headers=") &&
                     sigHeader.contains("signature=");
         }).verifyComplete();
+    }
+
+    @Test
+    void verifySignature_HappyPath_ValidSignature_ShouldReturnTrue() throws Exception {
+        String method = "GET";
+        URI uri = URI.create("/actor");
+
+        String dateHeaderValue =
+                DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)); // current time
+
+        HttpHeaders headersForSigning = new HttpHeaders();
+        headersForSigning.add(HttpHeaders.HOST, TEST_SERVER_NAME);
+        headersForSigning.add(HttpHeaders.DATE, dateHeaderValue);
+
+        String signatureHeaderValue = HttpSignature.generateSignatureHeader(method, uri, headersForSigning,
+                                                                            List.of("(request-target)", "host", "date"),
+                                                                            HARDCODED_PRIVATE_KEY, REMOTE_KEY_ID);
+
+        // HttpHeaders for the mock request
+        HttpHeaders actualRequestHeaders = new HttpHeaders();
+        actualRequestHeaders.add("Signature", signatureHeaderValue);
+        actualRequestHeaders.add(HttpHeaders.DATE, dateHeaderValue);
+        actualRequestHeaders.add(HttpHeaders.HOST, TEST_SERVER_NAME);
+
+        when(exchange.getRequest()).thenReturn(serverRequest);
+        when(serverRequest.getMethod()).thenReturn(HttpMethod.GET);
+        when(serverRequest.getURI()).thenReturn(uri);
+        when(serverRequest.getHeaders()).thenReturn(actualRequestHeaders);
+
+        // Mocking WebClient
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(eq(REMOTE_ACTOR_URL))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+
+        // Mocking actor response
+        Map<String, Object> publicKeyMap = Map.of("publicKeyPem", HARDCODED_PUBLIC_KEY_PEM);
+        Map<String, Object> actorMap = Map.of("publicKey", publicKeyMap);
+        when(responseSpec.bodyToMono(eq(Map.class))).thenReturn(Mono.just(actorMap));
+
+        Mono<Boolean> result = httpSignatureService.verifySignature(exchange);
+
+        StepVerifier.create(result).expectNext(true).verifyComplete();
     }
 }
