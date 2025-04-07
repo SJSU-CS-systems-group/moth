@@ -19,12 +19,10 @@ import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
-import lombok.extern.java.Log;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Flux;
@@ -32,7 +30,6 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -57,10 +54,7 @@ public class StatusService {
     @Autowired
     StatusHistoryRepository statusHistoryRepository;
 
-    @Autowired
-    VisibilityService visibilityService;
-
-    Logger LOG = Logger.getLogger(VisibilityService.class.getName());
+    Logger LOG = Logger.getLogger(StatusService.class.getName());
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -106,14 +100,12 @@ public class StatusService {
                                     Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))
                             )
                             .map(acc -> {
-                                    //LOG.info("Adding mention: " + mention);
+                                    LOG.finest("Adding mention: " + acc.username);
                                     status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
                                     return Mono.empty();
                             })
             );
         }
-
-        //LOG.info("extracted mentions: " + mentions);
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
         for (String s : accountsmentioned) {
@@ -227,7 +219,7 @@ public class StatusService {
     public Mono<SearchResult> filterStatusSearch(String query, Principal user, String account_id, String max_id,
                                                  String min_id, Integer limit, Integer offset, SearchResult result) {
         return statusRepository.findByStatusLike(query)
-                .flatMap(statuses -> visibilityService.timelinesViewable(user, statuses, false)).take(limit).collectList()
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, false)).take(limit).collectList()
                 .map(statuses -> {
                     // check RequestParams: account_id, max_id, min_id, offset
                     result.statuses.addAll(statuses);
