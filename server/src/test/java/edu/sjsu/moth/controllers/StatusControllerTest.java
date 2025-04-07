@@ -1,0 +1,145 @@
+package edu.sjsu.moth.controllers;
+
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import de.flapdoodle.embed.mongo.config.Net;
+import de.flapdoodle.embed.mongo.distribution.Version;
+import de.flapdoodle.embed.mongo.transitions.Mongod;
+import de.flapdoodle.embed.mongo.transitions.RunningMongodProcess;
+import de.flapdoodle.embed.process.io.ProcessOutput;
+import de.flapdoodle.reverse.TransitionWalker;
+import de.flapdoodle.reverse.transitions.Start;
+import edu.sjsu.moth.IntegrationTest;
+import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.server.MothServerMain;
+import edu.sjsu.moth.server.controller.StatusController;
+import edu.sjsu.moth.server.db.Account;
+import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.StatusRepository;
+import edu.sjsu.moth.server.db.TokenRepository;
+import edu.sjsu.moth.server.service.StatusService;
+import edu.sjsu.moth.server.util.MothConfiguration;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataMongo;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
+
+import reactor.core.publisher.Mono;
+
+import java.io.File;
+
+import java.util.Random;
+
+
+@AutoConfigureDataMongo
+@SpringBootTest(classes = { MothServerMain.class,
+        IntegrationTestController.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ComponentScan(basePackageClasses = MothServerMain.class)
+@AutoConfigureWebTestClient
+public class StatusControllerTest {
+    public static final String TOKEN_TEST_ENDPOINT = "/token/test";
+    static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
+    // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
+    // embedded mongodb
+    static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
+
+    static {
+        try {
+            var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
+            // we need to fake out MothConfiguration
+            System.out.println(new MothConfiguration(new File(fullname)).properties);
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            System.exit(2);
+        }
+
+    }
+
+    @Autowired
+    WebTestClient webTestClient;
+    @Autowired
+    TokenRepository tokenRepository;
+    @Autowired
+    AccountRepository accountRepository;
+    @Autowired
+    StatusService statusService;
+    @Autowired
+    private StatusRepository statusRepository;
+
+    @AfterAll
+    static void clean() {
+        eMongod.close();
+    }
+
+    @BeforeAll
+    static void setup() {
+        eMongod = Mongod.builder().processOutput(Start.to(ProcessOutput.class).initializedWith(ProcessOutput.silent()))
+                .net(Start.to(Net.class).initializedWith(Net.defaults().withPort(RAND_MONGO_PORT))).build()
+                .start(Version.Main.V6_0);
+        System.setProperty("spring.data.mongodb.port", Integer.toString(RAND_MONGO_PORT));
+    }
+
+    @Test
+    public void checkAutoWires() {
+        Assertions.assertNotNull(webTestClient);
+        Assertions.assertNotNull(tokenRepository);
+        Assertions.assertNotNull(accountRepository);
+        Assertions.assertNotNull(statusService);
+    }
+
+    @Test
+    public void testPostStatusError() {
+        webTestClient.post()
+                .uri("/api/v2/statuses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Mono.just("{\"status\":\"Hello, world!\"}"), String.class)
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    public void testPostStatusOk() {
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "Hello, world!";
+
+        accountRepository.save(new Account("testUser")).block();
+        // Mock the authentication
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "testUser")))
+                .post()
+                .uri("/api/v1/statuses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk();
+    }
+
+    @Test
+    public void testPostStatusWithMentions() {
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "Hello, @test-mention @test-mention-2 world!";
+
+        accountRepository.save(new Account("test-user")).block();
+        accountRepository.save(new Account("test-mention")).block();
+        accountRepository.save(new Account("test-mention-2")).block();
+        // Mock the authentication
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user")))
+                .post()
+                .uri("/api/v1/statuses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk();
+
+        Status status = statusRepository.findByStatusLike("Hello").blockFirst();
+        Assertions.assertNotNull(status);
+        Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
+        Assertions.assertEquals("test-mention-2", status.mentions.get(1).acct);
+    }
+}
