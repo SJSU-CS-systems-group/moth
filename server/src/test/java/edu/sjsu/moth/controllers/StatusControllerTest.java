@@ -29,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import reactor.core.publisher.Mono;
@@ -36,7 +37,6 @@ import reactor.core.publisher.Mono;
 import java.io.File;
 
 import java.util.Random;
-
 
 @AutoConfigureDataMongo
 @SpringBootTest(classes = { MothServerMain.class,
@@ -96,12 +96,9 @@ public class StatusControllerTest {
 
     @Test
     public void testPostStatusError() {
-        webTestClient.post()
-                .uri(POST_STATUS_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Mono.just("{\"status\":\"Hello, world!\"}"), String.class)
-                .exchange()
-                .expectStatus().isUnauthorized();
+        webTestClient.post().uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON)
+                .body(Mono.just("{\"status\":\"Hello, world!\"}"), String.class).exchange().expectStatus()
+                .isUnauthorized();
     }
 
     @Test
@@ -111,13 +108,8 @@ public class StatusControllerTest {
 
         accountRepository.save(new Account("testUser")).block();
         // Mock the authentication
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "testUser")))
-                .post()
-                .uri(POST_STATUS_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .exchange()
-                .expectStatus().isOk();
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "testUser"))).post().uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
     }
 
     @Test
@@ -129,13 +121,8 @@ public class StatusControllerTest {
         accountRepository.save(new Account("test-mention")).block();
         accountRepository.save(new Account("test-mention-2")).block();
         // Mock the authentication
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user")))
-                .post()
-                .uri(POST_STATUS_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .exchange()
-                .expectStatus().isOk();
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).post().uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
 
         Status status = statusRepository.findByStatusLike("Hello").blockFirst();
         Assertions.assertNotNull(status);

@@ -46,6 +46,7 @@ public class StatusController {
     MediaService mediaService;
 
     Logger LOG = Logger.getLogger(StatusController.class.getName());
+
     // Status Editing:
     // Edit a status
     @PutMapping(value = "/api/v1/statuses/{id}")
@@ -107,8 +108,8 @@ public class StatusController {
                     var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
-                                            null, null, acct, mediaAttachments, new ArrayList<>(), List.of(), List.of(), null,
-                                            null, body.status, EmailCodeUtils.now());
+                                            null, null, acct, mediaAttachments, new ArrayList<>(), List.of(), List.of(),
+                                            null, null, body.status, EmailCodeUtils.now());
                     return statusService.save(status).map(ResponseEntity::ok);
                 });
     }
@@ -154,7 +155,8 @@ public class StatusController {
                                        sensitive != null && sensitive.equals("true"),
                                        spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,
-                                       new ArrayList<>(), List.of(), List.of(), null, null, status, EmailCodeUtils.now());
+                                       new ArrayList<>(), List.of(), List.of(), null, null, status,
+                                       EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
     }
