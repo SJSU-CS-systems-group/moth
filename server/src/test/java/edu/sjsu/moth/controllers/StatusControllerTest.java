@@ -44,7 +44,7 @@ import java.util.Random;
 @ComponentScan(basePackageClasses = MothServerMain.class)
 @AutoConfigureWebTestClient
 public class StatusControllerTest {
-    public static final String TOKEN_TEST_ENDPOINT = "/token/test";
+    public static final String POST_STATUS_ENDPOINT = "/api/v1/statuses";
     static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
     // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
     // embedded mongodb
@@ -97,11 +97,11 @@ public class StatusControllerTest {
     @Test
     public void testPostStatusError() {
         webTestClient.post()
-                .uri("/api/v2/statuses")
+                .uri(POST_STATUS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just("{\"status\":\"Hello, world!\"}"), String.class)
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isUnauthorized();
     }
 
     @Test
@@ -113,7 +113,7 @@ public class StatusControllerTest {
         // Mock the authentication
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "testUser")))
                 .post()
-                .uri("/api/v1/statuses")
+                .uri(POST_STATUS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -131,7 +131,7 @@ public class StatusControllerTest {
         // Mock the authentication
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user")))
                 .post()
-                .uri("/api/v1/statuses")
+                .uri(POST_STATUS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
