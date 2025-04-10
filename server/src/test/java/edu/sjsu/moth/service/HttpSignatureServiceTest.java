@@ -49,7 +49,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class SimplifiedHttpSignatureServiceTest {
+class HttpSignatureServiceTest {
 
     private static final String HARDCODED_PUBLIC_KEY_PEM = """
             -----BEGIN PUBLIC KEY-----
@@ -108,7 +108,7 @@ class SimplifiedHttpSignatureServiceTest {
     @BeforeAll
     static void initMothConfig() throws IOException {
         // grab MothConfiguration from integration test file
-        String fullPath = SimplifiedHttpSignatureServiceTest.class.getResource("/test.cfg").getFile();
+        String fullPath = HttpSignatureServiceTest.class.getResource("/test.cfg").getFile();
         new MothConfiguration(new File(fullPath));
     }
 
@@ -142,7 +142,6 @@ class SimplifiedHttpSignatureServiceTest {
 
             // Assert: Verify a request is returned and it "contains" a Signature header
             StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
-                System.out.println(signedRequest.headers().get("Signature"));
                 assertTrue(signedRequest.headers().containsKey("Signature"),
                            "Should contain Signature header"); // TODO : check thoroughly
                 String sigHeader = signedRequest.headers().getFirst("Signature");

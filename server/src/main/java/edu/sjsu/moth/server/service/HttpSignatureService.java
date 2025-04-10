@@ -5,7 +5,6 @@ import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
 import lombok.extern.apachecommons.CommonsLog;
 import org.reactivestreams.Publisher;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
@@ -41,7 +40,6 @@ public class HttpSignatureService {
     private final WebClient webClient;
     private final String serverName;
 
-    @Autowired
     public HttpSignatureService(PubKeyPairRepository pubKeyPairRepository, WebClient.Builder webClientBuilder) {
         this.pubKeyPairRepository = pubKeyPairRepository;
         this.webClient = webClientBuilder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
