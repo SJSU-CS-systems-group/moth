@@ -109,7 +109,8 @@ public class Util {
         }
     }
 
-    public static Mono<Void> signAndSend(JsonNode message, String name, String domain, String targetDomain,String inbox,String privateKey) {
+    public static Mono<Void> signAndSend(JsonNode message, String name, String domain, String targetDomain,
+                                         String inbox, String privateKey) {
         String actorUrl = "https://" + domain + "/users/" + name;
         /*String inbox;
         if(type.equals("ACCEPT_MESSAGE")){
@@ -118,63 +119,50 @@ public class Util {
             inbox = message.get("actor").asText() + "/inbox";
         }*/
         String inboxPath = inbox.replace("https://" + targetDomain, "");
-        try{
-                PrivateKey pvtKey = getPrivateKeyFromPEM(privateKey);
+        try {
+            PrivateKey pvtKey = getPrivateKeyFromPEM(privateKey);
 
-                String json = new ObjectMapper().writeValueAsString(message);
-                String digest = Base64.getEncoder().encodeToString(
-                        MessageDigest.getInstance("SHA-256").digest(json.getBytes(StandardCharsets.UTF_8)));
+            String json = new ObjectMapper().writeValueAsString(message);
+            String digest = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(json.getBytes(StandardCharsets.UTF_8)));
 
-                DateTimeFormatter httpDateFormat = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
-                String date = ZonedDateTime.now(ZoneId.of("GMT")).format(httpDateFormat);
+            DateTimeFormatter httpDateFormat =
+                    DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
+            String date = ZonedDateTime.now(ZoneId.of("GMT")).format(httpDateFormat);
 
+            String stringToSign =
+                    "(request-target): post " + inboxPath + "\n" + "host: " + targetDomain + "\n" + "date: " + date +
+                            "\n" + "digest: SHA-256=" + digest;
+            Signature signer = Signature.getInstance("SHA256withRSA");
+            signer.initSign(pvtKey);
+            signer.update(stringToSign.getBytes(StandardCharsets.UTF_8));
+            String signatureB64 = Base64.getEncoder().encodeToString(signer.sign());
 
-                String stringToSign =
-                        "(request-target): post " + inboxPath + "\n" +
-                                "host: " + targetDomain + "\n" +
-                                "date: " + date + "\n" +
-                                "digest: SHA-256=" + digest;
-                Signature signer = Signature.getInstance("SHA256withRSA");
-                signer.initSign(pvtKey);
-                signer.update(stringToSign.getBytes(StandardCharsets.UTF_8));
-                String signatureB64 = Base64.getEncoder().encodeToString(signer.sign());
+            String signatureHeader = "keyId=\"" + actorUrl + "#main-key" +
+                    "\",headers=\"(request-target) host date digest\",signature=\"" + signatureB64 + "\"";
 
-                String signatureHeader =
-                        "keyId=\"" + actorUrl + "#main-key" + "\",headers=\"(request-target) host date digest\",signature=\"" +
-                                signatureB64 + "\"";
+            WebClient webClient =
+                    WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
 
-                WebClient webClient =
-                        WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+            return webClient.post().uri(inbox).header("Host", targetDomain).header("Date", date)
+                    .header("Digest", "SHA-256=" + digest).header("Signature", signatureHeader)
+                    .contentType(MediaType.APPLICATION_JSON).bodyValue(message).retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError,
+                              clientResponse -> clientResponse.bodyToMono(String.class).flatMap(body -> {
+                                  System.err.println("4xx error body: " + body);
+                                  return Mono.error(new RuntimeException("Client error: " + body));
+                              })).onStatus(HttpStatusCode::is5xxServerError,
+                                           clientResponse -> clientResponse.bodyToMono(String.class).flatMap(body -> {
+                                               System.err.println("5xx error body: " + body);
+                                               return Mono.error(new RuntimeException("Server error: " + body));
+                                           }))
 
-                return webClient.post().uri(inbox)
-                        .header("Host", targetDomain)
-                        .header("Date", date)
-                        .header("Digest", "SHA-256=" + digest)
-                        .header("Signature", signatureHeader)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(message)
-                        .retrieve()
-                        .onStatus(HttpStatusCode::is4xxClientError, clientResponse ->
-                                clientResponse.bodyToMono(String.class)
-                                        .flatMap(body -> {
-                                            System.err.println("4xx error body: " + body);
-                                            return Mono.error(new RuntimeException("Client error: " + body));
-                                        }))
-                        .onStatus(HttpStatusCode::is5xxServerError, clientResponse ->
-                                clientResponse.bodyToMono(String.class)
-                                        .flatMap(body -> {
-                                            System.err.println("5xx error body: " + body);
-                                            return Mono.error(new RuntimeException("Server error: " + body));
-                                        }))
+                    .bodyToMono(String.class).doOnNext(response -> System.out.println("Response: " + response)).then();
 
-                        .bodyToMono(String.class)
-                        .doOnNext(response -> System.out.println("Response: " + response))
-                        .then();
-
-            } catch (Exception e) {
-                System.err.println("Error while sending ACCEPT : " + e.getMessage());
-                return Mono.error(new RuntimeException("Signing failed", e));
-            }
+        } catch (Exception e) {
+            System.err.println("Error while sending ACCEPT : " + e.getMessage());
+            return Mono.error(new RuntimeException("Signing failed", e));
+        }
     }
 
     public static PrivateKey getPrivateKeyFromPEM(String pem) throws Exception {

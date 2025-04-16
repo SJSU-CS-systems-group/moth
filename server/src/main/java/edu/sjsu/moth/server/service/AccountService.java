@@ -173,10 +173,10 @@ public class AccountService {
 
         AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
-        return getPrivateKey(name, true)
-                .flatMap(privKey -> signAndSend(message, name, domain, targetDomain,message.get("object").get("actor").asText() + "/inbox", privKey));
+        return getPrivateKey(name, true).flatMap(privKey -> signAndSend(message, name, domain, targetDomain,
+                                                                        message.get("object").get("actor").asText() +
+                                                                                "/inbox", privKey));
     }
-
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
                                                    Integer limit) {
