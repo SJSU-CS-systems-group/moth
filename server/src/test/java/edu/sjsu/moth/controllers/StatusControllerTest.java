@@ -38,9 +38,9 @@ import java.io.File;
 
 import java.util.Random;
 
+@SpringBootTest(classes = {
+        StatusControllerTest.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureDataMongo
-@SpringBootTest(classes = { MothServerMain.class,
-        IntegrationTestController.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ComponentScan(basePackageClasses = MothServerMain.class)
 @AutoConfigureWebTestClient
 public class StatusControllerTest {
@@ -49,6 +49,12 @@ public class StatusControllerTest {
     // https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo/blob/main/docs/Howto.md documents how to startup
     // embedded mongodb
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
+
+    final WebTestClient webTestClient;
+    final TokenRepository tokenRepository;
+    final AccountRepository accountRepository;
+    final StatusService statusService;
+    final StatusRepository statusRepository;
 
     static {
         try {
@@ -63,15 +69,18 @@ public class StatusControllerTest {
     }
 
     @Autowired
-    WebTestClient webTestClient;
-    @Autowired
-    TokenRepository tokenRepository;
-    @Autowired
-    AccountRepository accountRepository;
-    @Autowired
-    StatusService statusService;
-    @Autowired
-    private StatusRepository statusRepository;
+    public StatusControllerTest(WebTestClient webTestClient,
+                                TokenRepository tokenRepository,
+                                AccountRepository accountRepository,
+                                StatusService statusService,
+                                StatusRepository statusRepository) {
+        this.webTestClient = webTestClient;
+        this.tokenRepository = tokenRepository;
+        this.accountRepository = accountRepository;
+        this.statusService = statusService;
+        this.statusRepository = statusRepository;
+    }
+
 
     @AfterAll
     static void clean() {
@@ -128,5 +137,27 @@ public class StatusControllerTest {
         Assertions.assertNotNull(status);
         Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
         Assertions.assertEquals("test-mention-2", status.mentions.get(1).acct);
+    }
+
+    @Test
+    public void testPostStatusWithRemoteMentions() {
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "Hello, @test-mention-2@mas.to @test-mention  world!";
+
+        accountRepository.save(new Account("test-user")).block();
+        accountRepository.save(new Account("test-mention")).block();
+        // Mock the authentication
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user")))
+                .post()
+                .uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk();
+
+        Status status = statusRepository.findByStatusLike("Hello").blockFirst();
+        Assertions.assertNotNull(status);
+        Assertions.assertEquals(1, status.mentions.size());
+        Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
     }
 }

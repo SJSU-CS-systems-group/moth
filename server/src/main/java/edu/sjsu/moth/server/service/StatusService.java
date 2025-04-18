@@ -83,7 +83,7 @@ public class StatusService {
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
         for (String s : words) {
-            if (s.charAt(0) == '@') accountsmentioned.add(s);
+            if (!s.isEmpty() && s.charAt(0) == '@') accountsmentioned.add(s);
         }
 
         /*
@@ -92,13 +92,24 @@ public class StatusService {
             https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
          */
         for (String s : accountsmentioned) {
-            String username = s.split("@")[1];
-            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
-                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
-                LOG.finest("Adding mention: " + acc.username);
-                status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
-                return Mono.empty();
-            }));
+            String[] tokens = s.split("@");
+            if (tokens.length > 2) {
+                LOG.warning("Does not store remote user mention: " + s);
+                continue;
+            }
+            String username = tokens[1];
+            mono = mono.then(
+                    accountService
+                            .getAccountById(username)
+                            .switchIfEmpty(
+                                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))
+                            )
+                            .map(acc -> {
+                                    LOG.finest("Adding mention: " + acc.username);
+                                    status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
+                                    return Mono.empty();
+                            })
+            );
         }
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
