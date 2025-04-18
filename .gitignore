@@ -1,0 +1,9 @@
+/**/target/
+.idea/workspace.xml
+.idea/misc.xml
+.idea/uiDesigner.xml
+.idea/google-java-format.xml
+config.txt
+client/.DS_Store
+util/.DS_Store
+.DS_Store
