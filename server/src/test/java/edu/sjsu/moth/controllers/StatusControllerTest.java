@@ -38,8 +38,7 @@ import java.io.File;
 
 import java.util.Random;
 
-@SpringBootTest(classes = {
-        StatusControllerTest.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(classes = { StatusControllerTest.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureDataMongo
 @ComponentScan(basePackageClasses = MothServerMain.class)
 @AutoConfigureWebTestClient
@@ -69,10 +68,8 @@ public class StatusControllerTest {
     }
 
     @Autowired
-    public StatusControllerTest(WebTestClient webTestClient,
-                                TokenRepository tokenRepository,
-                                AccountRepository accountRepository,
-                                StatusService statusService,
+    public StatusControllerTest(WebTestClient webTestClient, TokenRepository tokenRepository,
+                                AccountRepository accountRepository, StatusService statusService,
                                 StatusRepository statusRepository) {
         this.webTestClient = webTestClient;
         this.tokenRepository = tokenRepository;
@@ -80,7 +77,6 @@ public class StatusControllerTest {
         this.statusService = statusService;
         this.statusRepository = statusRepository;
     }
-
 
     @AfterAll
     static void clean() {
@@ -147,13 +143,8 @@ public class StatusControllerTest {
         accountRepository.save(new Account("test-user")).block();
         accountRepository.save(new Account("test-mention")).block();
         // Mock the authentication
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user")))
-                .post()
-                .uri(POST_STATUS_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .exchange()
-                .expectStatus().isOk();
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).post().uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
 
         Status status = statusRepository.findByStatusLike("Hello-remote").blockFirst();
         Assertions.assertNotNull(status);

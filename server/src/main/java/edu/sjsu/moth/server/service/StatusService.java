@@ -98,18 +98,12 @@ public class StatusService {
                 continue;
             }
             String username = tokens[1];
-            mono = mono.then(
-                    accountService
-                            .getAccountById(username)
-                            .switchIfEmpty(
-                                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))
-                            )
-                            .map(acc -> {
-                                    LOG.finest("Adding mention: " + acc.username);
-                                    status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
-                                    return Mono.empty();
-                            })
-            );
+            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
+                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
+                LOG.finest("Adding mention: " + acc.username);
+                status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
+                return Mono.empty();
+            }));
         }
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
