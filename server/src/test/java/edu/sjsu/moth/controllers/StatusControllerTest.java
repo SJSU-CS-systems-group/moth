@@ -142,7 +142,7 @@ public class StatusControllerTest {
     @Test
     public void testPostStatusWithRemoteMentions() {
         StatusController.V1PostStatus request = new StatusController.V1PostStatus();
-        request.status = "Hello, @test-mention-2@mas.to @test-mention  world!";
+        request.status = "Hello-remote, @test-mention-2@mas.to @test-mention  world!";
 
         accountRepository.save(new Account("test-user")).block();
         accountRepository.save(new Account("test-mention")).block();
@@ -155,7 +155,7 @@ public class StatusControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        Status status = statusRepository.findByStatusLike("Hello").blockFirst();
+        Status status = statusRepository.findByStatusLike("Hello-remote").blockFirst();
         Assertions.assertNotNull(status);
         Assertions.assertEquals(1, status.mentions.size());
         Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
