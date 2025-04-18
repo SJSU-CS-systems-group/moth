@@ -3,7 +3,7 @@
 .idea/misc.xml
 .idea/uiDesigner.xml
 .idea/google-java-format.xml
-config
+config.txt
 client/.DS_Store
 util/.DS_Store
 
