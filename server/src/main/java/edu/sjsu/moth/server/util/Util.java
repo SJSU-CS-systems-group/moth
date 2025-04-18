@@ -1,7 +1,12 @@
 package edu.sjsu.moth.server.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.util.EmailCodeUtils;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.lang.ref.WeakReference;
@@ -9,9 +14,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -93,6 +107,72 @@ public class Util {
                 System.out.println(indent + value);
             }
         }
+    }
+
+    public static Mono<Void> signAndSend(JsonNode message, String name, String domain, String targetDomain,
+                                         String inbox, String privateKey) {
+        String actorUrl = "https://" + domain + "/users/" + name;
+        /*String inbox;
+        if(type.equals("ACCEPT_MESSAGE")){
+            inbox = message.get("object").get("actor").asText() + "/inbox";
+        }else{
+            inbox = message.get("actor").asText() + "/inbox";
+        }*/
+        String inboxPath = inbox.replace("https://" + targetDomain, "");
+        try {
+            PrivateKey pvtKey = getPrivateKeyFromPEM(privateKey);
+
+            String json = new ObjectMapper().writeValueAsString(message);
+            String digest = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(json.getBytes(StandardCharsets.UTF_8)));
+
+            DateTimeFormatter httpDateFormat =
+                    DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
+            String date = ZonedDateTime.now(ZoneId.of("GMT")).format(httpDateFormat);
+
+            String stringToSign =
+                    "(request-target): post " + inboxPath + "\n" + "host: " + targetDomain + "\n" + "date: " + date +
+                            "\n" + "digest: SHA-256=" + digest;
+            Signature signer = Signature.getInstance("SHA256withRSA");
+            signer.initSign(pvtKey);
+            signer.update(stringToSign.getBytes(StandardCharsets.UTF_8));
+            String signatureB64 = Base64.getEncoder().encodeToString(signer.sign());
+
+            String signatureHeader = "keyId=\"" + actorUrl + "#main-key" +
+                    "\",headers=\"(request-target) host date digest\",signature=\"" + signatureB64 + "\"";
+
+            WebClient webClient =
+                    WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+
+            return webClient.post().uri(inbox).header("Host", targetDomain).header("Date", date)
+                    .header("Digest", "SHA-256=" + digest).header("Signature", signatureHeader)
+                    .contentType(MediaType.APPLICATION_JSON).bodyValue(message).retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError,
+                              clientResponse -> clientResponse.bodyToMono(String.class).flatMap(body -> {
+                                  System.err.println("4xx error body: " + body);
+                                  return Mono.error(new RuntimeException("Client error: " + body));
+                              })).onStatus(HttpStatusCode::is5xxServerError,
+                                           clientResponse -> clientResponse.bodyToMono(String.class).flatMap(body -> {
+                                               System.err.println("5xx error body: " + body);
+                                               return Mono.error(new RuntimeException("Server error: " + body));
+                                           }))
+
+                    .bodyToMono(String.class).doOnNext(response -> System.out.println("Response: " + response)).then();
+
+        } catch (Exception e) {
+            System.err.println("Error while sending ACCEPT : " + e.getMessage());
+            return Mono.error(new RuntimeException("Signing failed", e));
+        }
+    }
+
+    public static PrivateKey getPrivateKeyFromPEM(String pem) throws Exception {
+        String cleanedPem = pem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s+", ""); // Remove any newlines or extra spaces
+
+        byte[] encoded = Base64.getDecoder().decode(cleanedPem);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA"); // or "EC" for EC keys
+        return keyFactory.generatePrivate(keySpec);
     }
 
     /**

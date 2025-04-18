@@ -1,10 +1,12 @@
 package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
+import edu.sjsu.moth.server.db.AcceptMessage;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Follow;
@@ -13,20 +15,24 @@ import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
 import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static edu.sjsu.moth.server.util.Util.signAndSend;
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 /**
@@ -51,6 +57,8 @@ public class AccountService {
 
     @Autowired
     EmailService emailService;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
@@ -85,19 +93,49 @@ public class AccountService {
         return mono;
     }
 
+    public Mono<String> getPrivateKey(String id, boolean addIfMissing) {
+        var mono = pubKeyPairRepository.findItemByAcct(id).map(pair -> pair.privateKeyPEM);
+        if (addIfMissing) {
+            mono = mono.switchIfEmpty(Mono.just(WebFingerUtils.genPubPrivKeyPem()).flatMap(
+                            p -> pubKeyPairRepository.save(new PubKeyPair(id, p.pubKey(), p.privKey())))
+                                              .map(p -> p.privateKeyPEM));
+        }
+        return mono;
+    }
+
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
         String follower = inboxNode.get("actor").asText();
+        switch (requestType) {
+            case "Follow" -> {
+                //To test this send a follow request from another mastodon app
+                var follow = new Follow(follower, id);
+                var domain = MothConfiguration.mothConfiguration.getServerName();
+                String targetDomain;
+                try {
+                    targetDomain = new URL(follower).getHost();
+                } catch (MalformedURLException e) {
+                    return Mono.error(new RuntimeException("Error: Malformed actor URL"));
+                }
+                if (!targetDomain.equals(domain)) {
+                    // Compose this Mono into the flow so it actually runs
+                    return sendAcceptMessage(inboxNode, id, domain, targetDomain).then(
+                            accountRepository.findItemByAcct(id).switchIfEmpty(
+                                            Mono.error(new RuntimeException("Error: User account does not exist")))
+                                    .flatMap(account -> {
+                                        return followRepository.save(follow)
+                                                .then(followRepository.countAllByFollowedId(account.id)
+                                                              .flatMap(followersCount -> {
+                                                                  account.followers_count = followersCount.intValue();
+                                                                  return accountRepository.save(account);
+                                                              })).thenReturn("done");
+                                    }));
 
-        if (requestType.equals("Follow")) {
-            var follow = new Follow(follower, id);
-
-            return accountRepository.findItemByAcct(id)
-                    .switchIfEmpty(Mono.error(new RuntimeException("Error: Account to follow does not exist")))
-                    .flatMap(account -> {
-                        return accountRepository.findItemByAcct(follower).switchIfEmpty(
-                                        Mono.error(new RuntimeException("Error: Follower account does not exist")))
-                                .flatMap(followerAccount -> {
-                                    return followRepository.save(follow)
+                } else {
+                    return accountRepository.findItemByAcct(id)
+                            .switchIfEmpty(Mono.error(new RuntimeException("Error: User account does not exist")))
+                            .flatMap(account -> accountRepository.findItemByAcct(follower).switchIfEmpty(
+                                    Mono.error(new RuntimeException("Error: Follower account does not exist"))).flatMap(
+                                    followerAccount -> followRepository.save(follow)
                                             .then(followRepository.countAllByFollowedId(account.id)
                                                           .flatMap(followersCount -> {
                                                               account.followers_count = followersCount.intValue();
@@ -108,11 +146,36 @@ public class AccountService {
                                                               followerAccount.following_count =
                                                                       followingCount.intValue();
                                                               return accountRepository.save(followerAccount);
-                                                          })).thenReturn("done");
-                                });
-                    });
+                                                          })).thenReturn("done")));
+                }
+            }
+            case "Accept" -> {
+                //The accept code has to be completed, when we receive an Accept message for a Follow request
+                System.out.println("Received Accept activity: " + inboxNode.toPrettyString());
+                return Mono.just("Accept received");
+            }
+            case "Undo" -> {
+                //The Undo code has to be completed, when we receive an unfollow request
+                System.out.println("Received Undo activity: " + inboxNode.toPrettyString());
+                return Mono.just("Undo received");
+            }
         }
+
         return Mono.error(new RuntimeException("Error: Unsupported request type"));
+    }
+
+    //This is to send an accept message to the follower server, so that they know the request has been accepted
+    // otherwise it will be in a pending state
+    public Mono<Void> sendAcceptMessage(JsonNode body, String name, String domain, String targetDomain) {
+        String uuid = UUID.randomUUID().toString();
+        String messageId = "https://" + domain + "/" + uuid;
+        String actorUrl = "https://" + domain + "/users/" + name;
+
+        AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
+        JsonNode message = objectMapper.valueToTree(acceptMessage);
+        return getPrivateKey(name, true).flatMap(privKey -> signAndSend(message, name, domain, targetDomain,
+                                                                        message.get("object").get("actor").asText() +
+                                                                                "/inbox", privKey));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
