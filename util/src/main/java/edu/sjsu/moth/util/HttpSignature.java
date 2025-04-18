@@ -63,14 +63,12 @@ public class HttpSignature {
                                                 PrivateKey signingKey, String keyUri) {
         clientBuilder.filter((request, next) -> {
             try {
-                String sigLine = generateSignatureHeader(
-                        request.method().name(), request.url(), request.headers(), headers,
-                        signingKey, keyUri
-                );
+                String sigLine =
+                        generateSignatureHeader(request.method().name(), request.url(), request.headers(), headers,
+                                                signingKey, keyUri);
                 //Cannot update an existing request once it is created to add a new header, so creating a new request
-                ClientRequest newRequest = ClientRequest.from(request)
-                        .headers(h -> h.add("Signature", sigLine))
-                        .build();
+                ClientRequest newRequest =
+                        ClientRequest.from(request).headers(h -> h.add("Signature", sigLine)).build();
 
                 return next.exchange(newRequest);
 
@@ -79,7 +77,7 @@ public class HttpSignature {
                 return next.exchange(request); // fallback without signature
             }
         });
-    return clientBuilder;
+        return clientBuilder;
     }
 
     static String generateSignatureHeader(String requestMethod, URI requestURI, HttpHeaders requestHeaders,

@@ -110,7 +110,8 @@ public class Util {
         }
     }
 
-    public static Mono<Void> signAndSend(JsonNode message, String actorUrl, String targetDomain, String inbox, String privateKeyPEM) {
+    public static Mono<Void> signAndSend(JsonNode message, String actorUrl, String targetDomain, String inbox,
+                                         String privateKeyPEM) {
         try {
             // Construct actor and inbox info
             URI inboxUri = URI.create(inbox);
@@ -120,8 +121,7 @@ public class Util {
             byte[] bodyBytes = new ObjectMapper().writeValueAsBytes(message);
 
             // Prepare date string in HTTP format
-            String date = DateTimeFormatter.RFC_1123_DATE_TIME
-                    .format(ZonedDateTime.now(ZoneId.of("GMT")));
+            String date = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
 
             // Set initial headers
             HttpHeaders headers = new HttpHeaders();
@@ -130,16 +130,13 @@ public class Util {
             HttpSignature.addDigest(headers, bodyBytes); // adds SHA-256 digest header
 
             // Headers to be signed
-            List<String> signedHeaders = List.of(
-                    HttpSignature.REQUEST_TARGET, "host", "date", "digest"
-            );
+            List<String> signedHeaders = List.of(HttpSignature.REQUEST_TARGET, "host", "date", "digest");
 
             // Create WebClient builder
-            WebClient.Builder builder = WebClient.builder()
-                    .defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
-                    .defaultHeader("Host", targetDomain)
-                    .defaultHeader("Date", date)
-                    .defaultHeader("Digest", headers.getFirst("Digest"));
+            WebClient.Builder builder =
+                    WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
+                            .defaultHeader("Host", targetDomain).defaultHeader("Date", date)
+                            .defaultHeader("Digest", headers.getFirst("Digest"));
 
             // Attach HTTP Signature filter
             HttpSignature.signHeaders(builder, signedHeaders, signingKey, actorUrl + "#main-key");
@@ -147,23 +144,14 @@ public class Util {
             WebClient client = builder.build();
 
             // Send the signed POST request
-            return client.post()
-                    .uri(inboxUri)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(message)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, res ->
-                            res.bodyToMono(String.class).flatMap(body -> {
-                                System.err.println("4xx error body: " + body);
-                                return Mono.error(new RuntimeException("Client error: " + body));
-                            }))
-                    .onStatus(HttpStatusCode::is5xxServerError, res ->
-                            res.bodyToMono(String.class).flatMap(body -> {
-                                System.err.println("5xx error body: " + body);
-                                return Mono.error(new RuntimeException("Server error: " + body));
-                            }))
-                    .bodyToMono(String.class)
-                    .doOnNext(response -> System.out.println("Response: " + response))
+            return client.post().uri(inboxUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message).retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class).flatMap(body -> {
+                        System.err.println("4xx error body: " + body);
+                        return Mono.error(new RuntimeException("Client error: " + body));
+                    })).onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class).flatMap(body -> {
+                        System.err.println("5xx error body: " + body);
+                        return Mono.error(new RuntimeException("Server error: " + body));
+                    })).bodyToMono(String.class).doOnNext(response -> System.out.println("Response: " + response))
                     .then();
 
         } catch (Exception e) {
