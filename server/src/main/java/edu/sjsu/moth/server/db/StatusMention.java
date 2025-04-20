@@ -1,5 +1,8 @@
 package edu.sjsu.moth.server.db;
 
+import lombok.ToString;
+
+@ToString
 public class StatusMention {
 
     public String id;
