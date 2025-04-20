@@ -41,6 +41,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -139,14 +140,52 @@ class HttpSignatureServiceTest {
             mockedDataBufferUtils.when(() -> DataBufferUtils.release(any())).thenReturn(true);
 
             Mono<ClientRequest> signedRequestMono = httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID);
-
             // Assert: Verify a request is returned and it "contains" a Signature header
             StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
+                long dateHeaderCount = signedRequest.headers().entrySet().stream()
+                        .filter(entry -> entry.getKey().equalsIgnoreCase(HttpHeaders.DATE))
+                        .flatMap(entry -> entry.getValue().stream())
+                        .count();
+                System.out.println("Date headers: " + signedRequest.headers().get(HttpHeaders.DATE));
+
+                assertEquals(1, dateHeaderCount, "There should only be one Date header");
                 assertTrue(signedRequest.headers().containsKey("Signature"),
                            "Should contain Signature header"); // TODO : check thoroughly
                 String sigHeader = signedRequest.headers().getFirst("Signature");
                 return sigHeader != null && sigHeader.startsWith("keyId=") && sigHeader.contains("headers=") &&
                         sigHeader.contains("signature=");
+            }).verifyComplete();
+        }
+    }
+
+    @Test
+    void signRequest_Single_DateHeader() {
+        PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
+        when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
+
+        String requestBody = "{\"activity\": \"create\"}";
+
+        Flux<DataBuffer> fluxBody = Flux.just(dataBufferFactory.wrap(requestBody.getBytes(StandardCharsets.UTF_8)));
+        ClientRequest originalRequest =
+                ClientRequest.create(HttpMethod.POST, URI.create("https://remote.example/inbox"))
+                        .body(fluxBody, DataBuffer.class).build();
+
+        DataBuffer dataBuffer = dataBufferFactory.wrap(requestBody.getBytes(StandardCharsets.UTF_8));
+        try (MockedStatic<DataBufferUtils> mockedDataBufferUtils = Mockito.mockStatic(DataBufferUtils.class)) {
+            mockedDataBufferUtils.when(() -> DataBufferUtils.join(any())).thenReturn(Mono.just(dataBuffer));
+            mockedDataBufferUtils.when(() -> DataBufferUtils.release(any())).thenReturn(true);
+
+            Mono<ClientRequest> signedRequestMono = httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID);
+            // Assert: Verify a request is returned and it "contains" a Signature header
+            StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
+                long dateHeaderCount = signedRequest.headers().entrySet().stream()
+                        .filter(entry -> entry.getKey().equalsIgnoreCase(HttpHeaders.DATE))
+                        .flatMap(entry -> entry.getValue().stream())
+                        .count();
+                System.out.println("Date headers: " + signedRequest.headers().get(HttpHeaders.DATE));
+
+                assertEquals(1, dateHeaderCount, "There should only be one Date header");
+                return dateHeaderCount==1;
             }).verifyComplete();
         }
     }

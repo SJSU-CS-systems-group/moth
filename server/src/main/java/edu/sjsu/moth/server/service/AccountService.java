@@ -60,6 +60,9 @@ public class AccountService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private HttpSignatureService httpSignatureService;
+
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
         return new PubKeyPair(acct, pair.pubKey(), pair.privKey());
@@ -177,9 +180,8 @@ public class AccountService {
         String actorUrl = String.format("https://%s/users/%s", mydomain, id);
         AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
-        return getPrivateKey(id, true).flatMap(privKey -> signAndSend(message, actorUrl, followerDomain,
-                                                                      message.get("object").get("actor").asText() +
-                                                                              "/inbox", privKey));
+        return getPrivateKey(id, true)
+                .flatMap(privKey -> signAndSend(message, id,message.get("object").get("actor").asText() + "/inbox",httpSignatureService));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
