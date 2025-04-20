@@ -1,7 +1,7 @@
 name: Re-format Code
 
 on:
-  pull_request:
+  push:
     branches:
       - main
 
