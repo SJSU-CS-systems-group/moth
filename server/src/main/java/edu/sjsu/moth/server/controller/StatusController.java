@@ -4,11 +4,10 @@ import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
-import edu.sjsu.moth.server.db.StatusMention;
+
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
-import edu.sjsu.moth.server.service.VisibilityService;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import org.apache.commons.logging.Log;
 import org.springframework.beans.factory.annotation.Autowired;
