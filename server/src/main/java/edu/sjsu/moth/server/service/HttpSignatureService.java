@@ -4,20 +4,16 @@ import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
 import lombok.extern.apachecommons.CommonsLog;
-import org.reactivestreams.Publisher;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.security.InvalidKeyException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.SignatureException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,13 +25,9 @@ import java.util.Map;
 @CommonsLog
 public class HttpSignatureService {
     // https://docs.joinmastodon.org/spec/security/
-    private static final List<String> DEFAULT_HEADERS_TO_SIGN_WITH_BODY =
-            List.of(HttpSignature.REQUEST_TARGET, "host", "date", "digest");
-    private static final List<String> DEFAULT_HEADERS_TO_SIGN_WITHOUT_BODY =
-            List.of(HttpSignature.REQUEST_TARGET, "host", "date");
+    private static final List<String> HEADERS_TO_SIGN = List.of(HttpSignature.REQUEST_TARGET, "host", "date");
     private static final int TIMESTAMP_TOLERANCE_SECONDS = 12 * 60 * 60; // TODO : should be configurable
     private static final long PUBLIC_KEY_CACHE_TTL_SECONDS = 300; // 5 minutes
-
     private final PubKeyPairRepository pubKeyPairRepository;
     private final WebClient webClient;
     private final String serverName;
@@ -46,12 +38,9 @@ public class HttpSignatureService {
         this.serverName = MothConfiguration.mothConfiguration.getServerName();
     }
 
-    public Mono<ClientRequest> signRequest(ClientRequest request, String accountId) {
+    public Mono<ClientRequest> signRequest(ClientRequest request, String accountId, @Nullable byte[] body) {
         return pubKeyPairRepository.findItemByAcct(accountId).flatMap(keyPair -> {
             try {
-                // Generate keyId URL (https://docs.joinmastodon.org/spec/activitypub/#publicKey)
-                String keyId = "https://" + serverName + "/users/" + accountId +
-                        "#main-key"; // TODO : reconstruction, should return the actor document
 
                 // mutable headers (https://stackoverflow.com/questions/53071229/httpclient-what-is-the-difference-between-setheader-and-addheader)
                 HttpHeaders headers = HttpHeaders.writableHttpHeaders(request.headers());
@@ -62,87 +51,30 @@ public class HttpSignatureService {
                     headers.set(HttpHeaders.HOST, request.url().getHost());
                 }
                 // Add Digest header for requests with body
-                if (request.body() != null) {
-                    // type error fix
-                    if (request.body() instanceof Publisher) {
-                        return processPublisherBody(request, keyPair, headers, keyId);
-                    } else {
-                        // For non-Publisher bodies (like BodyInserters), we'll sign without digest
-                        return signRequestWithoutBody(request, keyPair, headers, keyId);
-                    }
-                } else {
-                    // No body
-                    return signRequestWithoutBody(request, keyPair, headers, keyId);
+                if (body != null && body.length > 0) {
+                    HttpSignature.addDigest(headers, body);
                 }
+
+                PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
+                String keyId = "https://" + serverName + "/users/" + accountId + "#main-key"; //
+                String signatureHeader =
+                        HttpSignature.generateSignatureHeader(request.method().name(), request.url(), headers,
+                                                              HEADERS_TO_SIGN, privateKey, keyId);
+                headers.set("Signature", signatureHeader);
+
+                // build a new ClientRequest with updated headers
+                ClientRequest.Builder newRequestBuilder = ClientRequest.from(request).headers(h -> {
+                    h.clear();
+                    h.addAll(headers);
+                });
+
+                ClientRequest signedClientRequest = newRequestBuilder.build();
+                return Mono.just(signedClientRequest);
             } catch (Exception e) {
                 log.error("Error during request signing", e);
                 return Mono.just(request); // Return original request if process fails
             }
         }).defaultIfEmpty(request); // Return original request if key not found
-    }
-
-    private Mono<ClientRequest> processPublisherBody(ClientRequest request,
-                                                     edu.sjsu.moth.server.db.PubKeyPair keyPair, HttpHeaders headers,
-                                                     String keyId) {
-
-        try {
-            return DataBufferUtils.join(
-                            (Publisher<? extends DataBuffer>) request.body()) // collecting the body into single buffer
-                    .map(dataBuffer -> {
-                        try {
-                            byte[] bodyBytes = new byte[dataBuffer.readableByteCount()];
-                            dataBuffer.read(bodyBytes);
-                            DataBufferUtils.release(dataBuffer);
-
-                            HttpSignature.addDigest(headers, bodyBytes);
-
-                            PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
-
-                            // Generate signature
-                            String signatureHeader =
-                                    HttpSignature.generateSignatureHeader(request.method().name(), request.url(),
-                                                                          headers, DEFAULT_HEADERS_TO_SIGN_WITH_BODY,
-                                                                          privateKey, keyId);
-
-                            // Create a new request with the signature header
-                            ClientRequest.Builder builder = ClientRequest.from(request);
-                            headers.forEach((name, values) -> values.forEach(value -> builder.header(name, value)));
-                            builder.header("Signature", signatureHeader);
-
-                            // Recreate the body
-                            return builder.body((outputMessage, context) -> outputMessage.writeWith(
-                                    Mono.just(outputMessage.bufferFactory().wrap(bodyBytes)))).build();
-                        } catch (Exception e) {
-                            log.error("Failed to process request body", e);
-                            return request; // Return original request on error
-                        }
-                    });
-        } catch (Exception e) {
-            log.error("Failed to join request body", e);
-            return Mono.just(request);
-        }
-    }
-
-    private Mono<ClientRequest> signRequestWithoutBody(ClientRequest request,
-                                                       edu.sjsu.moth.server.db.PubKeyPair keyPair,
-                                                       HttpHeaders headers, String keyId) {
-        try {
-            PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
-
-            String signatureHeader =
-                    HttpSignature.generateSignatureHeader(request.method().name(), request.url(), headers,
-                                                          DEFAULT_HEADERS_TO_SIGN_WITHOUT_BODY, privateKey, keyId);
-
-            ClientRequest.Builder builder = ClientRequest.from(request);
-            headers.forEach((name, values) -> values.forEach(value -> builder.header(name, value)));
-            builder.header("Signature", signatureHeader);
-
-            // Keep the original body
-            return Mono.just(builder.build());
-        } catch (SignatureException | InvalidKeyException e) {
-            log.error("Failed to generate signature for request", e);
-            return Mono.just(request); // Return original request if signing fails
-        }
     }
 
     // https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/controllers/concerns/signature_verification.rb
