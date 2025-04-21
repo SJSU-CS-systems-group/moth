@@ -107,7 +107,6 @@ public class AccountService {
     }
 
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
-
         switch (requestType) {
             case "Follow" -> {
                 String follower = inboxNode.get("actor").asText();
@@ -181,7 +180,7 @@ public class AccountService {
         AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
         return getPrivateKey(id, true)
-                .flatMap(privKey -> signAndSend(message, id,message.get("object").get("actor").asText() + "/inbox",httpSignatureService));
+                .flatMap(privKey -> signAndSend(message, actorUrl,followerDomain,message.get("object").get("actor").asText() + "/inbox",privKey));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
@@ -234,12 +233,7 @@ public class AccountService {
         }
     }
 
-    public Mono<Follow> saveFollow(String followerId, String followedId) {
-        return followRepository.findIfFollows(followerId, followedId).switchIfEmpty(Mono.defer(() -> {
-            Follow follow = new Follow(followerId, followedId);
-            return followRepository.save(follow);
-        }));
-    }
+
 
     public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
@@ -271,14 +265,6 @@ public class AccountService {
                                 })));
     }
 
-    public Mono<Relationship> followUser(String followerId, String followedId) {
-        var followResult = saveFollow(followerId, followedId);
-        return followResult.flatMap(followStatus -> followRepository.findIfFollows(followedId, followerId)
-                .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false,
-                                                false, false, false, "")).switchIfEmpty(Mono.just(
-                        new Relationship(followerId, true, false, false, false, false, false, false, false, false,
-                                         false, false, false, ""))));
-    }
 
     public Mono<Relationship> checkRelationship(String followerId, String followedId) {
         var followed = followRepository.findIfFollows(followerId, followedId).hasElement();

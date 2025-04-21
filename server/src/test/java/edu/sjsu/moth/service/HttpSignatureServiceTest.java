@@ -123,7 +123,7 @@ class HttpSignatureServiceTest {
     }
 
     @Test
-    void signRequest_HappyPath_WithBody_ShouldAddSignature() {
+    void testSignRequestHappyPathWithBodyShouldAddSignature() {
         PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
         when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
 
@@ -152,7 +152,7 @@ class HttpSignatureServiceTest {
     }
 
     @Test
-    void signRequest_Single_DateHeader() {
+    void testSignRequestSingleDateHeader() {
         PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
         when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
 
@@ -184,7 +184,7 @@ class HttpSignatureServiceTest {
     }
 
     @Test
-    void signRequest_HappyPath_WithoutBody_ShouldAddSignature() {
+    void testSignRequestHappyPathWithoutBodyShouldAddSignature() {
         PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
         when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
 
@@ -203,7 +203,7 @@ class HttpSignatureServiceTest {
     }
 
     @Test
-    void verifySignature_HappyPath_ValidSignature_ShouldReturnTrue() throws Exception {
+    void testVerifySignatureHappyPathValidSignatureShouldReturnTrue() throws Exception {
         String method = "GET";
         URI uri = URI.create("/actor");
 
