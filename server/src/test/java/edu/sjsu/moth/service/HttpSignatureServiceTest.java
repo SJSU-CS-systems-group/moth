@@ -6,7 +6,6 @@ import edu.sjsu.moth.server.service.HttpSignatureService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,11 +63,7 @@ import static org.springframework.test.util.AssertionErrors.assertNotNull;
 @ExtendWith(MockitoExtension.class)
 class HttpSignatureServiceTest {
 
-    public static final URI EXAMPLE_URI = URI.create("/foo?param=value&pet=dog");
-    public static final HttpHeaders EXAMPLE_HEADERS = new HttpHeaders(new MultiValueMapAdapter<>(
-            Map.of("host", List.of("example.com"), "date", List.of("Sun, 05 Jan 2014 21:31:40 GMT"), "content-Type",
-                   List.of("application/json"), "digest",
-                   List.of("SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE="), "content-Length", List.of("18"))));
+    public static final URI example_uri = URI.create("/foo?param=value&pet=dog");
     public static final byte[] EXAMPLE_BODY = "{\"hello\": \"world\"}".getBytes();
     private static final String HARDCODED_PUBLIC_KEY_PEM = """
             -----BEGIN PUBLIC KEY-----
@@ -103,7 +98,9 @@ class HttpSignatureServiceTest {
             "https://" + TEST_SERVER_NAME + "/users/" + TEST_ACCOUNT_ID + "#main-key";
     private static final Pattern HEADERS_PATTERN = Pattern.compile("headers=\"([^\"]+)\"");
     private static final URI TEST_TARGET_URI = URI.create("https://verify.example.com/inbox");
-
+    public static HttpHeaders example_headers = new HttpHeaders(new MultiValueMapAdapter<>(
+            Map.of("host", List.of("example.com"), "date", List.of("Sun, 05 Jan 2014 21:31:40 GMT"), "content-Type",
+                   List.of("application/json"), "content-Length", List.of("18"))));
     private final DataBufferFactory dataBufferFactory = new DefaultDataBufferFactory();
     @Mock
     private PubKeyPairRepository pubKeyPairRepository;
@@ -228,29 +225,48 @@ class HttpSignatureServiceTest {
      */
     // https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#appendix-C.2
     @Test
-    void signRequest_ShouldGenerateCorrectSignature() {
-        URI uri = EXAMPLE_URI;
-        HttpHeaders initialHeaders = new HttpHeaders();
-        initialHeaders.setAll(EXAMPLE_HEADERS.toSingleValueMap());
+    void signRequest_C2ShouldGenerateCorrectSignature() {
+        // C2 body
+        HttpMethod method = HttpMethod.POST;
+        URI c2RequestUri = URI.create("https://example.com/foo?param=value&pet=dog");
         byte[] bodyBytes = EXAMPLE_BODY;
-        Flux<DataBuffer> fluxBody = Flux.just(dataBufferFactory.wrap(bodyBytes));
-        PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
-        when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
+        String c2TestAccountID = "C2TestAccount";
+        HttpHeaders initialHeaders = new HttpHeaders();
+        initialHeaders.setAll(example_headers.toSingleValueMap());
+        initialHeaders.set(HttpHeaders.HOST, "example.com");
+        initialHeaders.set(HttpHeaders.DATE, "Sun, 05 Jan 2014 21:31:40 GMT");
 
-        ClientRequest originalRequest = ClientRequest.create(HttpMethod.POST, URI.create(
-                        "https://example.com" + uri.getPath() + "?" + uri.getQuery())).headers(h -> h.addAll(initialHeaders))
-                .body(fluxBody, DataBuffer.class).build();
-        Mono<ClientRequest> signedRequestMono =
-                httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID, bodyBytes)
-                        .doOnNext(signedRequest -> {
-                            HttpHeaders finalHeaders = signedRequest.headers();
-                            String signatureHeader = finalHeaders.getFirst("Signature");
-                            var actual = finalHeaders.getFirst("Signature");
-                            var expected = """
-                                    keyId="Test",headers="(request-target) host date",signature="qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"""";
-                            Assertions.assertEquals(HttpSignature.extractSignature(expected),
-                                                    HttpSignature.extractSignature(actual));
-                        });
+        PubKeyPair c2KeyPair = new PubKeyPair(c2TestAccountID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
+        when(pubKeyPairRepository.findItemByAcct(c2TestAccountID)).thenReturn(Mono.just(c2KeyPair));
+
+        ClientRequest originalRequest =
+                ClientRequest.create(method, c2RequestUri).headers(h -> h.addAll(initialHeaders))
+                        // C2 signature doesn't include digest
+                        .build();
+
+        String expectedC2SignatureValue = "qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2" +
+                "+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv" +
+                "/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=";
+        String expectedC2HeadersField = "(request-target) host date";
+
+        ClientRequest signedRequest = httpSignatureService.signRequest(originalRequest, c2TestAccountID, null).block();
+
+        assertNotNull(String.valueOf(signedRequest), "Signed request should not be null");
+        HttpHeaders signedHeaders = signedRequest.headers();
+        assertTrue(signedHeaders.containsKey("Signature"), "Signature header missing after signing");
+        assertFalse(signedHeaders.containsKey("Digest"), "Digest header should not be present for null body");
+
+        String actualSignatureHeader = signedHeaders.getFirst("Signature");
+        assertNotNull(actualSignatureHeader, "Signature header value is null");
+
+        // Verify signature value with expected value
+        String actualSignatureValue = HttpSignature.extractFields(actualSignatureHeader).get("signature");
+        assertEquals("Generated signature value does not match C.2 example", expectedC2SignatureValue,
+                     actualSignatureValue);
+
+        // C2 Signature should only have "(request-target), host, and date"
+        String actualHeadersField = HttpSignature.extractFields(actualSignatureHeader).get("headers");
+        assertEquals("Signed headers field is incorrect", expectedC2HeadersField, actualHeadersField.toLowerCase());
     }
 
     // Verifies Date, Host Header is added with correct values
@@ -360,9 +376,9 @@ class HttpSignatureServiceTest {
     @MockitoSettings(strictness = Strictness.LENIENT)
     @Test
     void verifySignature_InvalidSignatureValue_UsingC2Data_ShouldReturnFalse() {
-        URI uri = EXAMPLE_URI;
+        URI uri = example_uri;
         HttpHeaders c2Headers = new HttpHeaders();
-        c2Headers.addAll(EXAMPLE_HEADERS);
+        c2Headers.addAll(example_headers);
         String correctKeyId = "Test";
         String signatureHeaderWithInvalidSig = getString(correctKeyId);
         c2Headers.set("Signature", signatureHeaderWithInvalidSig);
@@ -425,7 +441,6 @@ class HttpSignatureServiceTest {
                 ClientRequest.create(method, TEST_TARGET_URI).header(HttpHeaders.HOST, TEST_TARGET_URI.getHost())
                         .body(Flux.just(dataBufferFactory.wrap(EXAMPLE_BODY)), DataBuffer.class).build();
 
-        System.out.println(originalRequest);
         Mono<ClientRequest> signedRequestMono =
                 httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID, EXAMPLE_BODY);
         ClientRequest signedRequest = signedRequestMono.block();
@@ -437,9 +452,10 @@ class HttpSignatureServiceTest {
         String actualKeyId = HttpSignature.extractKeyId(signatureHeaderValue);
         assertTrue(!actualKeyId.isEmpty());
 
+        Flux<DataBuffer> bodyFluxForVerification = Flux.just(dataBufferFactory.wrap(EXAMPLE_BODY));
         MockServerHttpRequest mockServerRequest =
                 MockServerHttpRequest.method(signedRequest.method(), signedRequest.url()).headers(signedHeaders)
-                        .build();
+                        .body(bodyFluxForVerification);
         MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
         doReturn(Mono.just(HARDCODED_PUBLIC_KEY)).when(httpSignatureService).fetchPublicKey(eq(actualKeyId));
 
