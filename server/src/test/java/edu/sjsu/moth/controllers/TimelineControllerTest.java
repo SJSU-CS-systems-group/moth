@@ -12,9 +12,6 @@ import edu.sjsu.moth.server.MothServerMain;
 import edu.sjsu.moth.server.controller.StatusController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.StatusRepository;
-import edu.sjsu.moth.server.db.TokenRepository;
-import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -46,10 +43,7 @@ public class TimelineControllerTest {
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
 
     final WebTestClient webTestClient;
-    final TokenRepository tokenRepository;
     final AccountRepository accountRepository;
-    final StatusService statusService;
-    final StatusRepository statusRepository;
 
     static {
         try {
@@ -64,14 +58,9 @@ public class TimelineControllerTest {
     }
 
     @Autowired
-    public TimelineControllerTest(WebTestClient webTestClient, TokenRepository tokenRepository,
-                                  AccountRepository accountRepository, StatusService statusService,
-                                  StatusRepository statusRepository) {
+    public TimelineControllerTest(WebTestClient webTestClient, AccountRepository accountRepository) {
         this.webTestClient = webTestClient;
-        this.tokenRepository = tokenRepository;
         this.accountRepository = accountRepository;
-        this.statusService = statusService;
-        this.statusRepository = statusRepository;
     }
 
     @AfterAll
@@ -90,11 +79,8 @@ public class TimelineControllerTest {
     @Test
     public void checkAutoWires() {
         Assertions.assertNotNull(webTestClient);
-        Assertions.assertNotNull(tokenRepository);
         Assertions.assertNotNull(accountRepository);
-        Assertions.assertNotNull(statusService);
     }
-
 
     private void prepareStatus() {
         String statusCreator = "test-user";
