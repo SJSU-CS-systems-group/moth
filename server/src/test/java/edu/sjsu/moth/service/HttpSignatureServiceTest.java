@@ -5,6 +5,7 @@ import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.service.HttpSignatureService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,16 +13,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.util.MultiValueMapAdapter;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -32,10 +35,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.time.Clock;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -51,6 +51,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.util.AssertionErrors.assertEquals;
 import static org.springframework.test.util.AssertionErrors.assertNotNull;
@@ -91,39 +97,39 @@ class HttpSignatureServiceTest {
             -----END PRIVATE KEY-----
             """;
     private static final PublicKey HARDCODED_PUBLIC_KEY = HttpSignature.pemToPublicKey(HARDCODED_PUBLIC_KEY_PEM);
-    private static final PrivateKey HARDCODED_PRIVATE_KEY = HttpSignature.pemToPrivateKey(HARDCODED_PRIVATE_KEY_PEM);
     private static final String TEST_ACCOUNT_ID = "testuser";
     private static final String TEST_SERVER_NAME = "test.server"; // Assuming this value
-    private static final String TEST_KEY_ID = "https://" + TEST_SERVER_NAME + "/users/" + TEST_ACCOUNT_ID + "#main-key";
-    private static final String REMOTE_ACTOR_URL = "https://remote.example/actor";
-    private static final String REMOTE_KEY_ID = REMOTE_ACTOR_URL + "#main-key";
+    private static final String EXPECTED_KEY_ID =
+            "https://" + TEST_SERVER_NAME + "/users/" + TEST_ACCOUNT_ID + "#main-key";
     private static final Pattern HEADERS_PATTERN = Pattern.compile("headers=\"([^\"]+)\"");
+    private static final URI TEST_TARGET_URI = URI.create("https://verify.example.com/inbox");
 
     private final DataBufferFactory dataBufferFactory = new DefaultDataBufferFactory();
-    private final Clock fixedClock = Clock.fixed(Instant.parse("2025-04-08T05:55:00Z"), ZoneOffset.UTC);
     @Mock
     private PubKeyPairRepository pubKeyPairRepository;
     @Mock
     private WebClient.Builder webClientBuilder;
     @Mock
     private WebClient webClient;
-    @Mock
-    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
-    @Mock
-    private WebClient.RequestHeadersSpec requestHeadersSpec;
-    @Mock
-    private WebClient.ResponseSpec responseSpec;
-    @Mock
-    private ServerWebExchange exchange;
-    @Mock
-    private ServerHttpRequest serverRequest;
     private HttpSignatureService httpSignatureService;
 
     @BeforeAll
     static void initMothConfig() throws IOException {
-        // grab MothConfiguration from integration test file
         String fullPath = HttpSignatureServiceTest.class.getResource("/test.cfg").getFile();
         new MothConfiguration(new File(fullPath));
+    }
+
+    private static @NotNull String getString(String correctKeyId) {
+        String correctSignedHeaders = "(request-target) host date";
+        String correctSignatureValue = "qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2" +
+                "+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv" +
+                "/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=";
+        String invalidSignatureValue = correctSignatureValue.replace("qdx", "xxx");
+
+        String signatureHeaderWithInvalidSig =
+                String.format("keyId=\"%s\",headers=\"%s\",signature=\"%s\"", correctKeyId, correctSignedHeaders,
+                              invalidSignatureValue);
+        return signatureHeaderWithInvalidSig;
     }
 
     @BeforeEach
@@ -131,7 +137,7 @@ class HttpSignatureServiceTest {
         when(webClientBuilder.defaultHeader(anyString(), any(String[].class))).thenReturn(webClientBuilder);
         when(webClientBuilder.build()).thenReturn(webClient);
 
-        this.httpSignatureService = new HttpSignatureService(pubKeyPairRepository, webClientBuilder);
+        httpSignatureService = spy(new HttpSignatureService(pubKeyPairRepository, webClientBuilder));
     }
 
     @Test
@@ -204,9 +210,7 @@ class HttpSignatureServiceTest {
                        "Signature headers should include (request-target)");
             assertTrue(signedHeadersList.contains("host"), "Signature headers should include host");
             assertTrue(signedHeadersList.contains("date"), "Signature headers should include date");
-            assertFalse(signedHeadersList.contains("digest"),
-                        "Signature headers should NOT include digest"); // THE KEY CHECK
-
+            assertFalse(signedHeadersList.contains("digest"), "Signature headers should NOT include digest");
             return true;
         }).verifyComplete();
     }
@@ -224,7 +228,7 @@ class HttpSignatureServiceTest {
      */
     // https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#appendix-C.2
     @Test
-    void signRequest_ShouldGenerateCorrectSignature() throws Exception {
+    void signRequest_ShouldGenerateCorrectSignature() {
         URI uri = EXAMPLE_URI;
         HttpHeaders initialHeaders = new HttpHeaders();
         initialHeaders.setAll(EXAMPLE_HEADERS.toSingleValueMap());
@@ -234,9 +238,8 @@ class HttpSignatureServiceTest {
         when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
 
         ClientRequest originalRequest = ClientRequest.create(HttpMethod.POST, URI.create(
-                "https://example.com" + uri.getPath() + "?" + uri.getQuery())).headers(h -> {
-            h.addAll(initialHeaders);
-        }).body(fluxBody, DataBuffer.class).build();
+                        "https://example.com" + uri.getPath() + "?" + uri.getQuery())).headers(h -> h.addAll(initialHeaders))
+                .body(fluxBody, DataBuffer.class).build();
         Mono<ClientRequest> signedRequestMono =
                 httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID, bodyBytes)
                         .doOnNext(signedRequest -> {
@@ -261,8 +264,7 @@ class HttpSignatureServiceTest {
         when(pubKeyPairRepository.findItemByAcct(accountId)).thenReturn(Mono.just(keyPair));
 
         ClientRequest originalRequest = ClientRequest.create(HttpMethod.GET, requestUri).build();
-        Mono<ClientRequest> signedRequestMono =
-                httpSignatureService.signRequest(originalRequest, accountId, null); // Body null for simplicity
+        Mono<ClientRequest> signedRequestMono = httpSignatureService.signRequest(originalRequest, accountId, null);
 
         StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
             HttpHeaders headers = signedRequest.headers();
@@ -305,30 +307,145 @@ class HttpSignatureServiceTest {
 
     @Test
     void signRequest_ShouldContainCorrectKeyId() {
-        // Arrange
         String accountId = TEST_ACCOUNT_ID;
         URI requestUri = URI.create("https://some.target.host/api/v1/resource");
-
-        // Define the expected keyId based on configuration and accountId
-        String expectedServerName = mothConfiguration.getServerName(); // Assumes @BeforeAll ran
+        String expectedServerName = mothConfiguration.getServerName();
         String expectedKeyId = "https://" + expectedServerName + "/users/" + accountId + "#main-key";
-
         PubKeyPair keyPair = new PubKeyPair(accountId, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
         when(pubKeyPairRepository.findItemByAcct(accountId)).thenReturn(Mono.just(keyPair));
 
         ClientRequest originalRequest =
                 ClientRequest.create(HttpMethod.GET, requestUri).header(HttpHeaders.HOST, requestUri.getHost()).build();
         Mono<ClientRequest> signedRequestMono = httpSignatureService.signRequest(originalRequest, accountId, null);
-
         StepVerifier.create(signedRequestMono).expectNextMatches(signedRequest -> {
             HttpHeaders headers = signedRequest.headers();
             String signatureHeaderValue = headers.getFirst("Signature");
-
             String expectedKeyIdParam = "keyId=\"" + expectedKeyId + "\"";
             assertTrue(signatureHeaderValue.contains(expectedKeyIdParam),
                        "Signature header should contain correct keyId parameter");
-
             return true;
         }).verifyComplete();
     }
+
+    @Test
+    void verifySignature_MissingSignatureHeader_ShouldReturnFalse() {
+        // https://stackoverflow.com/questions/47878963/mockito-fails-with-inlined-mocks-enabled-with-invalid-paramter-name-exception
+        MockServerHttpRequest mockServerRequest = MockServerHttpRequest.get(TEST_TARGET_URI.toString()).build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+
+        StepVerifier.create(verificationResultMono).expectNext(false).verifyComplete();
+
+        verify(httpSignatureService, never()).fetchPublicKey(anyString());
+    }
+
+    @Test
+    void verifySignature_InvalidSignatureValue_ShouldReturnFalse() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.DATE, HttpSignatureService.formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC)));
+        headers.add(HttpHeaders.HOST, TEST_TARGET_URI.getHost());
+        String signatureHeader = "keyId=\"" + EXPECTED_KEY_ID +
+                "\",headers=\"(request-target) host date\",signature=\"invalidsignaturevalue\"";
+        headers.add("Signature", signatureHeader);
+
+        MockServerHttpRequest mockServerRequest =
+                MockServerHttpRequest.get(TEST_TARGET_URI.toString()).headers(headers).build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+
+        doReturn(Mono.just(HARDCODED_PUBLIC_KEY)).when(httpSignatureService).fetchPublicKey(eq(EXPECTED_KEY_ID));
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+        StepVerifier.create(verificationResultMono).expectNext(false).verifyComplete();
+    }
+
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    @Test
+    void verifySignature_InvalidSignatureValue_UsingC2Data_ShouldReturnFalse() {
+        URI uri = EXAMPLE_URI;
+        HttpHeaders c2Headers = new HttpHeaders();
+        c2Headers.addAll(EXAMPLE_HEADERS);
+        String correctKeyId = "Test";
+        String signatureHeaderWithInvalidSig = getString(correctKeyId);
+        c2Headers.set("Signature", signatureHeaderWithInvalidSig);
+
+        URI fullRequestUri = URI.create("https://example.com" + uri);
+        MockServerHttpRequest mockServerRequest =
+                MockServerHttpRequest.post(fullRequestUri.toString()).headers(c2Headers).build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+        doReturn(Mono.just(HARDCODED_PUBLIC_KEY)).when(httpSignatureService).fetchPublicKey(eq(correctKeyId));
+
+        // https://stackoverflow.com/questions/20551926/exception-mockito-wanted-but-not-invoked-actually-there-were-zero-interaction
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+        StepVerifier.create(verificationResultMono).expectNext(false).verifyComplete();
+    }
+
+    @Test
+    void verifySignature_ExpiredDateHeader_ShouldReturnFalse() {
+        HttpHeaders headers = new HttpHeaders();
+        String expiredDate = HttpSignatureService.formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC).minusHours(25));
+        headers.add(HttpHeaders.DATE, expiredDate);
+        headers.add(HttpHeaders.HOST, TEST_TARGET_URI.getHost());
+        String signatureHeader =
+                "keyId=\"" + EXPECTED_KEY_ID + "\",headers=\"(request-target) host date\",signature=\"placeholder\"";
+        headers.add("Signature", signatureHeader);
+
+        MockServerHttpRequest mockServerRequest =
+                MockServerHttpRequest.get(TEST_TARGET_URI.toString()).headers(headers).build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+        StepVerifier.create(verificationResultMono).expectNext(false).verifyComplete();
+
+        verify(httpSignatureService, never()).fetchPublicKey(anyString());
+    }
+
+    @Test
+    void verifySignature_FetchPublicKeyFails_ShouldReturnFalse() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.DATE, HttpSignatureService.formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC)));
+        headers.add(HttpHeaders.HOST, TEST_TARGET_URI.getHost());
+        String signatureHeader = "keyId=\"" + EXPECTED_KEY_ID +
+                "\",headers=\"(request-target) host date\",signature=\"validlooking\""; // signature value doesn't
+        headers.add("Signature", signatureHeader);
+
+        MockServerHttpRequest mockServerRequest =
+                MockServerHttpRequest.get(TEST_TARGET_URI.toString()).headers(headers).build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+
+        doReturn(Mono.empty()).when(httpSignatureService).fetchPublicKey(eq(EXPECTED_KEY_ID));
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+        StepVerifier.create(verificationResultMono).expectNext(false).verifyComplete();
+        verify(httpSignatureService, times(1)).fetchPublicKey(eq(EXPECTED_KEY_ID));
+    }
+
+    @Test
+    void signThenVerify_HappyPath_WithBody() {
+        HttpMethod method = HttpMethod.POST;
+        when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(
+                Mono.just(new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM)));
+        ClientRequest originalRequest =
+                ClientRequest.create(method, TEST_TARGET_URI).header(HttpHeaders.HOST, TEST_TARGET_URI.getHost())
+                        .body(Flux.just(dataBufferFactory.wrap(EXAMPLE_BODY)), DataBuffer.class).build();
+
+        System.out.println(originalRequest);
+        Mono<ClientRequest> signedRequestMono =
+                httpSignatureService.signRequest(originalRequest, TEST_ACCOUNT_ID, EXAMPLE_BODY);
+        ClientRequest signedRequest = signedRequestMono.block();
+        assertNotNull(String.valueOf(signedRequest), "Signed request mono resolved to null");
+        HttpHeaders signedHeaders = signedRequest.headers();
+        assertTrue(signedHeaders.containsKey("Signature"), "Signature header should be present after signing");
+        assertTrue(signedHeaders.containsKey("Digest"), "Digest header should be present for POST with body");
+        String signatureHeaderValue = signedHeaders.getFirst("Signature");
+        String actualKeyId = HttpSignature.extractKeyId(signatureHeaderValue);
+        assertTrue(!actualKeyId.isEmpty());
+
+        MockServerHttpRequest mockServerRequest =
+                MockServerHttpRequest.method(signedRequest.method(), signedRequest.url()).headers(signedHeaders)
+                        .build();
+        MockServerWebExchange mockExchange = MockServerWebExchange.from(mockServerRequest);
+        doReturn(Mono.just(HARDCODED_PUBLIC_KEY)).when(httpSignatureService).fetchPublicKey(eq(actualKeyId));
+
+        Mono<Boolean> verificationResultMono = httpSignatureService.verifySignature(mockExchange);
+        StepVerifier.create(verificationResultMono).expectNext(true) // Expect successful verification
+                .verifyComplete();
+    }
+
 }

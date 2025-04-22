@@ -35,7 +35,16 @@ public class HttpSignatureService {
     public HttpSignatureService(PubKeyPairRepository pubKeyPairRepository, WebClient.Builder webClientBuilder) {
         this.pubKeyPairRepository = pubKeyPairRepository;
         this.webClient = webClientBuilder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
-        this.serverName = MothConfiguration.mothConfiguration.getServerName();
+        this.serverName = MothConfiguration.getServerName();
+    }
+
+    // format date
+    // https://stackoverflow.com/questions/45829799/java-time-format-datetimeformatter-rfc-1123-date-time-fails-to-parse-time-zone-n
+    // RFC 1123 = HTTP Date Format (https://github.com/mastodon/mastodon/blob/main/app/lib/request.rb)
+    public static String formatHttpDate(ZonedDateTime dateTime) {
+        return DateTimeFormatter.RFC_1123_DATE_TIME.format(dateTime);
+        // TODO : lookup for the edge cases (https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html)
+        // TODO : move to HttpSignature class?
     }
 
     public Mono<ClientRequest> signRequest(ClientRequest request, String accountId, @Nullable byte[] body) {
@@ -179,14 +188,5 @@ public class HttpSignatureService {
             log.warn("Invalid date format: " + dateHeader, e);
             return false;
         }
-    }
-
-    // format date
-    // https://stackoverflow.com/questions/45829799/java-time-format-datetimeformatter-rfc-1123-date-time-fails-to-parse-time-zone-n
-    // RFC 1123 = HTTP Date Format (https://github.com/mastodon/mastodon/blob/main/app/lib/request.rb)
-    private String formatHttpDate(ZonedDateTime dateTime) {
-        return DateTimeFormatter.RFC_1123_DATE_TIME.format(dateTime);
-        // TODO : lookup for the edge cases (https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html)
-        // TODO : move to HttpSignature class?
     }
 }
