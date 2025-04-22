@@ -35,7 +35,7 @@ public class HttpSignatureService {
     public HttpSignatureService(PubKeyPairRepository pubKeyPairRepository, WebClient.Builder webClientBuilder) {
         this.pubKeyPairRepository = pubKeyPairRepository;
         this.webClient = webClientBuilder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
-        this.serverName = MothConfiguration.getServerName();
+        this.serverName = MothConfiguration.mothConfiguration.getServerName();
     }
 
     // format date
