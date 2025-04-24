@@ -14,6 +14,8 @@ import edu.sjsu.moth.server.MothServerMain;
 import edu.sjsu.moth.server.controller.StatusController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.Follow;
+import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.StatusService;
@@ -54,7 +56,7 @@ public class StatusControllerTest {
     final AccountRepository accountRepository;
     final StatusService statusService;
     final StatusRepository statusRepository;
-
+    final FollowRepository followRepository;
     static {
         try {
             var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
@@ -70,12 +72,13 @@ public class StatusControllerTest {
     @Autowired
     public StatusControllerTest(WebTestClient webTestClient, TokenRepository tokenRepository,
                                 AccountRepository accountRepository, StatusService statusService,
-                                StatusRepository statusRepository) {
+                                StatusRepository statusRepository, FollowRepository followRepository) {
         this.webTestClient = webTestClient;
         this.tokenRepository = tokenRepository;
         this.accountRepository = accountRepository;
         this.statusService = statusService;
         this.statusRepository = statusRepository;
+        this.followRepository = followRepository;
     }
 
     @AfterAll
@@ -151,4 +154,38 @@ public class StatusControllerTest {
         Assertions.assertEquals(1, status.mentions.size());
         Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
     }
+
+    @Test
+    public void testHomefeed() {
+        String HOMEFEED_END_POINT = "/api/v1/timelines/home";
+        prepareStatusHomeFeed();
+        accountRepository.save(new Account("test-fetch")).block();
+        followRepository.save(new Follow("test-fetch", "test-creator")).block();
+        // Mock the authentication
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
+                .get()
+                .uri(HOMEFEED_END_POINT)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(3);
+    }
+
+    private void prepareStatusHomeFeed() {
+        String statusCreator = "test-creator";
+        accountRepository.save(new Account(statusCreator)).block();
+
+        StatusController.V1PostStatus request;
+        String[] visibilities = { "public", "unlisted", "private", "direct" };
+        for (String visibility : visibilities) {
+            request = new StatusController.V1PostStatus();
+            request.status = String.format("This is a %s status", visibility);
+            request.visibility = visibility;
+
+            webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", statusCreator))).post()
+                    .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange()
+                    .expectStatus().isOk();
+        }
+    }
+
 }

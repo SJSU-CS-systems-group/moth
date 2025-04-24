@@ -94,6 +94,7 @@ public class StatusService {
             A more efficient regex can be found here
             https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
          */
+        LOG.finest("Status visibility: " + status.visibility);
         for (String s : accountsmentioned) {
             String[] tokens = s.split("@");
             if (tokens.length > 2) {
@@ -167,12 +168,9 @@ public class StatusService {
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                //.switchIfEmpty(Mono.fromRunnable(() -> System.out.println("No status found")))
-                //.doOnNext(x -> System.out.println("before filter: " + x))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline));
-        //.doOnNext(x -> System.out.println("after filter: " + x)).take(limit);
+                .flatMap(status -> visibilityService.homefeedViewable(user, status));
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
