@@ -2,6 +2,7 @@ package edu.sjsu.moth.util;
 
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.http.HttpHeaders;
+import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.net.URI;
@@ -68,13 +69,17 @@ public class HttpSignature {
                 String sigLine =
                         generateSignatureHeader(request.method().name(), request.url(), request.headers(), headers,
                                                 signingKey, keyUri);
-                request.headers().add("Signature", sigLine);
+                //Cannot update an existing request once it is created to add a new header, so creating a new request
+                ClientRequest newRequest =
+                        ClientRequest.from(request).headers(h -> h.add("Signature", sigLine)).build();
+
+                return next.exchange(newRequest);
+
             } catch (InvalidKeyException | SignatureException e) {
                 log.error("couldn't sign request", e);
+                return next.exchange(request); // fallback without signature
             }
-            return next.exchange(request);
         });
-
         return clientBuilder;
     }
 
