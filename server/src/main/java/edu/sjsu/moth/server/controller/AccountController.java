@@ -8,6 +8,7 @@ import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.FollowService;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -42,8 +43,12 @@ public class AccountController {
     @Autowired
     private final AccountService accountService;
 
-    public AccountController(AccountService accountService) {
+    @Autowired
+    private final FollowService followService;
+
+    public AccountController(AccountService accountService,FollowService followService) {
         this.accountService = accountService;
+        this.followService = followService;
     }
 
     @PatchMapping(value = "/api/v1/accounts/update_credentials", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
@@ -165,10 +170,19 @@ public class AccountController {
         return Mono.just(new ArrayList<Account>());
     }
 
+    //Follow request sent out to other instances/ other users
     @PostMapping("/api/v1/accounts/{id}/follow")
     public Mono<ResponseEntity<Relationship>> followUser(@PathVariable("id") String followedId, Principal user) {
 
-        return accountService.getAccountById(user.getName()).flatMap(a -> accountService.followUser(a.id, followedId))
+        return accountService.getAccountById(user.getName()).flatMap(a -> followService.followUser(a.id, followedId))
+                .map(ResponseEntity::ok);
+    }
+
+    //Follow request sent out to other instances/ other users
+    @PostMapping("/api/v1/accounts/{id}/unfollow")
+    public Mono<ResponseEntity<Relationship>> unfollowUser(@PathVariable("id") String followedId, Principal user) {
+
+        return accountService.getAccountById(user.getName()).flatMap(a -> followService.unfollowUser(a.id, followedId))
                 .map(ResponseEntity::ok);
     }
 

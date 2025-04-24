@@ -60,6 +60,9 @@ public class AccountService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private HttpSignatureService httpSignatureService;
+
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
         return new PubKeyPair(acct, pair.pubKey(), pair.privKey());
@@ -104,21 +107,23 @@ public class AccountService {
     }
 
     public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
-        String follower = inboxNode.get("actor").asText();
         switch (requestType) {
             case "Follow" -> {
+                String follower = inboxNode.get("actor").asText();
                 //To test this send a follow request from another mastodon app
+                //follower is the person who sent the follow request
                 var follow = new Follow(follower, id);
-                var domain = MothConfiguration.mothConfiguration.getServerName();
-                String targetDomain;
+                var myDomain = MothConfiguration.mothConfiguration.getServerName();
+                String followerDomain;
                 try {
-                    targetDomain = new URL(follower).getHost();
+                    //The domain of the person who sent the follow request
+                    followerDomain = new URL(follower).getHost();
                 } catch (MalformedURLException e) {
                     return Mono.error(new RuntimeException("Error: Malformed actor URL"));
                 }
-                if (!targetDomain.equals(domain)) {
+                if (!followerDomain.equals(myDomain)) {
                     // Compose this Mono into the flow so it actually runs
-                    return sendAcceptMessage(inboxNode, id, domain, targetDomain).then(
+                    return sendAcceptMessage(inboxNode, id, myDomain, followerDomain).then(
                             accountRepository.findItemByAcct(id).switchIfEmpty(
                                             Mono.error(new RuntimeException("Error: User account does not exist")))
                                     .flatMap(account -> {
@@ -166,16 +171,16 @@ public class AccountService {
 
     //This is to send an accept message to the follower server, so that they know the request has been accepted
     // otherwise it will be in a pending state
-    public Mono<Void> sendAcceptMessage(JsonNode body, String name, String domain, String targetDomain) {
+    public Mono<Void> sendAcceptMessage(JsonNode body, String id, String mydomain, String followerDomain) {
         String uuid = UUID.randomUUID().toString();
-        String messageId = "https://" + domain + "/" + uuid;
-        String actorUrl = "https://" + domain + "/users/" + name;
-
+        //Message UUID to differentiate one message from other
+        String messageId = String.format("https://%s/%s", mydomain, uuid);
+        //My profile URL
+        String actorUrl = String.format("https://%s/users/%s", mydomain, id);
         AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
-        return getPrivateKey(name, true).flatMap(privKey -> signAndSend(message, name, domain, targetDomain,
-                                                                        message.get("object").get("actor").asText() +
-                                                                                "/inbox", privKey));
+        return getPrivateKey(id, true)
+                .flatMap(privKey -> signAndSend(message, actorUrl,followerDomain,message.get("object").get("actor").asText() + "/inbox",privKey));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
@@ -228,12 +233,7 @@ public class AccountService {
         }
     }
 
-    public Mono<Follow> saveFollow(String followerId, String followedId) {
-        return followRepository.findIfFollows(followerId, followedId).switchIfEmpty(Mono.defer(() -> {
-            Follow follow = new Follow(followerId, followedId);
-            return followRepository.save(follow);
-        }));
-    }
+
 
     public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
@@ -265,14 +265,6 @@ public class AccountService {
                                 })));
     }
 
-    public Mono<Relationship> followUser(String followerId, String followedId) {
-        var followResult = saveFollow(followerId, followedId);
-        return followResult.flatMap(followStatus -> followRepository.findIfFollows(followedId, followerId)
-                .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false, false, false,
-                                                false, false, false, "")).switchIfEmpty(Mono.just(
-                        new Relationship(followerId, true, false, false, false, false, false, false, false, false,
-                                         false, false, false, ""))));
-    }
 
     public Mono<Relationship> checkRelationship(String followerId, String followedId) {
         var followed = followRepository.findIfFollows(followerId, followedId).hasElement();
