@@ -212,7 +212,7 @@ public class HttpSignatureService {
         // ONLY "SHA-256=value", might need to add
         String digestHeaderValue = headers.getFirst("Digest");
         String expectedValueBase64;
-        assert digestHeaderValue != null;
+        if (digestHeaderValue == null) return Mono.just(false);
         String[] parts = digestHeaderValue.trim().split("=", 2); // Split into max 2 parts
 
         // Check format and algorithm in digest header
@@ -292,7 +292,7 @@ public class HttpSignatureService {
                 }
                 PublicKey publicKey = HttpSignature.pemToPublicKey(publicKeyPem);
 
-                assert publicKey != null;
+                if (publicKey == null) return Mono.empty();
                 return Mono.just(publicKey);
             } catch (Exception e) {
                 log.error("Error extracting public key from actor", e);
