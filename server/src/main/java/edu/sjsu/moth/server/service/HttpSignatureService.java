@@ -33,7 +33,7 @@ import java.util.Objects;
 @CommonsLog
 public class HttpSignatureService {
     private static final int TIMESTAMP_TOLERANCE_SECONDS = 12 * 60 * 60; // TODO : should be configurable
-    private static final long PUBLIC_KEY_CACHE_TTL_SECONDS = 300; // 5 minutes
+    private static final int SHA256_DIGEST_LENGTH_BYTES = 32;
     private final PubKeyPairRepository pubKeyPairRepository;
     private final WebClient webClient;
     private final String serverName;
@@ -73,7 +73,7 @@ public class HttpSignatureService {
                     HttpSignature.addDigest(headers, body);
                     headersToSign.add("digest");
                 }
-                // TODO Add Digest (C3) (recommended)created, (optional) expires
+                // TODO Add (recommended) created, (optional) expires
                 // TODO algorithm? as metadata?
                 PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
                 String keyId = "https://" + serverName + "/users/" + accountId + "#main-key"; //
@@ -173,7 +173,7 @@ public class HttpSignatureService {
 
         // Digest verification
         // https://github.com/mastodon/mastodon/blob/main/app/controllers/concerns/signature_verification.rb#L123C7-L123C25
-        Mono<Boolean> digestCheckResult = null;
+        Mono<Boolean> digestCheckResult;
         if (headersToVerifyList.contains("digest")) {
             String digestHeaderValue = headers.getFirst("Digest");
             if (digestHeaderValue == null || digestHeaderValue.isBlank()) {
@@ -211,7 +211,8 @@ public class HttpSignatureService {
     private Mono<Boolean> checkRequestDigest(ServerWebExchange exchange, HttpHeaders headers) {
         // ONLY "SHA-256=value", might need to add
         String digestHeaderValue = headers.getFirst("Digest");
-        String expectedValueBase64 = null;
+        String expectedValueBase64;
+        assert digestHeaderValue != null;
         String[] parts = digestHeaderValue.trim().split("=", 2); // Split into max 2 parts
 
         // Check format and algorithm in digest header
@@ -226,7 +227,7 @@ public class HttpSignatureService {
         byte[] decodedDigestBytes;
         try {
             decodedDigestBytes = Base64.getDecoder().decode(expectedValueBase64);
-            if (decodedDigestBytes.length != 32) {
+            if (decodedDigestBytes.length != SHA256_DIGEST_LENGTH_BYTES) {
                 log.warn("Invalid Digest value. Decoded value length is not 32 bytes (SHA-256). Header value: " +
                                  expectedValueBase64);
                 return Mono.just(false);
@@ -291,6 +292,7 @@ public class HttpSignatureService {
                 }
                 PublicKey publicKey = HttpSignature.pemToPublicKey(publicKeyPem);
 
+                assert publicKey != null;
                 return Mono.just(publicKey);
             } catch (Exception e) {
                 log.error("Error extracting public key from actor", e);
