@@ -188,7 +188,6 @@ public class StatusService {
         return Flux.merge(external, internal).collectList();
     }
 
-
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,
                                               String min_id) {
         Path<ObjectId> statusIdPath = Expressions.path(ObjectId.class, QStatus.status.id.getMetadata());
