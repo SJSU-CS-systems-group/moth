@@ -56,6 +56,6 @@ public class TimelineController {
                                                              @RequestParam(required = false) String min_id,
                                                              @RequestParam(required = false, defaultValue = "20")
                                                              int limit) {
-        return statusService.getTimeline(user, max_id, since_id, min_id, limit, false).map(ResponseEntity::ok);
+        return statusService.getPublicTimeline(user, max_id, since_id, min_id, limit).map(ResponseEntity::ok);
     }
 }
