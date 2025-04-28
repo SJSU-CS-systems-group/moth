@@ -156,22 +156,22 @@ public class StatusControllerTest {
     }
 
     @Test
-    public void testHomefeed() {
-        String HOMEFEED_END_POINT = "/api/v1/timelines/home";
-        prepareStatusHomeFeed();
+    public void testHomeFeedVisibility() {
+        String HOME_FEED_END_POINT = "/api/v1/timelines/home";
+        prepareStatusForHomeFeedVisibility();
         accountRepository.save(new Account("test-fetch")).block();
         followRepository.save(new Follow("test-fetch", "test-creator")).block();
         // Mock the authentication
         webTestClient
                 .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
                 .get()
-                .uri(HOMEFEED_END_POINT)
+                .uri(HOME_FEED_END_POINT)
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(3);
     }
 
-    private void prepareStatusHomeFeed() {
+    private void prepareStatusForHomeFeedVisibility() {
         String statusCreator = "test-creator";
         accountRepository.save(new Account(statusCreator)).block();
 
