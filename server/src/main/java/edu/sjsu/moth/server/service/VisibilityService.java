@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.service;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.FollowRepository;
+import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -10,13 +11,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
-import java.util.Objects;
-import java.util.logging.Logger;
 
 @Service
+@CommonsLog
 public class VisibilityService {
-    Logger LOG = Logger.getLogger(VisibilityService.class.getName());
-
     @Autowired
     AccountService accountService;
 
@@ -56,7 +54,4 @@ public class VisibilityService {
             default -> false;
         };
     }
-
-    public boolean profileViewable(Principal user, Status status) { return false; };
-    public boolean permalinkViewable(Principal user, Status status) { return false; };
 }
