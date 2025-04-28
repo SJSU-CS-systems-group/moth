@@ -169,10 +169,7 @@ public class StatusService {
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                //.switchIfEmpty(Mono.fromRunnable(() -> System.out.println("No status found")))
-                //.doOnNext(x -> System.out.println("before filter: " + x))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline));
-        //.doOnNext(x -> System.out.println("after filter: " + x)).take(limit);
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -185,7 +182,7 @@ public class StatusService {
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status));
+                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
