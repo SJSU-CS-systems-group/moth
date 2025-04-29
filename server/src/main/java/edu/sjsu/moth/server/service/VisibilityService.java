@@ -11,14 +11,20 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
-import java.util.logging.Logger;
 
 @Service
 @CommonsLog
 public class VisibilityService {
+    @Autowired
+    AccountService accountService;
+
+    @Autowired
+    FollowRepository followRepository;
+
     final String PUBLIC_VISIBILITY = "public";
     final String QUITE_PUBLIC = "unlisted";
     final String DIRECT_VISIBILITY = "direct";
+    final String PRIVATE_VISIBILITY = "private";
 
 
     public Flux<Status> publicTimelinesViewable(Status status) {
@@ -26,4 +32,26 @@ public class VisibilityService {
         return Flux.empty();
     }
 
+    public Flux<Status> homefeedViewable(Principal user, Status status) {
+        return accountService
+                .getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found")))
+                .flatMapMany(account -> followRepository.findAllByFollowerId(account.id).flatMap(
+                        follow -> {
+                                if (follow.id.followed_id.equals(status.account.id)
+                                        && validHomeFeedVisibility(status.visibility)) {
+                                    return Flux.just(status);
+                                }
+                                return Flux.empty();
+                            }
+                        )
+                );
+    }
+
+    private boolean validHomeFeedVisibility(String visibility) {
+        return switch (visibility) {
+            case PUBLIC_VISIBILITY, PRIVATE_VISIBILITY, QUITE_PUBLIC -> true;
+            default -> false;
+        };
+    }
 }
