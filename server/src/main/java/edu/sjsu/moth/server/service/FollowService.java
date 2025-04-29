@@ -27,9 +27,9 @@ public class FollowService {
     }
 
     public Mono<Relationship> unfollowUser(String followerId, String followedId) {
-        var followResult = saveFollow(followerId, followedId);
+        var followResult = removeFollow(followerId, followedId);
         return followResult.flatMap(followStatus -> followRepository.findIfFollows(followedId, followerId)
-                .map(follow -> new Relationship(followerId, false, false, false, false, false, false, false, false, false,
+                .map(follow -> new Relationship(followerId, false, false, false, true, false, false, false, false, false,
                                                 false, false, false, "")).switchIfEmpty(Mono.just(
                         new Relationship(followerId, false, false, false, false, false, false, false, false, false,
                                          false, false, false, ""))));
@@ -41,5 +41,11 @@ public class FollowService {
             Follow follow = new Follow(followerId, followedId);
             return followRepository.save(follow);
         }));
+    }
+
+    public Mono<Boolean> removeFollow(String followerId, String followedId) {
+        return followRepository.findIfFollows(followerId, followedId)
+                .flatMap(follow -> followRepository.delete(follow).thenReturn(true))
+                .switchIfEmpty(Mono.just(false));
     }
 }
