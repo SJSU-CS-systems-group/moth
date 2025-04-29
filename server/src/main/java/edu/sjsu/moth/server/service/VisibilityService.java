@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.service;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.FollowRepository;
+import edu.sjsu.moth.server.db.StatusMention;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -53,5 +54,39 @@ public class VisibilityService {
             case PUBLIC_VISIBILITY, PRIVATE_VISIBILITY, QUITE_PUBLIC -> true;
             default -> false;
         };
+    }
+
+    public Flux<Status> profileViewable(Principal user, Status status) {
+        if (status.visibility.equals(PUBLIC_VISIBILITY) || status.visibility.equals(QUITE_PUBLIC)) {
+            return Flux.just(status);
+        }
+
+        return accountService
+                .getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found")))
+                .flatMapMany(account -> {
+                    if (status.account.id.equals(account.id)) {
+                        return Flux.just(status);
+                    }
+
+                    if (status.visibility.equals(DIRECT_VISIBILITY)) {
+                        for (StatusMention mention : status.mentions) {
+                            if (mention.id.equals(account.id)) {
+                                return Flux.just(status);
+                            }
+                        }
+                        return Flux.empty();
+                    }
+
+                    if (status.visibility.equals(PRIVATE_VISIBILITY)) {
+                        return followRepository.findAllByFollowerId(account.id).flatMap(follow -> {
+                            if (follow.id.followed_id.equals(status.account.id)) {
+                                return Flux.just(status);
+                            }
+                            return Flux.empty();
+                        });
+                    }
+                    return Flux.empty();
+                });
     }
 }

@@ -201,7 +201,7 @@ public class StatusService {
         return predicate;
     }
 
-    public Mono<List<Status>> getStatusesForId(String username, String max_id, String since_id, String min_id,
+    public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id, String min_id,
                                                Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
                                                Boolean pinned, String tagged, Integer limit) {
         var acct = new QStatus("account.acct");
@@ -219,7 +219,11 @@ public class StatusService {
 
         // now apply the limit
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
-        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
+        return statusRepository
+                .findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.profileViewable(user, status))
+                .take(count)
+                .collectList();
     }
 
     public Flux<Status> getAllStatuses(int offset, int limit) {
