@@ -172,7 +172,7 @@ public class StatusController {
                                                              @RequestParam(required = false) String min_id,
                                                              @RequestParam(required = false, defaultValue = "20")
                                                              int limit) {
-        return statusService.getTimeline(user, max_id, since_id, min_id, limit, true).map(ResponseEntity::ok);
+        return statusService.getHomeTimeline(user, max_id, since_id, min_id, limit, true).map(ResponseEntity::ok);
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses

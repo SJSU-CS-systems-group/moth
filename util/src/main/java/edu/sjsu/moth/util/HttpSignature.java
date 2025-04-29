@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,8 @@ public class HttpSignature {
     public static final String REQUEST_TARGET = "(request-target)";
     static public final Pattern HTTP_HEADER_FIELDS_PATTERN =
             Pattern.compile("(?<key>\\p{Alnum}+)=\"(?<value>([^\"])*)\"");
+    static public final Pattern KEY_ID_PATTERN = Pattern.compile("keyId=\"([^\"]+)\"");
+    static public final Pattern SIGNATURE_PATTERN = Pattern.compile("signature=\"([^\"]+)\"");
 
     public static Signature newSigner() {
         try {
@@ -148,6 +151,23 @@ public class HttpSignature {
             map.put(match.group("key"), match.group("value"));
         }
         return map;
+    }
+
+    public static String extractKeyId(String headerValue) {
+        if (headerValue == null) {
+            return null;
+        }
+        var matcher = KEY_ID_PATTERN.matcher(headerValue);
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return null;
+        }
+    }
+
+    public static String extractSignature(String headerValue) {
+        Matcher matcher = SIGNATURE_PATTERN.matcher(headerValue);
+        return matcher.find() ? matcher.group(1) : null;
     }
 
     public static void addDigest(HttpHeaders headers, byte[] body) {
