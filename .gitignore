@@ -3,4 +3,6 @@
 .idea/misc.xml
 .idea/uiDesigner.xml
 .idea/google-java-format.xml
-*/.DS_Store
+# Ignore .DS_Store files everywhere
+.DS_Store
+**/.DS_Store
