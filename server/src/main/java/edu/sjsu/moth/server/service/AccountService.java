@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static edu.sjsu.moth.server.util.Util.signAndSend;
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
 /**
@@ -61,7 +60,7 @@ public class AccountService {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private HttpSignatureService httpSignatureService;
+    private ActivityPubService activityPubService;
 
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
@@ -179,8 +178,7 @@ public class AccountService {
         String actorUrl = String.format("https://%s/users/%s", mydomain, id);
         AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
-        return getPrivateKey(id, true)
-                .flatMap(privKey -> signAndSend(message, actorUrl,followerDomain,message.get("object").get("actor").asText() + "/inbox",privKey));
+        return activityPubService.sendSignedActivity(message, id, body.get("actor").asText() + "/inbox");
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
