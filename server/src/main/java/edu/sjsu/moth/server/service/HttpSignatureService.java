@@ -55,46 +55,42 @@ public class HttpSignatureService {
         return RFC_1123_COMPLIANT_FORMATTER.format(dateTime);
     }
 
-    public Mono<ClientRequest> signRequest(ClientRequest request, String accountId, @Nullable byte[] body) {
-        return pubKeyPairRepository.findItemByAcct(accountId).flatMap(keyPair -> {
+    public Mono<HttpHeaders> prepareSignedHeaders(HttpMethod method, String sendingActorId, URI targetUri,
+                                                  byte[] bodyBytes) {
+        return pubKeyPairRepository.findItemByAcct(sendingActorId).switchIfEmpty(
+                        Mono.error(() -> new RuntimeException("Private key not found for actor: " + sendingActorId)))
+                .handle((keyPair, sink) -> {
             try {
+                        PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
+                        String keyId = "https://" + serverName + "/users/" + sendingActorId + "#main-key";
+                        String targetHost = targetUri.getHost();
+                        if (targetHost == null) {
+                            sink.error(new IllegalArgumentException("Invalid target URI host in " + targetUri));
+                            return;
+                        }
 
-                // mutable headers (https://stackoverflow.com/questions/53071229/httpclient-what-is-the-difference-between-setheader-and-addheader)
-                HttpHeaders headers = HttpHeaders.writableHttpHeaders(request.headers());
-                if (!headers.containsKey(HttpHeaders.DATE)) {
-                    headers.set(HttpHeaders.DATE, formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC)));
-                }
-                if (!headers.containsKey(HttpHeaders.HOST)) {
-                    headers.set(HttpHeaders.HOST, request.url().getHost());
-                }
-                // Add Digest header for requests with body
-                List<String> headersToSign = new ArrayList<>(this.headersToSign);
-                if (body != null && body.length > 0) {
-                    HttpSignature.addDigest(headers, body);
+                        HttpHeaders headers = new HttpHeaders();
+                        String httpDate = formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC));
+                        headers.setDate(ZonedDateTime.parse(httpDate, RFC_1123_COMPLIANT_FORMATTER));
+                        headers.set(HttpHeaders.HOST, targetHost);
+                        headers.setAccept(List.of(MediaType.valueOf("application/activity+json"), MediaType.valueOf(
+                                "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")));
+                        List<String> headersToSign = new ArrayList<>(baseHeadersToSign); // Start with base
+                        if (method == HttpMethod.POST) {
+                            headers.setContentType(MediaType.valueOf(
+                                    "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""));
+                            HttpSignature.addDigest(headers, bodyBytes != null ? bodyBytes : new byte[0]);
                     headersToSign.add("digest");
                 }
-                // TODO Add (recommended) created, (optional) expires
-                // TODO algorithm? as metadata?
-                PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
-                String keyId = "https://" + serverName + "/users/" + accountId + "#main-key"; //
-                String signatureHeader =
-                        HttpSignature.generateSignatureHeader(request.method().name(), request.url(), headers,
-                                                              headersToSign, privateKey, keyId);
-                headers.set("Signature", signatureHeader);
-
-                // build a new ClientRequest with updated headers
-                ClientRequest.Builder newRequestBuilder = ClientRequest.from(request).headers(h -> {
-                    h.clear();
-                    h.addAll(headers);
-                });
-
-                ClientRequest signedClientRequest = newRequestBuilder.build();
-                return Mono.just(signedClientRequest);
+                        String signatureHeaderValue =
+                                HttpSignature.generateSignatureHeader(method.name(), targetUri, headers, headersToSign,
+                                                                      privateKey, keyId);
+                        headers.set("Signature", signatureHeaderValue);
+                        sink.next(headers);
             } catch (Exception e) {
-                log.error("Error during request signing", e);
-                return Mono.just(request); // Return original request if process fails
+                        sink.error(new RuntimeException("Failed to prepare signed headers", e));
             }
-        }).defaultIfEmpty(request); // Return original request if key not found
+                });
     }
 
     // https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/controllers/concerns/signature_verification.rb
