@@ -34,6 +34,8 @@ import java.util.Objects;
 public class HttpSignatureService {
     private static final int TIMESTAMP_TOLERANCE_SECONDS = 12 * 60 * 60; // TODO : should be configurable
     private static final int SHA256_DIGEST_LENGTH_BYTES = 32;
+    private static final DateTimeFormatter RFC_1123_COMPLIANT_FORMATTER =
+            DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US).withZone(ZoneOffset.UTC);
     private final PubKeyPairRepository pubKeyPairRepository;
     private final WebClient webClient;
     private final String serverName;
@@ -50,9 +52,7 @@ public class HttpSignatureService {
     // https://stackoverflow.com/questions/45829799/java-time-format-datetimeformatter-rfc-1123-date-time-fails-to-parse-time-zone-n
     // RFC 1123 = HTTP Date Format (https://github.com/mastodon/mastodon/blob/main/app/lib/request.rb)
     public static String formatHttpDate(ZonedDateTime dateTime) {
-        return DateTimeFormatter.RFC_1123_DATE_TIME.format(dateTime);
-        // TODO : lookup for the edge cases (https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html)
-        // TODO : move to HttpSignature class?
+        return RFC_1123_COMPLIANT_FORMATTER.format(dateTime);
     }
 
     public Mono<ClientRequest> signRequest(ClientRequest request, String accountId, @Nullable byte[] body) {
