@@ -12,6 +12,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.Principal;
 import java.util.Optional;
 
@@ -55,16 +57,28 @@ public class SearchController {
             if (query.startsWith("@")) // truncate leading @ if its above, transform into user@someInstance.com
                 query = query.substring(1);
             String[] splitQuery = query.split("@", 2); // split into 2 parts, split at @ char
-            String domain = "https://" + splitQuery[1] + "/api/v2/search"; // use as domain below
-            if (splitQuery.length == 2) {
+            if (splitQuery.length == 2 && !splitQuery[0].isEmpty() && !splitQuery[1].isEmpty()) {
+                String domain = splitQuery[1].trim();
+
+                // Optional: Validate domain (basic check)
+                if (!domain.matches("^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")) {
+                    return Mono.empty();
+                }
+
+                String baseUrl = "https://" + domain + "/api/v2/search";
                 Integer finalLimit = limit; // necessary as local var ref from lambda must be final
-                return WebClient.builder().baseUrl(domain).build().get()
+                return WebClient.builder().baseUrl(baseUrl).build().get()
                         .uri(uriBuilder -> uriBuilder.queryParam("q", splitQuery[0]).queryParam("limit", finalLimit)
                                 .queryParamIfPresent("type", Optional.ofNullable(type)).build())
                         .accept(MediaType.APPLICATION_JSON).retrieve().bodyToMono(SearchResult.class)
+                        .doOnNext(searchResult -> {
+                            if (searchResult.accounts != null && !searchResult.accounts.isEmpty()) {
+                                System.out.println(searchResult.accounts.get(0).id);
+                                System.out.println(searchResult.accounts.get(0).acct);
+                            }
+                        })
                         .onErrorResume(WebClientException.class, e -> {
                             System.err.println("Error: " + e.getMessage());
-                            e.printStackTrace();
                             return Mono.empty();
                         });
             }
@@ -100,5 +114,4 @@ public class SearchController {
         }
         return Mono.empty();
     }
-
 }
