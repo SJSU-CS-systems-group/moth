@@ -88,15 +88,11 @@ public class SearchController {
                             if (searchResult.accounts == null || searchResult.accounts.isEmpty()) {
                                 return Mono.just(searchResult);
                             }
-
-                            // Define your local domain (adjust this to your actual base domain)
-                            String localDomain = "moth.vamshiraj.me";
-
                             // Filter out local users and normalize remote accts
                             List<Account> remoteAccounts = searchResult.accounts.stream()
                                     .filter(account -> {
                                         // If the URL does not point to your own domain, it's remote
-                                        return account.url != null && !account.url.contains(localDomain);
+                                        return account.url != null && !account.url.contains(MothController.HOSTNAME);
                                     })
                                     .peek(account -> {
                                         // If acct does not contain "@", normalize it with the remote domain
