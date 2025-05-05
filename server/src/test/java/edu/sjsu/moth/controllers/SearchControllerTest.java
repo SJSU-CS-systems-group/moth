@@ -131,4 +131,36 @@ public class SearchControllerTest {
                 .expectBody()
                 .jsonPath("$.accounts").exists(); // Will vary depending on actual Mastodon availability
     }
+
+    @Test
+    public void testOnlyRemoteUsersAreSaved() {
+        String localDomain = "moth.vamshiraj.me"; // Replace with actual domain logic used in app
+
+        // Step 1: Clear DB
+        accountRepository.deleteAll().block();
+
+        // Step 2: Make a remote search request (simulate via real domain, or mock if isolated)
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(SEARCH_ENDPOINT)
+                        .queryParam("q", "@Gargron@mastodon.social") // Example remote user
+                        .queryParam("type", "accounts")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.accounts").exists();
+
+        // Step 3: Assert only remote users are saved
+        var allAccounts = accountRepository.findAll().collectList().block();
+        Assertions.assertNotNull(allAccounts);
+        Assertions.assertFalse(allAccounts.isEmpty());
+
+        for (Account acc : allAccounts) {
+            System.out.println("Saved account: " + acc.acct);
+            Assertions.assertTrue(acc.acct.contains("@"), "Remote user acct should include domain");
+            Assertions.assertFalse(acc.url.contains(localDomain), "Should not save local users");
+        }
+    }
+
 }
