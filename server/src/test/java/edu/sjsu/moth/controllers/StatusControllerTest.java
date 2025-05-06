@@ -188,4 +188,72 @@ public class StatusControllerTest {
         }
     }
 
+    @Test
+    public void testProfileViewStatusVisbility() {
+        String PROFILE_VIEW_END_POINT = "/api/v1/accounts/test-creator-profile-view/statuses";
+        prepareStatusForProfileViewVisibility();
+        accountRepository.save(new Account("test-fetch")).block();
+        accountRepository.save(new Account("test-fetch-no-follow")).block();
+        followRepository.save(new Follow("test-fetch", "test-creator-profile-view")).block();
+        // Mock the authentication
+
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
+                .get()
+                .uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(3);
+
+        // add a direct post
+        StatusController.V1PostStatus directStatus = new StatusController.V1PostStatus();
+        directStatus.status = "This is a direct status @test-fetch";
+        directStatus.visibility = "direct";
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-creator-profile-view"))).post()
+                .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(directStatus).exchange()
+                .expectStatus().isOk();
+
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-creator-profile-view")))
+                .get()
+                .uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(4);
+
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
+                .get()
+                .uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(4);
+
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch-no-follow")))
+                .get()
+                .uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2);
+
+    }
+
+    private void prepareStatusForProfileViewVisibility() {
+        String statusCreator = "test-creator-profile-view";
+        accountRepository.save(new Account(statusCreator)).block();
+
+        StatusController.V1PostStatus request;
+        String[] visibilities = { "public", "unlisted", "private" };
+        for (String visibility : visibilities) {
+            request = new StatusController.V1PostStatus();
+            request.status = String.format("This is a %s status", visibility);
+            request.visibility = visibility;
+
+            webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", statusCreator))).post()
+                    .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange()
+                    .expectStatus().isOk();
+        }
+    }
 }
