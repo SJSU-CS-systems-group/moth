@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.sjsu.moth.server.activityPub.ActivityPubUtil;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import edu.sjsu.moth.util.HttpSignature;
 import org.springframework.http.HttpHeaders;
@@ -15,12 +16,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
 import java.security.PrivateKey;
-import java.security.Signature;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -110,19 +107,20 @@ public class Util {
         }
     }
 
-    public static Mono<Void> signAndSend(JsonNode message, String actorUrl, String targetDomain, String inbox, String privateKeyPEM) {
+    public static Mono<Void> signAndSend(JsonNode message, String actorUrl, String inbox, String privateKeyPEM) {
         try {
             // Construct actor and inbox info
             URI inboxUri = URI.create(inbox);
+            String targetDomain = ActivityPubUtil.getRemoteDomain(inbox);
             PrivateKey signingKey = HttpSignature.pemToPrivateKey(privateKeyPEM);
 
             // Prepare request body and compute digest
             byte[] bodyBytes = new ObjectMapper().writeValueAsBytes(message);
 
             // Prepare date string in HTTP format
-            String date = DateTimeFormatter.RFC_1123_DATE_TIME
-                    .format(ZonedDateTime.now(ZoneId.of("GMT")));
-
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'")
+                    .withLocale(Locale.US);
+            String date = ZonedDateTime.now(ZoneOffset.UTC).format(formatter);
             // Set initial headers
             HttpHeaders headers = new HttpHeaders();
             headers.add("Host", targetDomain);

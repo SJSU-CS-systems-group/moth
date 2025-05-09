@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.SearchResult;
+import edu.sjsu.moth.server.activityPub.ActivityPubUtil;
+import edu.sjsu.moth.server.activityPub.message.AcceptMessage;
 import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
-import edu.sjsu.moth.server.db.AcceptMessage;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Follow;
@@ -23,13 +24,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Mono;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import javax.security.auth.login.AccountNotFoundException;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static edu.sjsu.moth.server.util.Util.signAndSend;
@@ -57,11 +56,12 @@ public class AccountService {
 
     @Autowired
     EmailService emailService;
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
-    private HttpSignatureService httpSignatureService;
+    FollowService followService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
@@ -106,81 +106,75 @@ public class AccountService {
         return mono;
     }
 
-    public Mono<String> followerHandler(String id, JsonNode inboxNode, String requestType) {
-        switch (requestType) {
-            case "Follow" -> {
-                String follower = inboxNode.get("actor").asText();
-                //To test this send a follow request from another mastodon app
-                //follower is the person who sent the follow request
-                var follow = new Follow(follower, id);
-                var myDomain = MothConfiguration.mothConfiguration.getServerName();
-                String followerDomain;
-                try {
-                    //The domain of the person who sent the follow request
-                    followerDomain = new URL(follower).getHost();
-                } catch (MalformedURLException e) {
-                    return Mono.error(new RuntimeException("Error: Malformed actor URL"));
-                }
-                if (!followerDomain.equals(myDomain)) {
-                    // Compose this Mono into the flow so it actually runs
-                    return sendAcceptMessage(inboxNode, id, myDomain, followerDomain).then(
-                            accountRepository.findItemByAcct(id).switchIfEmpty(
-                                            Mono.error(new RuntimeException("Error: User account does not exist")))
-                                    .flatMap(account -> {
-                                        return followRepository.save(follow)
-                                                .then(followRepository.countAllByFollowedId(account.id)
-                                                              .flatMap(followersCount -> {
-                                                                  account.followers_count = followersCount.intValue();
-                                                                  return accountRepository.save(account);
-                                                              })).thenReturn("done");
-                                    }));
+    public Mono<String> followerHandler(String targetAcct, JsonNode inboxNode) {
 
-                } else {
-                    return accountRepository.findItemByAcct(id)
-                            .switchIfEmpty(Mono.error(new RuntimeException("Error: User account does not exist")))
-                            .flatMap(account -> accountRepository.findItemByAcct(follower).switchIfEmpty(
-                                    Mono.error(new RuntimeException("Error: Follower account does not exist"))).flatMap(
-                                    followerAccount -> followRepository.save(follow)
-                                            .then(followRepository.countAllByFollowedId(account.id)
-                                                          .flatMap(followersCount -> {
-                                                              account.followers_count = followersCount.intValue();
-                                                              return accountRepository.save(account);
-                                                          }))
-                                            .then(followRepository.countAllByFollowerId(followerAccount.id)
-                                                          .flatMap(followingCount -> {
-                                                              followerAccount.following_count =
-                                                                      followingCount.intValue();
-                                                              return accountRepository.save(followerAccount);
-                                                          })).thenReturn("done")));
-                }
-            }
-            case "Accept" -> {
-                //The accept code has to be completed, when we receive an Accept message for a Follow request
-                System.out.println("Received Accept activity: " + inboxNode.toPrettyString());
-                return Mono.just("Accept received");
-            }
-            case "Undo" -> {
-                //The Undo code has to be completed, when we receive an unfollow request
-                System.out.println("Received Undo activity: " + inboxNode.toPrettyString());
-                return Mono.just("Undo received");
-            }
-        }
-
-        return Mono.error(new RuntimeException("Error: Unsupported request type"));
+        // 1. Pull out the actor URL and convert it to a local acct identifier
+        String actorUrl      = inboxNode.path("actor").asText();
+        String followerAcct  = ActivityPubUtil.inboxUrlToAcct(actorUrl);
+        Follow follow        = new Follow(followerAcct, targetAcct);
+        // 2. Look up the target account once
+        return accountRepository.findItemByAcct(targetAcct)
+                .switchIfEmpty(Mono.error(
+                        new AccountNotFoundException("Account not found: " + targetAcct)))
+                .flatMap(targetAccount -> {
+                    // 3. Dispatch based on whether this is a remote user or local user
+                    if (ActivityPubUtil.isRemoteUser(actorUrl)) {
+                        return handleRemoteFollow(targetAccount, follow, inboxNode);
+                    } else {
+                        return handleLocalFollow(followerAcct, follow, targetAccount);
+                    }
+                })
+                .doOnError(e -> log.error("Failed to process follow request for "+targetAcct+" : "+e.getMessage()))
+                // 4. Always return a success marker
+                .thenReturn("done");
     }
 
-    //This is to send an accept message to the follower server, so that they know the request has been accepted
-    // otherwise it will be in a pending state
-    public Mono<Void> sendAcceptMessage(JsonNode body, String id, String mydomain, String followerDomain) {
-        String uuid = UUID.randomUUID().toString();
-        //Message UUID to differentiate one message from other
-        String messageId = String.format("https://%s/%s", mydomain, uuid);
+    private Mono<Void> handleRemoteFollow(
+            Account targetAccount,
+            Follow follow,
+            JsonNode inboxNode
+    ) {
+        // When the follower is remote, we must send an Accept back, then save + recount
+        return sendAcceptMessage(inboxNode, targetAccount.acct)
+                .then(followRepository.save(follow))
+                .then(followService.updateFollowersCount(targetAccount));
+    }
+
+    private Mono<String> handleLocalFollow(
+            String followerAcct,
+            Follow follow,
+            Account targetAccount
+    ) {
+        // When the follower is local, verify their account exists then update both sides
+        return accountRepository.findItemByAcct(followerAcct)
+                .switchIfEmpty(Mono.error(
+                        new AccountNotFoundException("Follower account not found: " + followerAcct)))
+                .flatMap(followerAccount ->
+                                 followService.updateFollowerCounts(targetAccount, followerAccount, follow)
+                ).thenReturn("Done");
+    }
+
+    public Mono<String> undoHandler(String id, JsonNode inboxNode) {
+            //The Undo code has to be completed, when we receive an unfollow request
+            System.out.println("Received Undo activity: " + inboxNode.toPrettyString());
+            return Mono.just("Undo received");
+    }
+
+    public Mono<String> acceptHandler(String id, JsonNode inboxNode) {
+        //The Undo code has to be completed, when we receive an unfollow request
+        System.out.println("Received Accept activity: " + inboxNode.toPrettyString());
+        return Mono.just("Accept received");
+    }
+
+    public Mono<Void> sendAcceptMessage(JsonNode body, String id) {
+        //My Server domain
+        String myDomain = MothConfiguration.mothConfiguration.getServerName();
         //My profile URL
-        String actorUrl = String.format("https://%s/users/%s", mydomain, id);
-        AcceptMessage acceptMessage = new AcceptMessage(messageId, actorUrl, body);
+        String actorUrl = String.format("https://%s/users/%s", myDomain, id);
+        AcceptMessage acceptMessage = new AcceptMessage(actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
         return getPrivateKey(id, true)
-                .flatMap(privKey -> signAndSend(message, actorUrl,followerDomain,message.get("object").get("actor").asText() + "/inbox",privKey));
+                .flatMap(privKey -> signAndSend(message, actorUrl,message.get("object").get("actor").asText() + "/inbox",privKey));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
