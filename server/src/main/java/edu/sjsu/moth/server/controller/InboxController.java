@@ -162,10 +162,21 @@ public class InboxController {
     @PostMapping("/users/{id}/inbox")
     public Mono<String> usersInbox(@PathVariable String id, @RequestBody JsonNode inboxNode) {
         String requestType = inboxNode.get("type").asText();
-        // follow or unfollow requests
-        if (requestType.equals("Follow") || requestType.equals("Undo"))
-            return accountService.followerHandler(id, inboxNode, requestType);
-        return Mono.empty();
+        // follow or unfollow requests from other or same instances
+        switch (requestType) {
+            case "Follow" -> {
+                return accountService.followerHandler(id, inboxNode,false);
+            }
+            case "Undo"->{
+                return accountService.followerHandler(id, inboxNode,true);
+            }
+            case "Accept" -> {
+                return accountService.acceptHandler(id,inboxNode);
+            }
+            default -> {
+                return Mono.empty();
+            }
+        }
     }
 
     @GetMapping("/users/{id}/following")
