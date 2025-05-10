@@ -106,59 +106,43 @@ public class AccountService {
         return mono;
     }
 
-    public Mono<String> followerHandler(String targetAcct, JsonNode inboxNode) {
+    public Mono<String> followerHandler(String targetAcct, JsonNode inboxNode,boolean isUndo) {
+        String actorUrl     = inboxNode.path("actor").asText();
+        String followerAcct = ActivityPubUtil.inboxUrlToAcct(actorUrl);
+        boolean isRemote    = ActivityPubUtil.isRemoteUser(actorUrl);
 
-        // 1. Pull out the actor URL and convert it to a local acct identifier
-        String actorUrl      = inboxNode.path("actor").asText();
-        String followerAcct  = ActivityPubUtil.inboxUrlToAcct(actorUrl);
-        Follow follow        = new Follow(followerAcct, targetAcct);
-        // 2. Look up the target account once
+        // 1) look up the target account
         return accountRepository.findItemByAcct(targetAcct)
-                .switchIfEmpty(Mono.error(
-                        new AccountNotFoundException("Account not found: " + targetAcct)))
+                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + targetAcct)))
                 .flatMap(targetAccount -> {
-                    // 3. Dispatch based on whether this is a remote user or local user
-                    if (ActivityPubUtil.isRemoteUser(actorUrl)) {
-                        return handleRemoteFollow(targetAccount, follow, inboxNode);
-                    } else {
-                        return handleLocalFollow(followerAcct, follow, targetAccount);
-                    }
+                    // 2) choose save or remove
+                    Mono<Follow> followOp = isUndo
+                            ? followService.removeFollow(followerAcct, targetAcct)
+                            : followService.saveFollow(   followerAcct, targetAcct);
+
+                    // 3) perform the follow/unfollow
+                    return followOp.flatMap(__ -> {
+                        if (isRemote) {
+                            // For a remote Actor we only update counts (and accept on real Follow)
+                            Mono<Void> post = followService.updateFollowersCount(targetAccount);
+                            return isUndo
+                                    ? post
+                                    : sendAcceptMessage(inboxNode, targetAccount.acct).then(post);
+                        } else {
+                            // For a local Actor we verify they exist, then update both sides
+                            return accountRepository.findItemByAcct(followerAcct)
+                                    .switchIfEmpty(Mono.error(new AccountNotFoundException(
+                                            "Follower not found: " + followerAcct)))
+                                    .flatMap(followerAccount ->
+                                                     followService.updateFollowerCounts(targetAccount, followerAccount)
+                                    );
+                        }
+                    });
                 })
-                .doOnError(e -> log.error("Failed to process follow request for "+targetAcct+" : "+e.getMessage()))
-                // 4. Always return a success marker
+                .doOnError(e -> log.error("Failed to %s follow for %s: %s".formatted(isUndo ? "undo" : "process", targetAcct, e.getMessage())))
                 .thenReturn("done");
     }
 
-    private Mono<Void> handleRemoteFollow(
-            Account targetAccount,
-            Follow follow,
-            JsonNode inboxNode
-    ) {
-        // When the follower is remote, we must send an Accept back, then save + recount
-        return sendAcceptMessage(inboxNode, targetAccount.acct)
-                .then(followRepository.save(follow))
-                .then(followService.updateFollowersCount(targetAccount));
-    }
-
-    private Mono<String> handleLocalFollow(
-            String followerAcct,
-            Follow follow,
-            Account targetAccount
-    ) {
-        // When the follower is local, verify their account exists then update both sides
-        return accountRepository.findItemByAcct(followerAcct)
-                .switchIfEmpty(Mono.error(
-                        new AccountNotFoundException("Follower account not found: " + followerAcct)))
-                .flatMap(followerAccount ->
-                                 followService.updateFollowerCounts(targetAccount, followerAccount, follow)
-                ).thenReturn("Done");
-    }
-
-    public Mono<String> undoHandler(String id, JsonNode inboxNode) {
-            //The Undo code has to be completed, when we receive an unfollow request
-            System.out.println("Received Undo activity: " + inboxNode.toPrettyString());
-            return Mono.just("Undo received");
-    }
 
     public Mono<String> acceptHandler(String id, JsonNode inboxNode) {
         //The Undo code has to be completed, when we receive an unfollow request

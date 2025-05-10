@@ -165,10 +165,10 @@ public class InboxController {
         // follow or unfollow requests from other or same instances
         switch (requestType) {
             case "Follow" -> {
-                return accountService.followerHandler(id, inboxNode);
+                return accountService.followerHandler(id, inboxNode,false);
             }
             case "Undo"->{
-                return accountService.undoHandler(id, inboxNode);
+                return accountService.followerHandler(id, inboxNode,true);
             }
             case "Accept" -> {
                 return accountService.acceptHandler(id,inboxNode);
