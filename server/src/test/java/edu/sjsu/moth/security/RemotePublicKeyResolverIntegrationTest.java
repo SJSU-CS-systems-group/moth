@@ -51,7 +51,7 @@ class RemotePublicKeyResolverIntegrationTest {
 
     // verifies that RemotePublicKeyResolver can fetch and use it
     @Test
-    void resolve_liveFetchFromMastodonSocial_returnsCorrectPublicKey() {
+    void resolveLiveFetchFromMastodonSocialReturnsCorrectPublicKey() {
         String keyId = "https://mastodon.social/users/divyamonmastodon";
 
         // remove caches specifically for this keyId to ensure a fetch
