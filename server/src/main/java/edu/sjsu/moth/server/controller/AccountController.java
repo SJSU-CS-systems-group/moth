@@ -46,7 +46,7 @@ public class AccountController {
     @Autowired
     private final FollowService followService;
 
-    public AccountController(AccountService accountService,FollowService followService) {
+    public AccountController(AccountService accountService, FollowService followService) {
         this.accountService = accountService;
         this.followService = followService;
     }
@@ -145,7 +145,6 @@ public class AccountController {
                                     .collect(Collectors.toList());
                     return Flux.merge(relationshipMonos).collectList().map(ResponseEntity::ok);
                 });
-
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#get
@@ -173,17 +172,13 @@ public class AccountController {
     //Follow request sent out to other instances/ other users
     @PostMapping("/api/v1/accounts/{id}/follow")
     public Mono<ResponseEntity<Relationship>> followUser(@PathVariable("id") String followedId, Principal user) {
-
-        return accountService.getAccountById(user.getName()).flatMap(a -> followService.followUser(a.id, followedId))
-                .map(ResponseEntity::ok);
+        return followService.followUser(user.getName(), followedId).map(ResponseEntity::ok);
     }
 
     //Follow request sent out to other instances/ other users
     @PostMapping("/api/v1/accounts/{id}/unfollow")
     public Mono<ResponseEntity<Relationship>> unfollowUser(@PathVariable("id") String followedId, Principal user) {
-
-        return accountService.getAccountById(user.getName()).flatMap(a -> followService.unfollowUser(a.id, followedId))
-                .map(ResponseEntity::ok);
+        return followService.unfollowUser(user.getName(), followedId).map(ResponseEntity::ok);
     }
 
 //    @GetMapping("/api/v1/accounts/{id}/following")

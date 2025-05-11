@@ -106,48 +106,43 @@ public class AccountService {
         return mono;
     }
 
-    public Mono<String> followerHandler(String targetAcct, JsonNode inboxNode,boolean isUndo) {
-        String actorUrl     = inboxNode.path("actor").asText();
+    public Mono<String> followerHandler(String targetAcct, JsonNode inboxNode, boolean isUndo) {
+        String actorUrl = inboxNode.path("actor").asText();
         String followerAcct = ActivityPubUtil.inboxUrlToAcct(actorUrl);
-        boolean isRemote    = ActivityPubUtil.isRemoteUser(actorUrl);
+        boolean isRemote = ActivityPubUtil.isRemoteUser(actorUrl);
 
         // 1) look up the target account
         return accountRepository.findItemByAcct(targetAcct)
                 .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + targetAcct)))
                 .flatMap(targetAccount -> {
-                    // 2) choose save or remove
-                    Mono<Follow> followOp = isUndo
-                            ? followService.removeFollow(followerAcct, targetAcct)
-                            : followService.saveFollow(   followerAcct, targetAcct);
-
-                    // 3) perform the follow/unfollow
-                    return followOp.flatMap(__ -> {
-                        if (isRemote) {
-                            // For a remote Actor we only update counts (and accept on real Follow)
-                            Mono<Void> post = followService.updateFollowersCount(targetAccount);
-                            return isUndo
-                                    ? post
-                                    : sendAcceptMessage(inboxNode, targetAccount.acct).then(post);
-                        } else {
-                            // For a local Actor we verify they exist, then update both sides
-                            return accountRepository.findItemByAcct(followerAcct)
-                                    .switchIfEmpty(Mono.error(new AccountNotFoundException(
-                                            "Follower not found: " + followerAcct)))
-                                    .flatMap(followerAccount ->
-                                                     followService.updateFollowerCounts(targetAccount, followerAccount)
-                                    );
-                        }
-                    });
-                })
-                .doOnError(e -> log.error("Failed to %s follow for %s: %s".formatted(isUndo ? "undo" : "process", targetAcct, e.getMessage())))
-                .thenReturn("done");
+                    if (isRemote) {
+                        // For a remote Actor we only update counts (and accept on real Follow)
+                        Mono<String> followOp = isUndo ? followService.removeFollow(followerAcct, targetAccount) :
+                                followService.saveFollow(followerAcct, targetAccount);
+                        return isUndo ? followOp :
+                                followOp.flatMap(__ -> sendAcceptMessage(inboxNode, targetAccount.acct));
+                    } else {
+                        return accountRepository.findItemByAcct(followerAcct).switchIfEmpty(
+                                        Mono.error(new AccountNotFoundException("Follower not found: " + followerAcct)))
+                                .flatMap(followerAccount -> isUndo ?
+                                        followService.removeFollow(followerAcct, targetAccount) :
+                                        followService.saveFollow(followerAccount, targetAccount));
+                    }
+                }).doOnError(e -> log.error(
+                        "Failed to %s follow for %s: %s".formatted(isUndo ? "undo" : "process", targetAcct,
+                                                                   e.getMessage()))).thenReturn("done");
     }
-
 
     public Mono<String> acceptHandler(String id, JsonNode inboxNode) {
         //The Undo code has to be completed, when we receive an unfollow request
-        System.out.println("Received Accept activity: " + inboxNode.toPrettyString());
-        return Mono.just("Accept received");
+        String actorUrl = inboxNode.path("actor").asText();
+        String followerAcct = ActivityPubUtil.inboxUrlToAcct(actorUrl);
+        return accountRepository.findItemByAcct(id)
+                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + id)))
+                .flatMap(targetAccount -> {
+                    Mono<String> saveAndRecount = followService.saveFollow(targetAccount, followerAcct);
+                    return saveAndRecount.thenReturn("Accept received");
+                });
     }
 
     public Mono<Void> sendAcceptMessage(JsonNode body, String id) {
@@ -157,8 +152,9 @@ public class AccountService {
         String actorUrl = String.format("https://%s/users/%s", myDomain, id);
         AcceptMessage acceptMessage = new AcceptMessage(actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
-        return getPrivateKey(id, true)
-                .flatMap(privKey -> signAndSend(message, actorUrl,message.get("object").get("actor").asText() + "/inbox",privKey));
+        return getPrivateKey(id, true).flatMap(
+                privKey -> signAndSend(message, actorUrl, message.get("object").get("actor").asText() + "/inbox",
+                                       privKey));
     }
 
     public Mono<ArrayList<Account>> userFollowInfo(String id, String max_id, String since_id, String min_id,
@@ -211,8 +207,6 @@ public class AccountService {
         }
     }
 
-
-
     public List<String> paginateFollowers(List<String> followers, int pageNo, int pageSize) {
         int startIndex = (pageNo - 1) * pageSize;
         int endIndex = Math.min(startIndex + pageSize, followers.size());
@@ -242,7 +236,6 @@ public class AccountService {
                                     return result;
                                 })));
     }
-
 
     public Mono<Relationship> checkRelationship(String followerId, String followedId) {
         var followed = followRepository.findIfFollows(followerId, followedId).hasElement();
