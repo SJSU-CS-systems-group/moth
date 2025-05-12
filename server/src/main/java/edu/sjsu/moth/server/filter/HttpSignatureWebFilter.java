@@ -19,7 +19,6 @@ import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.List;
 
 @CommonsLog
@@ -60,8 +59,6 @@ public class HttpSignatureWebFilter implements WebFilter {
             byte[] bytes = new byte[buf.readableByteCount()];
             buf.read(bytes);
             DataBufferUtils.release(buf);
-
-            System.out.println(Arrays.toString(bytes));
 
             Flux<DataBuffer> replay = Flux.defer(() -> Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
             ServerHttpRequest decorated = new ServerHttpRequestDecorator(exchange.getRequest()) {

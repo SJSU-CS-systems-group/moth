@@ -92,7 +92,7 @@ class HttpSignatureWebFilterTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "/inbox", "/users/testUser/inbox" })
-    void filter_postToProtectedPath_missingSignatureHeader_shouldReturnUnauthorized(String protectedPath) {
+    void filterPostToProtectedPathMissingSignatureHeaderShouldReturnUnauthorized(String protectedPath) {
         HttpHeaders headers = new HttpHeaders();
         MockServerWebExchange exchange = createExchange(HttpMethod.POST, protectedPath, headers, "body".getBytes());
 
@@ -147,14 +147,14 @@ class HttpSignatureWebFilterTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "/inbox", "/users/testUser/inbox" })
-    void filter_postToProtectedPath_signatureVerificationSucceeds_withBody_shouldPassThrough(String protectedPath) {
+    void filterPostToProtectedPathSignatureVerificationSucceedsWithBodyShouldPassThrough(String protectedPath) {
         byte[] requestBody = "{\"type\":\"Create\"}".getBytes(StandardCharsets.UTF_8);
         testSuccessfulSignatureVerification(protectedPath, requestBody);
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "/inbox", "/users/testUser/inbox" })
-    void filter_postToProtectedPath_signatureVerificationSucceeds_emptyBody_shouldPassThrough(String protectedPath) {
+    void filterPostToProtectedPathSignatureVerificationSucceedsEmptyBodyShouldPassThrough(String protectedPath) {
         byte[] requestBody = new byte[0]; // Empty body
         testSuccessfulSignatureVerification(protectedPath, requestBody);
     }

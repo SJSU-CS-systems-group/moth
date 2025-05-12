@@ -52,14 +52,13 @@ public class ActivityPubService {
                     return client.post().uri(targetUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message)
                             .retrieve().onStatus(HttpStatusCode::is4xxClientError,
                                                  res -> res.bodyToMono(String.class).flatMap(body -> {
-                                                     System.err.println(
-                                                             "4xx error sending activity to " + targetInbox + ": " +
-                                                                     body);
+                                                     log.error("4xx error sending activity to " + targetInbox + ": " +
+                                                                       body);
                                                      return Mono.error(new RuntimeException("Client error: " + body));
                                                  })).onStatus(HttpStatusCode::is5xxServerError,
                                                               res -> res.bodyToMono(String.class).flatMap(body -> {
-                                                                  System.err.println("5xx error sending activity to " +
-                                                                                             targetInbox + ": " + body);
+                                                                  log.error("5xx error sending activity to " +
+                                                                                    targetInbox + ": " + body);
                                                                   return Mono.error(new RuntimeException(
                                                                           "Server error: " + body));
                                                               })).bodyToMono(String.class)
