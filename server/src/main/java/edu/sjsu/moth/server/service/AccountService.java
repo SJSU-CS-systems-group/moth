@@ -117,15 +117,16 @@ public class AccountService {
                 .flatMap(targetAccount -> {
                     if (isRemote) {
                         // For a remote Actor we only update counts (and accept on real Follow)
-                        Mono<String> followOp = isUndo ? followService.removeFollow(followerAcct, targetAccount) :
-                                followService.saveFollow(followerAcct, targetAccount);
+                        Mono<String> followOp =
+                                isUndo ? followService.removeIncomingRemoteFollow(followerAcct, targetAccount) :
+                                        followService.saveIncomingRemoteFollow(followerAcct, targetAccount);
                         return isUndo ? followOp :
                                 followOp.flatMap(__ -> sendAcceptMessage(inboxNode, targetAccount.acct));
                     } else {
                         return accountRepository.findItemByAcct(followerAcct).switchIfEmpty(
                                         Mono.error(new AccountNotFoundException("Follower not found: " + followerAcct)))
                                 .flatMap(followerAccount -> isUndo ?
-                                        followService.removeFollow(followerAcct, targetAccount) :
+                                        followService.removeIncomingRemoteFollow(followerAcct, targetAccount) :
                                         followService.saveFollow(followerAccount, targetAccount));
                     }
                 }).doOnError(e -> log.error(
@@ -137,19 +138,19 @@ public class AccountService {
         //The Undo code has to be completed, when we receive an unfollow request
         String actorUrl = inboxNode.path("actor").asText();
         String followerAcct = ActivityPubUtil.inboxUrlToAcct(actorUrl);
-        return accountRepository.findItemByAcct(id)
-                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + id)))
-                .flatMap(targetAccount -> {
-                    Mono<String> saveAndRecount = followService.saveFollow(targetAccount, followerAcct);
+        return Mono.zip(accountRepository.findById(id), accountRepository.findItemByAcct(followerAcct))
+                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + id))).flatMap(tuple -> {
+                    Account followerAccount = tuple.getT1();
+                    Account followedAccount = tuple.getT2();
+                    Mono<String> saveAndRecount =
+                            followService.saveOutgoingRemoteFollow(followerAccount, followedAccount.id);
                     return saveAndRecount.thenReturn("Accept received");
                 });
     }
 
     public Mono<Void> sendAcceptMessage(JsonNode body, String id) {
-        //My Server domain
-        String myDomain = MothConfiguration.mothConfiguration.getServerName();
         //My profile URL
-        String actorUrl = String.format("https://%s/users/%s", myDomain, id);
+        String actorUrl = ActivityPubUtil.getActorUrl(id);
         AcceptMessage acceptMessage = new AcceptMessage(actorUrl, body);
         JsonNode message = objectMapper.valueToTree(acceptMessage);
         return getPrivateKey(id, true).flatMap(

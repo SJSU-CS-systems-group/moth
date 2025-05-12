@@ -27,6 +27,10 @@ public class ActivityPubUtil {
         }
     }
 
+    public static String getActorUrl(String id) {
+        return String.format("https://%s/users/%s", MothConfiguration.mothConfiguration.getServerName(), id);
+    }
+
     public static String getRemoteDomain(String uri) {
         try {
             return new URL(uri).getHost();
@@ -34,6 +38,7 @@ public class ActivityPubUtil {
             return null;
         }
     }
+
     public static boolean isRemoteUser(String actor) {
         String domain = getRemoteDomain(actor);
         String localDomain = MothConfiguration.mothConfiguration.getServerName();
