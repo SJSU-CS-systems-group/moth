@@ -1,7 +1,5 @@
-package edu.sjsu.moth.service;
+package edu.sjsu.moth.controllers;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import de.flapdoodle.embed.mongo.config.Net;
 import de.flapdoodle.embed.mongo.distribution.Version;
 import de.flapdoodle.embed.mongo.transitions.Mongod;
@@ -20,7 +18,6 @@ import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,9 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.util.Random;
@@ -41,9 +36,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
-@SpringBootTest(classes = {
-        edu.sjsu.moth.controllers.StatusControllerTest.class }, webEnvironment =
-        SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(classes = { FollowServiceTest.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureDataMongo
 @ComponentScan(basePackageClasses = MothServerMain.class)
 @AutoConfigureWebTestClient
@@ -59,10 +52,7 @@ public class FollowServiceTest {
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
 
     final WebTestClient webTestClient;
-    final TokenRepository tokenRepository;
     final AccountRepository accountRepository;
-    final StatusService statusService;
-    final StatusRepository statusRepository;
     final FollowRepository followRepository;
 
     static {
@@ -78,14 +68,10 @@ public class FollowServiceTest {
     }
 
     @Autowired
-    public FollowServiceTest(WebTestClient webTestClient, TokenRepository tokenRepository,
-                             AccountRepository accountRepository, StatusService statusService,
-                             StatusRepository statusRepository, FollowRepository followRepository) {
+    public FollowServiceTest(WebTestClient webTestClient, AccountRepository accountRepository,
+                             FollowRepository followRepository) {
         this.webTestClient = webTestClient;
-        this.tokenRepository = tokenRepository;
         this.accountRepository = accountRepository;
-        this.statusService = statusService;
-        this.statusRepository = statusRepository;
         this.followRepository = followRepository;
     }
 
@@ -105,9 +91,8 @@ public class FollowServiceTest {
     @Test
     public void checkAutoWires() {
         assertNotNull(webTestClient);
-        assertNotNull(tokenRepository);
         assertNotNull(accountRepository);
-        assertNotNull(statusService);
+        assertNotNull(followRepository);
     }
 
     @Test
