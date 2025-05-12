@@ -1,10 +1,12 @@
 package edu.sjsu.moth.server.service;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.querydsl.core.types.Ops;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
-import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
@@ -17,9 +19,8 @@ import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
-import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
-import lombok.extern.apachecommons.CommonsLog;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,12 +30,16 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+
+import static edu.sjsu.moth.server.util.Util.signAndSend;
 
 @Configuration
-@CommonsLog
 public class StatusService {
 
     @Autowired
@@ -54,9 +59,6 @@ public class StatusService {
 
     @Autowired
     StatusHistoryRepository statusHistoryRepository;
-
-    @Autowired
-    VisibilityService visibilityService;
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -85,27 +87,7 @@ public class StatusService {
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
         for (String s : words) {
-            if (!s.isEmpty() && s.charAt(0) == '@') accountsmentioned.add(s);
-        }
-
-        /*
-            Collect local mentions. This is not an efficient regex.
-            A more efficient regex can be found here
-            https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
-         */
-        for (String s : accountsmentioned) {
-            String[] tokens = s.split("@");
-            if (tokens.length > 2) {
-                log.warn("Does not store remote user mention: " + s);
-                continue;
-            }
-            String username = tokens[1];
-            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
-                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
-                log.debug("Adding mention: " + acc.username);
-                status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
-                return Mono.empty();
-            }));
+            if (s.charAt(0) == '@') accountsmentioned.add(s);
         }
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
@@ -143,8 +125,73 @@ public class StatusService {
         }
 
         return mono.then(statusRepository.save(status)).flatMap(
+                savedStatus -> followRepository.findAllByFollowedId(savedStatus.account.id).collectList()
+                        .flatMap(follows -> {
+                            List<Mono<Void>> deliveries = new ArrayList<>();
+                            for (Follow follow : follows) {
+                                String followerUrl = follow.id.follower_id;
+                                if (isRemote(followerUrl)) {
+                                    Mono<Void> delivery = createAndSendCreateActivity(savedStatus, followerUrl);
+                                    deliveries.add(delivery);
+                                }
+                            }
+                            return Mono.when(deliveries).thenReturn(savedStatus);
+                        })).flatMap(
                 s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
                         .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
+    }
+
+    public Mono<Void> createAndSendCreateActivity(Status status, String followerActorUrl) {
+        String domain = MothConfiguration.mothConfiguration.getServerName();
+        String name = status.account.id;
+        String actorUrl = "https://" + domain + "/users/" + name;
+
+        String guidCreate = UUID.randomUUID().toString();
+        String guidNote = UUID.randomUUID().toString();
+        String messageId = "https://" + domain + "/posts/" + guidCreate;
+        String noteId = "https://" + domain + "/posts/" + guidNote;
+
+        ObjectNode note = JsonNodeFactory.instance.objectNode();
+        note.put("id", noteId);
+        note.put("type", "Note");
+        note.put("published", status.createdAt.toString());
+        note.put("attributedTo", actorUrl);
+        note.put("content", status.content);
+        note.putArray("to").add("https://www.w3.org/ns/activitystreams#Public");
+
+        ObjectNode create = JsonNodeFactory.instance.objectNode();
+        create.put("@context", "https://www.w3.org/ns/activitystreams");
+        create.put("id", messageId);
+        create.put("type", "Create");
+        create.put("actor", actorUrl);
+        create.put("object", note);
+
+        ArrayNode to = create.putArray("to");
+        to.add("https://www.w3.org/ns/activitystreams#Public");
+
+        ArrayNode cc = create.putArray("cc");
+        cc.add(followerActorUrl);
+
+        String inbox = followerActorUrl + "/inbox";
+        String targetDomain;
+        try {
+            targetDomain = new URL(followerActorUrl).getHost();
+        } catch (MalformedURLException e) {
+            return Mono.error(new RuntimeException("Invalid follower URL"));
+        }
+
+        return accountService.getPrivateKey(name, true)
+                .flatMap(privKey -> signAndSend(create, name, targetDomain, inbox, privKey));
+    }
+
+    private boolean isRemote(String followerId) {
+        try {
+            URL url = new URL(followerId);
+            String host = url.getHost();
+            return !host.equals(MothConfiguration.mothConfiguration.getServerName());
+        } catch (MalformedURLException e) {
+            return false;
+        }
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
@@ -160,28 +207,18 @@ public class StatusService {
         return statusRepository.findById(id);
     }
 
-    public Mono<List<Status>> getHomeTimeline(Principal user, String max_id, String since_id, String min_id, int limit,
+    public Mono<List<Status>> getTimeline(Principal user, String max_id, String since_id, String min_id, int limit,
                                           boolean isFollowingTimeline) {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
-
-        //TODO: we may want to merge sort them, unsure if merge does that
-        return Flux.merge(external, internal).collectList();
-    }
-
-    public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id, int limit) {
-        var qStatus = QStatus.status;
-        var predicate = qStatus.content.isNotNull();
-        predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
-        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
+                //.switchIfEmpty(Mono.fromRunnable(() -> System.out.println("No status found")))
+                //.doOnNext(x -> System.out.println("before filter: " + x))
+                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline));
+        //.doOnNext(x -> System.out.println("after filter: " + x)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -201,7 +238,7 @@ public class StatusService {
         return predicate;
     }
 
-    public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id, String min_id,
+    public Mono<List<Status>> getStatusesForId(String username, String max_id, String since_id, String min_id,
                                                Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
                                                Boolean pinned, String tagged, Integer limit) {
         var acct = new QStatus("account.acct");
@@ -219,11 +256,7 @@ public class StatusService {
 
         // now apply the limit
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
-        return statusRepository
-                .findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.profileViewable(user, status))
-                .take(count)
-                .collectList();
+        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
     }
 
     public Flux<Status> getAllStatuses(int offset, int limit) {
@@ -268,3 +301,4 @@ public class StatusService {
     }
 
 }
+
