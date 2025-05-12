@@ -78,7 +78,7 @@ class HttpSignatureServiceTest {
             """;
     private static final PublicKey HARDCODED_PUBLIC_KEY = HttpSignature.pemToPublicKey(HARDCODED_PUBLIC_KEY_PEM);
     private static final String TEST_ACCOUNT_ID = "testuser";
-    private static final String TEST_SERVER_NAME = "test.server"; // Assuming this value
+    private static final String TEST_SERVER_NAME = "localhost"; // Assuming this value
     private static final String EXPECTED_KEY_ID =
             "https://" + TEST_SERVER_NAME + "/users/" + TEST_ACCOUNT_ID + "#main-key";
     private static final URI TEST_TARGET_URI = URI.create("https://verify.example.com/inbox");
