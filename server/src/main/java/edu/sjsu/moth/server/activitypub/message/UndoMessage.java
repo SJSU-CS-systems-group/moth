@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server.activityPub.message;
+package edu.sjsu.moth.server.activitypub.message;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

@@ -3,9 +3,9 @@ package edu.sjsu.moth.server.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.generated.Relationship;
-import edu.sjsu.moth.server.activityPub.ActivityPubUtil;
-import edu.sjsu.moth.server.activityPub.message.FollowMessage;
-import edu.sjsu.moth.server.activityPub.message.UndoMessage;
+import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
+import edu.sjsu.moth.server.activitypub.message.FollowMessage;
+import edu.sjsu.moth.server.activitypub.message.UndoMessage;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Follow;
@@ -40,8 +40,8 @@ public class FollowService {
 
     public Mono<Relationship> followUser(String followerId, String followedId) {
         return Mono.zip(accountRepository.findById(followerId), accountRepository.findById(followedId)).switchIfEmpty(
-                        Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Follower or Followed account " +
-                                "not found")))
+                        Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                               "Follower or Followed account " + "not found")))
                 .flatMap(tuple -> {
                     Account followerAccount = tuple.getT1();
                     Account followedAccount = tuple.getT2();

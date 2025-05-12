@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server.activityPub;
+package edu.sjsu.moth.server.activitypub;
 
 import edu.sjsu.moth.server.util.MothConfiguration;
 
