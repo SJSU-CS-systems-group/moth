@@ -19,6 +19,7 @@ import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
+import lombok.extern.apachecommons.CommonsLog;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +32,9 @@ import reactor.core.publisher.Mono;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 @Configuration
+@CommonsLog
 public class StatusService {
 
     @Autowired
@@ -56,8 +57,6 @@ public class StatusService {
 
     @Autowired
     VisibilityService visibilityService;
-
-    Logger LOG = Logger.getLogger(StatusService.class.getName());
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -97,13 +96,13 @@ public class StatusService {
         for (String s : accountsmentioned) {
             String[] tokens = s.split("@");
             if (tokens.length > 2) {
-                LOG.warning("Does not store remote user mention: " + s);
+                log.warn("Does not store remote user mention: " + s);
                 continue;
             }
             String username = tokens[1];
             mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
                     Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
-                LOG.finest("Adding mention: " + acc.username);
+                log.debug("Adding mention: " + acc.username);
                 status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
                 return Mono.empty();
             }));
@@ -167,9 +166,9 @@ public class StatusService {
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
 
         //TODO: we may want to merge sort them, unsure if merge does that
         return Flux.merge(external, internal).collectList();
@@ -202,7 +201,7 @@ public class StatusService {
         return predicate;
     }
 
-    public Mono<List<Status>> getStatusesForId(String username, String max_id, String since_id, String min_id,
+    public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id, String min_id,
                                                Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
                                                Boolean pinned, String tagged, Integer limit) {
         var acct = new QStatus("account.acct");
@@ -220,7 +219,11 @@ public class StatusService {
 
         // now apply the limit
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
-        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(count).collectList();
+        return statusRepository
+                .findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.profileViewable(user, status))
+                .take(count)
+                .collectList();
     }
 
     public Flux<Status> getAllStatuses(int offset, int limit) {
