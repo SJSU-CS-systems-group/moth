@@ -184,7 +184,6 @@ public class StatusService {
     }
 
     public Mono<Status> findStatusById(String id) {
-        System.out.println(statusRepository.findById(id));
         return statusRepository.findById(id);
     }
 
