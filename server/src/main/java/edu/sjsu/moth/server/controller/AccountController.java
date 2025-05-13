@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -33,6 +34,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,7 +48,7 @@ public class AccountController {
     @Autowired
     private final FollowService followService;
 
-    public AccountController(AccountService accountService,FollowService followService) {
+    public AccountController(AccountService accountService, FollowService followService) {
         this.accountService = accountService;
         this.followService = followService;
     }
@@ -145,7 +147,6 @@ public class AccountController {
                                     .collect(Collectors.toList());
                     return Flux.merge(relationshipMonos).collectList().map(ResponseEntity::ok);
                 });
-
     }
 
     // spec: https://docs.joinmastodon.org/methods/accounts/#get
@@ -172,18 +173,28 @@ public class AccountController {
 
     //Follow request sent out to other instances/ other users
     @PostMapping("/api/v1/accounts/{id}/follow")
-    public Mono<ResponseEntity<Relationship>> followUser(@PathVariable("id") String followedId, Principal user) {
-
-        return accountService.getAccountById(user.getName()).flatMap(a -> followService.followUser(a.id, followedId))
-                .map(ResponseEntity::ok);
+    public Mono<ResponseEntity<Object>> followUser(@PathVariable("id") String followedId, Principal user) {
+        return followService.followUser(user.getName(), followedId)
+                .map(rel -> ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body((Object) rel))
+                .onErrorResume(ResponseStatusException.class, ex -> {
+                    Map<String, String> errorBody =
+                            Map.of("error", ex.getStatusCode().toString(), "message", ex.getReason());
+                    return Mono.just(ResponseEntity.status(ex.getStatusCode()).contentType(MediaType.APPLICATION_JSON)
+                                             .body((Object) errorBody));
+                });
     }
 
     //Follow request sent out to other instances/ other users
     @PostMapping("/api/v1/accounts/{id}/unfollow")
-    public Mono<ResponseEntity<Relationship>> unfollowUser(@PathVariable("id") String followedId, Principal user) {
-
-        return accountService.getAccountById(user.getName()).flatMap(a -> followService.unfollowUser(a.id, followedId))
-                .map(ResponseEntity::ok);
+    public Mono<ResponseEntity<Object>> unfollowUser(@PathVariable("id") String followedId, Principal user) {
+        return followService.unfollowUser(user.getName(), followedId)
+                .map(rel -> ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body((Object) rel))
+                .onErrorResume(ResponseStatusException.class, ex -> {
+                    Map<String, String> errorBody =
+                            Map.of("error", ex.getStatusCode().toString(), "message", ex.getReason());
+                    return Mono.just(ResponseEntity.status(ex.getStatusCode()).contentType(MediaType.APPLICATION_JSON)
+                                             .body((Object) errorBody));
+                });
     }
 
 //    @GetMapping("/api/v1/accounts/{id}/following")
