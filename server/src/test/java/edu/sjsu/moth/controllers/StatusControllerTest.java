@@ -1,6 +1,7 @@
 package edu.sjsu.moth.controllers;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.JsonNode;
 import de.flapdoodle.embed.mongo.config.Net;
 import de.flapdoodle.embed.mongo.distribution.Version;
 import de.flapdoodle.embed.mongo.transitions.Mongod;
@@ -11,11 +12,14 @@ import de.flapdoodle.reverse.transitions.Start;
 import edu.sjsu.moth.IntegrationTest;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.MothServerMain;
+import edu.sjsu.moth.server.activitypub.message.NoteMessage;
 import edu.sjsu.moth.server.controller.StatusController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
+import edu.sjsu.moth.server.db.Outbox;
+import edu.sjsu.moth.server.db.OutboxRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.StatusService;
@@ -32,12 +36,16 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
 
 import reactor.core.publisher.Mono;
 
 import java.io.File;
 
+import java.util.List;
 import java.util.Random;
 
 @SpringBootTest(classes = { StatusControllerTest.class }, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -57,6 +65,8 @@ public class StatusControllerTest {
     final StatusService statusService;
     final StatusRepository statusRepository;
     final FollowRepository followRepository;
+    final OutboxRepository outboxRepository;
+
     static {
         try {
             var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
@@ -72,13 +82,15 @@ public class StatusControllerTest {
     @Autowired
     public StatusControllerTest(WebTestClient webTestClient, TokenRepository tokenRepository,
                                 AccountRepository accountRepository, StatusService statusService,
-                                StatusRepository statusRepository, FollowRepository followRepository) {
+                                StatusRepository statusRepository, FollowRepository followRepository,
+                                OutboxRepository outboxRepository) {
         this.webTestClient = webTestClient;
         this.tokenRepository = tokenRepository;
         this.accountRepository = accountRepository;
         this.statusService = statusService;
         this.statusRepository = statusRepository;
         this.followRepository = followRepository;
+        this.outboxRepository = outboxRepository;
     }
 
     @AfterAll
@@ -96,10 +108,11 @@ public class StatusControllerTest {
 
     @Test
     public void checkAutoWires() {
-        Assertions.assertNotNull(webTestClient);
-        Assertions.assertNotNull(tokenRepository);
-        Assertions.assertNotNull(accountRepository);
-        Assertions.assertNotNull(statusService);
+        assertNotNull(webTestClient);
+        assertNotNull(tokenRepository);
+        assertNotNull(accountRepository);
+        assertNotNull(statusService);
+        assertNotNull(outboxRepository);
     }
 
     @Test
@@ -133,9 +146,9 @@ public class StatusControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
 
         Status status = statusRepository.findByStatusLike("Hello").blockFirst();
-        Assertions.assertNotNull(status);
-        Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
-        Assertions.assertEquals("test-mention-2", status.mentions.get(1).acct);
+        assertNotNull(status);
+        assertEquals("test-mention", status.mentions.get(0).acct);
+        assertEquals("test-mention-2", status.mentions.get(1).acct);
     }
 
     @Test
@@ -150,9 +163,9 @@ public class StatusControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
 
         Status status = statusRepository.findByStatusLike("Hello-remote").blockFirst();
-        Assertions.assertNotNull(status);
-        Assertions.assertEquals(1, status.mentions.size());
-        Assertions.assertEquals("test-mention", status.mentions.get(0).acct);
+        assertNotNull(status);
+        assertEquals(1, status.mentions.size());
+        assertEquals("test-mention", status.mentions.get(0).acct);
     }
 
     @Test
@@ -162,13 +175,8 @@ public class StatusControllerTest {
         accountRepository.save(new Account("test-fetch")).block();
         followRepository.save(new Follow("test-fetch", "test-creator")).block();
         // Mock the authentication
-        webTestClient
-                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
-                .get()
-                .uri(HOME_FEED_END_POINT)
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(3);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch"))).get().uri(HOME_FEED_END_POINT)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(3);
     }
 
     private void prepareStatusForHomeFeedVisibility() {
@@ -197,13 +205,8 @@ public class StatusControllerTest {
         followRepository.save(new Follow("test-fetch", "test-creator-profile-view")).block();
         // Mock the authentication
 
-        webTestClient
-                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
-                .get()
-                .uri(PROFILE_VIEW_END_POINT)
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(3);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch"))).get().uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(3);
 
         // add a direct post
         StatusController.V1PostStatus directStatus = new StatusController.V1PostStatus();
@@ -214,29 +217,16 @@ public class StatusControllerTest {
                 .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(directStatus).exchange()
                 .expectStatus().isOk();
 
-        webTestClient
-                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-creator-profile-view")))
-                .get()
-                .uri(PROFILE_VIEW_END_POINT)
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(4);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-creator-profile-view"))).get()
+                .uri(PROFILE_VIEW_END_POINT).exchange().expectStatus().isOk().expectBody().jsonPath("$.length()")
+                .isEqualTo(4);
 
-        webTestClient
-                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch")))
-                .get()
-                .uri(PROFILE_VIEW_END_POINT)
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(4);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch"))).get().uri(PROFILE_VIEW_END_POINT)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(4);
 
-        webTestClient
-                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch-no-follow")))
-                .get()
-                .uri(PROFILE_VIEW_END_POINT)
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(2);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-fetch-no-follow"))).get()
+                .uri(PROFILE_VIEW_END_POINT).exchange().expectStatus().isOk().expectBody().jsonPath("$.length()")
+                .isEqualTo(2);
 
     }
 
@@ -256,4 +246,44 @@ public class StatusControllerTest {
                     .expectStatus().isOk();
         }
     }
+
+    @Test
+    public void testOutboxDataSave() {
+        String statusCreator = "test-creator-profile-view";
+        // 1) create the account
+        accountRepository.save(new Account(statusCreator)).block();
+
+        // 2) post one status of each visibility
+        String[] visibilities = { "public", "unlisted", "private" };
+        for (String visibility : visibilities) {
+            StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+            request.status = "This is a " + visibility + " status";
+            request.visibility = visibility;
+
+            webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", statusCreator))).post()
+                    .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange()
+                    .expectStatus().isOk();
+        }
+
+        // 3) build the actor URL
+        String actorUrl = "https://" + MothConfiguration.mothConfiguration.getServerName() + "/users/" + statusCreator;
+
+        // 4) fetch all outbox messages for this actor
+        List<Outbox> outboxList = outboxRepository.findAllByActorOrderByPublishedAtDesc(actorUrl).collectList().block();
+
+        // 5) verify that we stored exactly one Create per post
+        assertNotNull(outboxList, "Outbox list should not be null");
+        assertEquals(visibilities.length, outboxList.size(), "Expected one outbox entry per status posted");
+
+        // 6) spot‐check the contents of each stored activity
+        for (Outbox out : outboxList) {
+            NoteMessage activity = out.getObject();
+            assertEquals("Create", out.getType(), "Activity type must be Create");
+            assertEquals(actorUrl, out.getActor(), "Actor URL must match");
+
+            assertEquals("Note", activity.getType(), "Object type must be Note");
+            assertTrue(activity.getContent().contains("This is a"), "Note content missing");
+        }
+    }
+
 }

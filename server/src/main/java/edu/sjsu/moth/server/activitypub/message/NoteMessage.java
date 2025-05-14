@@ -9,15 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 @Data
-@NoArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class NoteMessage {
 
     /**
      * The Note payload itself.
      */
     private String id;
-    private final String type = "Note";
+    private String type = "Note";
     private String summary;
     @JsonProperty("inReplyTo")
     private String inReplyTo;
@@ -67,16 +65,12 @@ public class NoteMessage {
     }
 
     @Data
-    @NoArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Replies {
         private String id;
         private String type = "Collection";
         private First first;
 
         @Data
-        @NoArgsConstructor
-        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class First {
             private String type = "CollectionPage";
             private String next;
