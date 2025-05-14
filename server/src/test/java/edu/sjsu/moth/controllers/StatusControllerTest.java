@@ -249,7 +249,7 @@ public class StatusControllerTest {
 
     @Test
     public void testOutboxDataSave() {
-        String statusCreator = "test-creator-profile-view";
+        String statusCreator = "test-outbox";
         // 1) create the account
         accountRepository.save(new Account(statusCreator)).block();
 
