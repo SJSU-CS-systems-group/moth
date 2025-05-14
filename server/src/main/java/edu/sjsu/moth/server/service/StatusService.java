@@ -1,19 +1,14 @@
 package edu.sjsu.moth.server.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.querydsl.core.types.Ops;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
+import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
-import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
-import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.service.OutboxService;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
@@ -24,8 +19,9 @@ import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.OutboxRepository;
 import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
+import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
-import edu.sjsu.moth.generated.QStatus;
+import lombok.extern.apachecommons.CommonsLog;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
+@CommonsLog
 public class StatusService {
 
     @Autowired
@@ -58,10 +55,10 @@ public class StatusService {
     AccountService accountService;
 
     @Autowired
-    VisibilityService visibilityService;
+    StatusHistoryRepository statusHistoryRepository;
 
     @Autowired
-    StatusHistoryRepository statusHistoryRepository;
+    VisibilityService visibilityService;
 
     @Autowired
     OutboxService outboxService;
@@ -96,7 +93,27 @@ public class StatusService {
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
         for (String s : words) {
-            if (s.charAt(0) == '@') accountsmentioned.add(s);
+            if (!s.isEmpty() && s.charAt(0) == '@') accountsmentioned.add(s);
+        }
+
+        /*
+            Collect local mentions. This is not an efficient regex.
+            A more efficient regex can be found here
+            https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
+         */
+        for (String s : accountsmentioned) {
+            String[] tokens = s.split("@");
+            if (tokens.length > 2) {
+                log.warn("Does not store remote user mention: " + s);
+                continue;
+            }
+            String username = tokens[1];
+            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
+                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
+                log.debug("Adding mention: " + acc.username);
+                status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
+                return Mono.empty();
+            }));
         }
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
@@ -158,7 +175,7 @@ public class StatusService {
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
 
@@ -258,4 +275,3 @@ public class StatusService {
     }
 
 }
-
