@@ -39,6 +39,7 @@ public class OutboxService {
     AccountRepository accountRepository;
 
     private final ObjectMapper objectMapper;
+    
     @Autowired
     private OutboxRepository outboxRepository;
 
