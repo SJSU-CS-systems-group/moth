@@ -29,15 +29,23 @@ public class OutboxService {
         first.setNext(status.getUri() + "/replies?only_other_accounts=true&page=true");
         first.setPartOf(status.getUri() + "/replies");
         first.setItems(Collections.emptyList());
+        String cc = "";
+        String bcc = "";
+
+        if (status.visibility.equals("private")) {
+            cc = actorUrl + "/followers";
+            bcc = "";
+        } else {
+            cc = "https://www.w3.org/ns/activitystreams#Public";
+            bcc = actorUrl + "/followers";
+        }
 
         NoteMessage.Replies replies = new NoteMessage.Replies();
         replies.setId(status.getUri() + "/replies");
         replies.setFirst(first);
 
-        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl,
-                               List.of("https://www.w3.org/ns/activitystreams#Public"),
-                               List.of(actorUrl + "/followers"), status.sensitive, status.getUri(), null, status.text,
-                               status.content, Map.of("en", status.content), Collections.emptyList(),
-                               Collections.emptyList(), replies);
+        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl, List.of(cc),
+                               List.of(bcc), status.sensitive, status.getUri(), null, status.text, status.content,
+                               Map.of("en", status.content), Collections.emptyList(), Collections.emptyList(), replies);
     }
 }
