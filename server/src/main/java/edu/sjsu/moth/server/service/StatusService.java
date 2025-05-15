@@ -16,6 +16,7 @@ import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
 import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.service.OutboxService;
+import edu.sjsu.moth.server.activitypub.service.OutboxService;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
@@ -107,7 +108,27 @@ public class StatusService {
         ArrayList<String> accountsmentioned = new ArrayList<>();
         String[] words = status.content.split(" ");
         for (String s : words) {
-            if (s.charAt(0) == '@') accountsmentioned.add(s);
+            if (!s.isEmpty() && s.charAt(0) == '@') accountsmentioned.add(s);
+        }
+
+        /*
+            Collect local mentions. This is not an efficient regex.
+            A more efficient regex can be found here
+            https://github.com/mastodon/mastodon/blob/0479efdbb65a87ea80f0409d0131b1dbf20b1d32/app/models/account.rb#L74
+         */
+        for (String s : accountsmentioned) {
+            String[] tokens = s.split("@");
+            if (tokens.length > 2) {
+                log.warn("Does not store remote user mention: " + s);
+                continue;
+            }
+            String username = tokens[1];
+            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
+                    Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
+                log.debug("Adding mention: " + acc.username);
+                status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));
+                return Mono.empty();
+            }));
         }
 
         // check to see if the post mentions a group account. if it does create a mono for a status post by that group
@@ -163,6 +184,7 @@ public class StatusService {
     }
 
     public Mono<Status> findStatusById(String id) {
+        System.out.println(statusRepository.findById(id));
         return statusRepository.findById(id);
     }
 
@@ -172,7 +194,7 @@ public class StatusService {
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
         var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> filterStatusByViewable(user, statuses, isFollowingTimeline)).take(limit);
+                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
         var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
 
@@ -298,7 +320,6 @@ public class StatusService {
 
     public Mono<Void> sendCreate(CreateMessage create, String inboxUrl) {
         // 1) build the JSON tree for signing & sending
-        System.out.println(inboxUrl);
         ObjectNode createJson = objectMapper.valueToTree(create);
 
         // 2) extract the local actor name from the actor URL

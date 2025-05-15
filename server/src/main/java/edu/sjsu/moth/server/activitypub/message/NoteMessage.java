@@ -17,7 +17,7 @@ public class NoteMessage {
      * The Note payload itself.
      */
     private String id;
-    private final String type = "Note";
+    private String type = "Note";
     private String summary;
     @JsonProperty("inReplyTo")
     private String inReplyTo;
