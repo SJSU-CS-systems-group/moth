@@ -4,6 +4,7 @@ import edu.sjsu.moth.server.controller.InstanceController;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.HttpSignatureService;
 import edu.sjsu.moth.server.util.ContentSecurityPolicyConfiguration;
 import edu.sjsu.moth.util.MothTestInitializer;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ public class InstanceControllerTest {
 
     @MockBean
     AccountRepository accountRepository;
+
+    @MockBean
+    HttpSignatureService httpSignatureService;
 
     @Autowired
     private WebTestClient webTestClient;

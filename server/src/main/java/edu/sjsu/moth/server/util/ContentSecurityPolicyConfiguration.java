@@ -2,6 +2,8 @@ package edu.sjsu.moth.server.util;
 
 import edu.sjsu.moth.server.db.Token;
 import edu.sjsu.moth.server.db.TokenRepository;
+import edu.sjsu.moth.server.filter.HttpSignatureWebFilter;
+import edu.sjsu.moth.server.service.HttpSignatureService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +30,9 @@ import java.util.Set;
 public class ContentSecurityPolicyConfiguration {
     @Autowired
     TokenRepository tokenRepository;
+
+    @Autowired
+    HttpSignatureService httpSignatureService;
 
     public Mono<OAuth2AuthenticatedPrincipal> introspect(String token) {
         return tokenRepository.findItemByToken(token)
@@ -57,11 +62,17 @@ public class ContentSecurityPolicyConfiguration {
         http.csrf(ServerHttpSecurity.CsrfSpec::disable);
         http.oauth2ResourceServer(rsSpec -> rsSpec.opaqueToken(otSpec -> otSpec.introspector(this::introspect)));
         http.addFilterBefore(localeChangeFilter(), SecurityWebFiltersOrder.FIRST);
+        http.addFilterAfter(httpSignatureWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION);
         return http.build();
     }
 
     public LocaleChangeFilter localeChangeFilter() {
         return new LocaleChangeFilter();
+    }
+
+    @Bean
+    public HttpSignatureWebFilter httpSignatureWebFilter() {
+        return new HttpSignatureWebFilter(httpSignatureService);
     }
 
     public static class LocaleChangeFilter implements WebFilter {
