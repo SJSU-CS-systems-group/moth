@@ -9,12 +9,14 @@ import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
+import edu.sjsu.moth.server.activitypub.service.OutboxService;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
+import edu.sjsu.moth.server.db.OutboxRepository;
 import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusMention;
@@ -57,6 +59,12 @@ public class StatusService {
 
     @Autowired
     VisibilityService visibilityService;
+
+    @Autowired
+    OutboxService outboxService;
+
+    @Autowired
+    OutboxRepository outboxRepository;
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -143,6 +151,8 @@ public class StatusService {
         }
 
         return mono.then(statusRepository.save(status)).flatMap(
+                savedStatus -> outboxRepository.save(outboxService.buildCreateActivity(savedStatus))
+                        .thenReturn(savedStatus)).flatMap(
                 s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
                         .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
     }
@@ -156,12 +166,11 @@ public class StatusService {
     }
 
     public Mono<Status> findStatusById(String id) {
-        System.out.println(statusRepository.findById(id));
         return statusRepository.findById(id);
     }
 
-    public Mono<List<Status>> getHomeTimeline(Principal user, String max_id, String since_id, String min_id, int limit,
-                                          boolean isFollowingTimeline) {
+    public Mono<List<Status>> getHomeTimeline(Principal user, String max_id, String since_id, String min_id,
+                                              int limit, boolean isFollowingTimeline) {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
@@ -174,7 +183,8 @@ public class StatusService {
         return Flux.merge(external, internal).collectList();
     }
 
-    public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id, int limit) {
+    public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id,
+                                                int limit) {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
@@ -201,9 +211,9 @@ public class StatusService {
         return predicate;
     }
 
-    public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id, String min_id,
-                                               Boolean only_media, Boolean exclude_replies, Boolean exclude_reblogs,
-                                               Boolean pinned, String tagged, Integer limit) {
+    public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id,
+                                               String min_id, Boolean only_media, Boolean exclude_replies,
+                                               Boolean exclude_reblogs, Boolean pinned, String tagged, Integer limit) {
         var acct = new QStatus("account.acct");
         var predicate = acct.account.acct.eq(username);
         predicate = addRangeQueries(predicate, max_id, since_id, min_id);
@@ -219,11 +229,8 @@ public class StatusService {
 
         // now apply the limit
         int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
-        return statusRepository
-                .findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.profileViewable(user, status))
-                .take(count)
-                .collectList();
+        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.profileViewable(user, status)).take(count).collectList();
     }
 
     public Flux<Status> getAllStatuses(int offset, int limit) {
