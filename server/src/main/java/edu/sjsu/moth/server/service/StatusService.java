@@ -26,6 +26,7 @@ import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.OutboxRepository;
 import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
+import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.server.util.MothConfiguration;
