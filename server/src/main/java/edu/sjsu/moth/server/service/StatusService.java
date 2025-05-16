@@ -39,6 +39,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -168,11 +169,12 @@ public class StatusService {
 
         return mono.then(statusRepository.save(status)).flatMap(savedStatus -> {
             CreateMessage createMessage = outboxService.buildCreateActivity(savedStatus);
-
-            outboxRepository.save(createMessage)
+            Flux<Void> fanOut = outboxRepository.save(createMessage)
                     .thenMany(getRemoteFollowerInboxes(savedStatus.account.id).flatMapMany(Flux::fromIterable))
-                    .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl))
-                    .subscribe();  // run asynchronously in the background
+                    .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl));
+
+            // schedule it on boundedElastic, Invoke and forget
+            fanOut.subscribeOn(Schedulers.boundedElastic()).subscribe();
 
             return Mono.just(savedStatus);  // immediately return savedStatus
         }).flatMap(savedStatus -> statusHistoryRepository.findById(savedStatus.id)
