@@ -82,12 +82,6 @@ public class StatusService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired
-    OutboxService outboxService;
-
-    @Autowired
-    OutboxRepository outboxRepository;
-
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
     }
