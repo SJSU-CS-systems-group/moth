@@ -9,7 +9,6 @@ import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
 import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.message.NoteMessage;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.Outbox;
 import edu.sjsu.moth.server.db.OutboxRepository;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +38,7 @@ public class OutboxService {
     AccountRepository accountRepository;
 
     private final ObjectMapper objectMapper;
-    
+
     @Autowired
     private OutboxRepository outboxRepository;
 
@@ -47,19 +46,11 @@ public class OutboxService {
         this.objectMapper = new ObjectMapper();
     }
 
-    public Outbox buildCreateActivity(Status status) {
+    public CreateMessage buildCreateActivity(Status status) {
         String actorUrl = ActivityPubUtil.toActivityPubUserUrl(status.account.url);
         NoteMessage note = buildNoteMessage(status, actorUrl);
-        CreateMessage create = new CreateMessage(actorUrl, note);
 
-        // 5. Construct and return the persistence object
-        return new Outbox(create.getId(),                    // id of the Create activity
-                          create.getActor(),                 // the actor URL
-                          note.getPublished(),                       // timestamp
-                          create.to,                    // to array
-                          create.cc,                    // cc array
-                          note                       // full CreateMessage JSON
-        );
+        return new CreateMessage(actorUrl, note);
     }
 
     private NoteMessage buildNoteMessage(Status status, String actorUrl) {
@@ -67,16 +58,24 @@ public class OutboxService {
         first.setNext(status.getUri() + "/replies?only_other_accounts=true&page=true");
         first.setPartOf(status.getUri() + "/replies");
         first.setItems(Collections.emptyList());
+        String cc = "";
+        String bcc = "";
+
+        if (status.visibility != null && status.visibility.equals("private")) {
+            cc = actorUrl + "/followers";
+            bcc = "";
+        } else {
+            cc = "https://www.w3.org/ns/activitystreams#Public";
+            bcc = actorUrl + "/followers";
+        }
 
         NoteMessage.Replies replies = new NoteMessage.Replies();
         replies.setId(status.getUri() + "/replies");
         replies.setFirst(first);
 
-        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl,
-                               List.of("https://www.w3.org/ns/activitystreams#Public"),
-                               List.of(actorUrl + "/followers"), status.sensitive, status.getUri(), null, status.text,
-                               status.content, Map.of("en", status.content), Collections.emptyList(),
-                               Collections.emptyList(), replies);
+        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl, List.of(cc),
+                               List.of(bcc), status.sensitive, status.getUri(), null, status.text, status.content,
+                               Map.of("en", status.content), Collections.emptyList(), Collections.emptyList(), replies);
     }
 
     public Mono<ResponseEntity<JsonNode>> getOutboxIndex(String username, String baseOutbox) {
@@ -106,9 +105,9 @@ public class OutboxService {
         final String baseOutbox = actorUrl + "/outbox";
         return outboxRepository.findAllByActorOrderByPublishedAtDesc(actorUrl).collectList().flatMap(messages -> {
             // cursor‐style pagination
-            List<Outbox> pageItems = new ArrayList<>();
+            List<CreateMessage> pageItems = new ArrayList<>();
             boolean skipping = (minId != null);
-            for (Outbox msg : messages) {
+            for (CreateMessage msg : messages) {
                 if (skipping) {
                     if (msg.getId().equals(minId)) skipping = false;
                     continue;
@@ -136,7 +135,7 @@ public class OutboxService {
             root.put("id", baseOutbox + queryString);
             root.put("type", "OrderedCollectionPage");
             if (!pageItems.isEmpty()) {
-                String statusUrl = pageItems.get(0).getObject().getId();
+                String statusUrl = pageItems.get(0).object.getId();
                 String statusId = statusUrl.substring(statusUrl.lastIndexOf('/') + 1);
                 String prevQs =
                         "?min_id=" + URLEncoder.encode(statusId, StandardCharsets.UTF_8) + "&limit=" + pageSize +
@@ -147,7 +146,7 @@ public class OutboxService {
 
             // orderedItems
             ArrayNode items = root.putArray("orderedItems");
-            for (Outbox msg : pageItems) {
+            for (CreateMessage msg : pageItems) {
                 items.add(objectMapper.valueToTree(msg));
             }
             return Mono.just(ResponseEntity.ok().contentType(MediaType.parseMediaType("application/activity+json"))
@@ -157,5 +156,4 @@ public class OutboxService {
             return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
         });
     }
-
 }

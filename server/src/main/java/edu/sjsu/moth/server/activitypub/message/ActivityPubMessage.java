@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public abstract class ActivityPubMessage {
     @JsonProperty("@context")
-    private final String context = "https://www.w3.org/ns/activitystreams";
+    private String context = "https://www.w3.org/ns/activitystreams";
     private String id;
     private String type;
     private String actor;
