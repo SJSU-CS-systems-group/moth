@@ -12,20 +12,19 @@ import de.flapdoodle.reverse.transitions.Start;
 import edu.sjsu.moth.IntegrationTest;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.MothServerMain;
+import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.message.NoteMessage;
 import edu.sjsu.moth.server.controller.StatusController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
-import edu.sjsu.moth.server.db.Outbox;
 import edu.sjsu.moth.server.db.OutboxRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -266,20 +265,21 @@ public class StatusControllerTest {
         }
 
         // 3) build the actor URL
-        String actorUrl = "https://" + MothConfiguration.mothConfiguration.getServerName() + "/users/" + statusCreator;
+        String actor = "https://" + MothConfiguration.mothConfiguration.getServerName() + "/users/" + statusCreator;
 
         // 4) fetch all outbox messages for this actor
-        List<Outbox> outboxList = outboxRepository.findAllByActorOrderByPublishedAtDesc(actorUrl).collectList().block();
+        List<CreateMessage> outboxList =
+                outboxRepository.findAllByActorOrderByPublishedAtDesc(actor).collectList().block();
 
         // 5) verify that we stored exactly one Create per post
         assertNotNull(outboxList, "Outbox list should not be null");
         assertEquals(visibilities.length, outboxList.size(), "Expected one outbox entry per status posted");
 
         // 6) spot‐check the contents of each stored activity
-        for (Outbox out : outboxList) {
-            NoteMessage activity = out.getObject();
+        for (CreateMessage out : outboxList) {
+            NoteMessage activity = out.object;
             assertEquals("Create", out.getType(), "Activity type must be Create");
-            assertEquals(actorUrl, out.getActor(), "Actor URL must match");
+            assertEquals(actor, out.getActor(), "Actor URL must match");
 
             assertEquals("Note", activity.getType(), "Object type must be Note");
             assertTrue(activity.getContent().contains("This is a"), "Note content missing");

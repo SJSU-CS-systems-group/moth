@@ -168,12 +168,16 @@ public class StatusService {
 
         return mono.then(statusRepository.save(status)).flatMap(savedStatus -> {
             CreateMessage createMessage = outboxService.buildCreateActivity(savedStatus);
-            return outboxRepository.save(createMessage)
-                    .thenMany(getRemoteFollowerInboxes(savedStatus.account.id).flatMapMany(Flux::fromIterable))
-                    .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl)).then(Mono.just(savedStatus));
-        }).flatMap(s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
-                .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
 
+            outboxRepository.save(createMessage)
+                    .thenMany(getRemoteFollowerInboxes(savedStatus.account.id).flatMapMany(Flux::fromIterable))
+                    .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl))
+                    .subscribe();  // run asynchronously in the background
+
+            return Mono.just(savedStatus);  // immediately return savedStatus
+        }).flatMap(savedStatus -> statusHistoryRepository.findById(savedStatus.id)
+                .defaultIfEmpty(new StatusEditCollection(savedStatus.id))
+                .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(savedStatus))).thenReturn(savedStatus));
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {

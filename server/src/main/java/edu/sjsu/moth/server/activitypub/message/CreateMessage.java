@@ -16,11 +16,11 @@ public class CreateMessage extends ActivityPubMessage {
     /**
      * Construct a Create activity wrapping a Note.
      *
-     * @param actorUrl the actor performing the create (e.g. "https://…/users/alice")
-     * @param object   the Note payload
+     * @param actor  the actor performing the create (e.g. "https://…/users/alice")
+     * @param object the Note payload
      */
-    public CreateMessage(String actorUrl, NoteMessage object) {
-        super("Create", actorUrl);
+    public CreateMessage(String actor, NoteMessage object) {
+        super("Create", actor);
         this.setId(object.getId() + "/activity");
         this.object = object;
         this.to = object.getTo();

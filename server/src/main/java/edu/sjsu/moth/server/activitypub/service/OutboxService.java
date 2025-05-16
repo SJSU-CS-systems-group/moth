@@ -9,7 +9,6 @@ import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
 import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.message.NoteMessage;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.Outbox;
 import edu.sjsu.moth.server.db.OutboxRepository;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +61,7 @@ public class OutboxService {
         String cc = "";
         String bcc = "";
 
-        if (status.visibility.equals("private")) {
+        if (status.visibility != null && status.visibility.equals("private")) {
             cc = actorUrl + "/followers";
             bcc = "";
         } else {
