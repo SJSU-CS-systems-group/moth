@@ -82,6 +82,12 @@ public class StatusService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired
+    OutboxService outboxService;
+
+    @Autowired
+    OutboxRepository outboxRepository;
+
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
     }
@@ -178,6 +184,7 @@ public class StatusService {
         }).flatMap(savedStatus -> statusHistoryRepository.findById(savedStatus.id)
                 .defaultIfEmpty(new StatusEditCollection(savedStatus.id))
                 .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(savedStatus))).thenReturn(savedStatus));
+
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {

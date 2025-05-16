@@ -271,6 +271,7 @@ public class StatusControllerTest {
         List<CreateMessage> outboxList =
                 outboxRepository.findAllByActorOrderByPublishedAtDesc(actor).collectList().block();
 
+
         // 5) verify that we stored exactly one Create per post
         assertNotNull(outboxList, "Outbox list should not be null");
         assertEquals(visibilities.length, outboxList.size(), "Expected one outbox entry per status posted");
@@ -280,7 +281,6 @@ public class StatusControllerTest {
             NoteMessage activity = out.object;
             assertEquals("Create", out.getType(), "Activity type must be Create");
             assertEquals(actor, out.getActor(), "Actor URL must match");
-
             assertEquals("Note", activity.getType(), "Object type must be Note");
             assertTrue(activity.getContent().contains("This is a"), "Note content missing");
         }
