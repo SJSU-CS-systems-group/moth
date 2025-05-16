@@ -3,7 +3,6 @@ package edu.sjsu.moth.server.controller;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
-import edu.sjsu.moth.server.db.ExternalActorRepository;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +47,8 @@ public class SearchController {
                                        @RequestParam(required = false) String min_id,
                                        @RequestParam(required = false) Integer limit,
                                        @RequestParam(required = false) Integer offset) {
+        System.out.println("Query : " + query);
+        System.out.println("User : " + user);
         SearchResult result = new SearchResult();
         // return empty SearchResult obj. , until query.length() >= 3
         if (query.length() < 3) {
@@ -72,45 +73,32 @@ public class SearchController {
 
                 String baseUrl = "https://" + domain + "/api/v2/search";
                 Integer finalLimit = limit; // necessary as local var ref from lambda must be final
-                return WebClient.builder()
-                        .baseUrl(baseUrl)
-                        .build()
-                        .get()
-                        .uri(uriBuilder -> uriBuilder
-                                .queryParam("q", splitQuery[0])
-                                .queryParam("limit", finalLimit)
-                                .queryParamIfPresent("type", Optional.ofNullable(type))
-                                .build())
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
-                        .bodyToMono(SearchResult.class)
+                return WebClient.builder().baseUrl(baseUrl).build().get()
+                        .uri(uriBuilder -> uriBuilder.queryParam("q", splitQuery[0]).queryParam("limit", finalLimit)
+                                .queryParamIfPresent("type", Optional.ofNullable(type)).build())
+                        .accept(MediaType.APPLICATION_JSON).retrieve().bodyToMono(SearchResult.class)
                         .flatMap(searchResult -> {
                             if (searchResult.accounts == null || searchResult.accounts.isEmpty()) {
                                 return Mono.just(searchResult);
                             }
                             // Filter out local users and normalize remote accts
-                            List<Account> remoteAccounts = searchResult.accounts.stream()
-                                    .filter(account -> {
-                                        // If the URL does not point to your own domain, it's remote
-                                        return account.url != null && !account.url.contains(MothController.HOSTNAME);
-                                    })
-                                    .peek(account -> {
-                                        // If acct does not contain "@", normalize it with the remote domain
-                                        if (account.acct != null && !account.acct.contains("@") && account.url != null) {
-                                            String remoteDomain = account.url.split("/")[2]; // e.g., mastodon.social
-                                            account.acct = account.acct + "@" + remoteDomain;
-                                        }
-                                    })
-                                    .toList();
+                            List<Account> remoteAccounts = searchResult.accounts.stream().filter(account -> {
+                                // If the URL does not point to your own domain, it's remote
+                                return account.url != null && !account.url.contains(MothController.HOSTNAME);
+                            }).peek(account -> {
+                                // If acct does not contain "@", normalize it with the remote domain
+                                if (account.acct != null && !account.acct.contains("@") && account.url != null) {
+                                    String remoteDomain = account.url.split("/")[2]; // e.g., mastodon.social
+                                    account.acct = account.acct + "@" + remoteDomain;
+                                }
+                            }).toList();
 
                             if (remoteAccounts.isEmpty()) {
                                 return Mono.just(searchResult);
                             }
 
-                            return accountRepository.saveAll(remoteAccounts)
-                                    .then(Mono.just(searchResult));
-                        })
-                        .onErrorResume(WebClientException.class, e -> {
+                            return accountRepository.saveAll(remoteAccounts).then(Mono.just(searchResult));
+                        }).onErrorResume(WebClientException.class, e -> {
                             System.err.println("Error: " + e.getMessage());
                             return Mono.empty();
                         });

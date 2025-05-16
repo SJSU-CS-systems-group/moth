@@ -2,7 +2,7 @@ package edu.sjsu.moth.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.sjsu.moth.server.security.RemotePublicKeyResolver;
+import edu.sjsu.moth.server.keyManager.RemotePublicKeyResolver;
 import edu.sjsu.moth.util.HttpSignature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

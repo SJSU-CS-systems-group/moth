@@ -2,7 +2,7 @@ package edu.sjsu.moth.service;
 
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
-import edu.sjsu.moth.server.security.PublicKeyResolver;
+import edu.sjsu.moth.server.keyManager.PublicKeyResolver;
 import edu.sjsu.moth.server.service.HttpSignatureService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
@@ -386,7 +386,7 @@ class HttpSignatureServiceTest {
 
     // combined prepare headers and then verify signature
     @Test
-    void prepareHeadersThenVerifySignature_POST_withBody_HappyPath() {
+    void prepareHeadersThenVerifySignatureWithPOSTWithBodyHappyPath() {
         PubKeyPair keyPair = new PubKeyPair(TEST_ACCOUNT_ID, HARDCODED_PUBLIC_KEY_PEM, HARDCODED_PRIVATE_KEY_PEM);
         when(pubKeyPairRepository.findItemByAcct(TEST_ACCOUNT_ID)).thenReturn(Mono.just(keyPair));
 

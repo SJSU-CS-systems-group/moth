@@ -1,7 +1,7 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
-import edu.sjsu.moth.server.security.PublicKeyResolver;
+import edu.sjsu.moth.server.keyManager.PublicKeyResolver;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
 import lombok.extern.apachecommons.CommonsLog;

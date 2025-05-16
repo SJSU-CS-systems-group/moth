@@ -1,4 +1,4 @@
-package edu.sjsu.moth.server.security;
+package edu.sjsu.moth.server.keyManager;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.AsyncCache;
@@ -50,14 +50,13 @@ public class RemotePublicKeyResolver implements PublicKeyResolver {
         // check the positive cache first, if found happy!
         CompletableFuture<PublicKey> cachedKey = publicKeyCache.getIfPresent(keyId);
         if (cachedKey != null) {
-            return Mono.fromFuture(cachedKey).subscribeOn(Schedulers.boundedElastic());
+            return Mono.fromFuture(cachedKey);
         }
 
         // check negative cache if not in positive cache
         CompletableFuture<Object> negativelyCached = negativeLookupCache.getIfPresent(keyId);
         if (negativelyCached != null) {
-            return Mono.fromFuture(negativelyCached).subscribeOn(Schedulers.boundedElastic())
-                    .flatMap(v -> Mono.empty()); // Indicates a known miss
+            return Mono.fromFuture(negativelyCached).flatMap(v -> Mono.empty()); // Indicates a known miss
         }
 
         // https://socialhub.activitypub.rocks/t/authorized-fetch-and-the-instance-actor/3868
