@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 @Data
+@NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class NoteMessage {
 
     /**
@@ -65,12 +67,16 @@ public class NoteMessage {
     }
 
     @Data
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Replies {
         private String id;
         private String type = "Collection";
         private First first;
 
         @Data
+        @NoArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class First {
             private String type = "CollectionPage";
             private String next;

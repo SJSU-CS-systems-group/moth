@@ -5,7 +5,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
 
+@Document("outbox")
 public class CreateMessage extends ActivityPubMessage {
+
     public NoteMessage object;
     public List<String> to;
     public List<String> cc;

@@ -1,14 +1,21 @@
 package edu.sjsu.moth.server.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.querydsl.core.types.Ops;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
-import edu.sjsu.moth.generated.QStatus;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
+import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
+import edu.sjsu.moth.server.activitypub.message.CreateMessage;
+import edu.sjsu.moth.server.activitypub.service.OutboxService;
 import edu.sjsu.moth.server.activitypub.service.OutboxService;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
@@ -21,6 +28,8 @@ import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusRepository;
+import edu.sjsu.moth.generated.QStatus;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import lombok.extern.apachecommons.CommonsLog;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -30,10 +39,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+
+import static edu.sjsu.moth.server.util.Util.signAndSend;
 
 @Configuration
 @CommonsLog
@@ -55,16 +70,18 @@ public class StatusService {
     AccountService accountService;
 
     @Autowired
-    StatusHistoryRepository statusHistoryRepository;
+    VisibilityService visibilityService;
 
     @Autowired
-    VisibilityService visibilityService;
+    StatusHistoryRepository statusHistoryRepository;
 
     @Autowired
     OutboxService outboxService;
 
     @Autowired
     OutboxRepository outboxRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -150,11 +167,20 @@ public class StatusService {
             }));
         }
 
-        return mono.then(statusRepository.save(status)).flatMap(
-                savedStatus -> outboxRepository.save(outboxService.buildCreateActivity(savedStatus))
-                        .thenReturn(savedStatus)).flatMap(
-                s -> statusHistoryRepository.findById(s.id).defaultIfEmpty(new StatusEditCollection(s.id))
-                        .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(s))).thenReturn(s));
+        return mono.then(statusRepository.save(status)).flatMap(savedStatus -> {
+            CreateMessage createMessage = outboxService.buildCreateActivity(savedStatus);
+            Flux<Void> fanOut = outboxRepository.save(createMessage)
+                    .thenMany(getRemoteFollowerInboxes(savedStatus.account.id).flatMapMany(Flux::fromIterable))
+                    .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl));
+
+            // schedule it on boundedElastic, Invoke and forget
+            fanOut.subscribeOn(Schedulers.boundedElastic()).subscribe();
+
+            return Mono.just(savedStatus);  // immediately return savedStatus
+        }).flatMap(savedStatus -> statusHistoryRepository.findById(savedStatus.id)
+                .defaultIfEmpty(new StatusEditCollection(savedStatus.id))
+                .flatMap(sh -> statusHistoryRepository.save(sh.addEdit(savedStatus))).thenReturn(savedStatus));
+
     }
 
     public Mono<ExternalStatus> saveExternal(ExternalStatus status) {
@@ -274,4 +300,51 @@ public class StatusService {
         return String.format("%1$24s", payload).replace(' ', '0');
     }
 
+    private Mono<List<String>> getRemoteFollowerInboxes(String accountId) {
+        String localDomain = MothConfiguration.mothConfiguration.getServerName();
+
+        return followRepository.findAllByFollowedId(accountId)       // Flux<Follow>
+                // get the raw “acct” handle
+                .map(f -> f.id.follower_id)                              // Mono<String> of "username@domain"
+                // extract the domain part
+                .map(handle -> {
+                    int at = handle.indexOf('@');
+                    if (at < 0 || at == handle.length() - 1) {
+                        // invalid handle, drop it
+                        return null;
+                    }
+                    return handle.substring(at + 1);
+                })
+                // drop any nulls or locals
+                .filter(domain -> domain != null && !domain.equals(localDomain))
+                // build the inbox URL
+                .map(domain -> "https://" + domain + "/inbox")
+                // avoid duplicates
+                .distinct()
+                // collect into a List<String>
+                .collectList();
+    }
+
+    public Mono<Void> sendCreate(CreateMessage create, String inboxUrl) {
+        // 1) build the JSON tree for signing & sending
+        ObjectNode createJson = objectMapper.valueToTree(create);
+
+        // 2) extract the local actor name from the actor URL
+        String actorUrl = create.getActor();
+        String actorName = URI.create(actorUrl).getPath()          // "/users/alice"
+                .substring("/users/".length());
+
+        // 3) fetch the actor’s private key, then sign & send
+        return accountService.getPrivateKey(actorName, /* localOnly= */ true).flatMap(privKey ->
+                                                                                              // signAndSend is your
+                                                                                              // existing method that
+                                                                                              // does HTTP Signature
+                                                                                              // + POST
+                                                                                              signAndSend(createJson,
+                                                                                                          actorUrl,
+                                                                                                          inboxUrl,
+                                                                                                          privKey));
+    }
+
 }
+
