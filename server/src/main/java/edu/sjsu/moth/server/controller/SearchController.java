@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.controller;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.ExternalActorRepository;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,8 +48,6 @@ public class SearchController {
                                        @RequestParam(required = false) String min_id,
                                        @RequestParam(required = false) Integer limit,
                                        @RequestParam(required = false) Integer offset) {
-        System.out.println("Query : " + query);
-        System.out.println("User : " + user);
         SearchResult result = new SearchResult();
         // return empty SearchResult obj. , until query.length() >= 3
         if (query.length() < 3) {
@@ -87,9 +86,10 @@ public class SearchController {
                                 return account.url != null && !account.url.contains(MothController.HOSTNAME);
                             }).peek(account -> {
                                 // If acct does not contain "@", normalize it with the remote domain
-                                if (account.acct != null && !account.acct.contains("@") && account.url != null) {
+                                if (account.acct != null && !account.acct.contains("@")) {
                                     String remoteDomain = account.url.split("/")[2]; // e.g., mastodon.social
                                     account.acct = account.acct + "@" + remoteDomain;
+                                    account.id = account.acct;
                                 }
                             }).toList();
 
