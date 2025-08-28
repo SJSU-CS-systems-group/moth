@@ -106,7 +106,7 @@ public class FollowService {
                         UndoMessage undoMessage = new UndoMessage(fMsg);
                         JsonNode message = objectMapper.valueToTree(undoMessage);
                         Mono<Void> sendUnFollow = activityPubService.sendSignedActivity(message, followerAccount.id,
-                                                                                        message.get("object").asText() +
+                                                                                        fMsg.get("object").asText() +
                                                                                                 "/inbox");
                         return sendUnFollow.then(saveAndRecount).flatMap(follow -> postUnfollow);
                     } else {

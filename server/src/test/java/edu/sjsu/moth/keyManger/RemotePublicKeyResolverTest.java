@@ -1,4 +1,4 @@
-package edu.sjsu.moth.security;
+package edu.sjsu.moth.keyManger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

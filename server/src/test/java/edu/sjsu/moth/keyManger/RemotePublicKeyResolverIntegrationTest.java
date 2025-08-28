@@ -1,4 +1,4 @@
-package edu.sjsu.moth.security;
+package edu.sjsu.moth.keyManger;
 
 import edu.sjsu.moth.server.keyManager.RemotePublicKeyResolver;
 import edu.sjsu.moth.util.HttpSignature;

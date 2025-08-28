@@ -23,6 +23,11 @@ import java.util.concurrent.CompletableFuture;
 public class RemotePublicKeyResolver implements PublicKeyResolver {
 
     public static final Object NEGATIVE_CACHE_SENTINEL = new Object();
+    private static final int PUBLIC_KEY_CACHE_MAX_SIZE = 10_000;
+    private static final int PUBLIC_KEY_CACHE_TTL_DAYS = 365;
+    private static final int NEGATIVE_LOOKUP_CACHE_MAX_SIZE = 10_000;
+    private static final int NEGATIVE_LOOKUP_CACHE_TTL_MINUTES = 10;
+    private static final int REMOTE_KEY_FETCH_TIMEOUT_SECONDS = 5;
     public final AsyncCache<String, PublicKey> publicKeyCache;
     public final AsyncCache<String, Object> negativeLookupCache;
     private final WebClient webClient;
@@ -36,11 +41,12 @@ public class RemotePublicKeyResolver implements PublicKeyResolver {
                 .build();
 
         // expires after a year?
-        this.publicKeyCache =
-                Caffeine.newBuilder().maximumSize(10_000).expireAfterWrite(Duration.ofDays(365)).buildAsync();
+        this.publicKeyCache = Caffeine.newBuilder().maximumSize(PUBLIC_KEY_CACHE_MAX_SIZE)
+                .expireAfterWrite(Duration.ofDays(PUBLIC_KEY_CACHE_TTL_DAYS)).buildAsync();
 
-        this.negativeLookupCache = Caffeine.newBuilder().maximumSize(10_000) // limits the retry count
-                .expireAfterWrite(Duration.ofMinutes(10)).buildAsync();
+        this.negativeLookupCache =
+                Caffeine.newBuilder().maximumSize(NEGATIVE_LOOKUP_CACHE_MAX_SIZE) // limits the retry count
+                        .expireAfterWrite(Duration.ofMinutes(NEGATIVE_LOOKUP_CACHE_TTL_MINUTES)).buildAsync();
     }
 
     // https://socialhub.activitypub.rocks/t/verifying-deletes-of-users-who-are-gone/240/1
@@ -62,35 +68,34 @@ public class RemotePublicKeyResolver implements PublicKeyResolver {
         // https://socialhub.activitypub.rocks/t/authorized-fetch-and-the-instance-actor/3868
         // TODO : use activity pub service to fetch the actor, Authorise fetch?
 
-        String actorUrl = keyId.split("#")[0];
+        String actorUrl;
+        int hash = keyId.indexOf('#');
+        actorUrl = (hash >= 0) ? keyId.substring(0, hash) : keyId;
         return this.webClient.get().uri(actorUrl).retrieve().bodyToMono(JsonNode.class)
-                .subscribeOn(Schedulers.boundedElastic()) // Perform network I/O on boundedElastic
-                .flatMap(actorNode -> {
+                .timeout(Duration.ofSeconds(REMOTE_KEY_FETCH_TIMEOUT_SECONDS)).flatMap(actorNode -> {
                     JsonNode publicKeyNode = actorNode.path("publicKey").path("publicKeyPem");
                     if (publicKeyNode.isMissingNode() || publicKeyNode.isNull() || !publicKeyNode.isTextual()) {
                         log.warn("publicKeyPem not found or not a string for keyId: " + keyId);
                         return Mono.empty();
                     }
                     String pem = publicKeyNode.asText();
-                    try {
-                        PublicKey publicKey = HttpSignature.pemToPublicKey(pem);
-                        return Mono.justOrEmpty(publicKey);
-                    } catch (Exception e) {
-                        log.error("Failed to convert PEM to PublicKey for keyId: " + keyId, e);
-                        return Mono.empty();
-                    }
+                    return Mono.fromCallable(() -> HttpSignature.pemToPublicKey(pem))
+                            .subscribeOn(Schedulers.parallel()) // Conversion is CPU Intensive
+                            .onErrorResume(e -> {
+                                log.error("Failed to convert PEM to PublicKey for keyId: " + keyId, e);
+                                return Mono.empty();
+                            });
                 }).doOnSuccess(publicKey -> {
                     if (publicKey != null) {
                         publicKeyCache.put(keyId, CompletableFuture.completedFuture(publicKey));
                         log.debug("Cached public key for: " + keyId);
                     } else {
                         negativeLookupCache.put(keyId, CompletableFuture.completedFuture(NEGATIVE_CACHE_SENTINEL));
-                        log.debug("Cached negative lookup for: " + keyId);
+                        log.debug("Cached negative lookup for invalid public key for: " + keyId);
                     }
                 }).doOnError(error -> {
                     negativeLookupCache.put(keyId, CompletableFuture.completedFuture(NEGATIVE_CACHE_SENTINEL));
                     log.warn("Error fetching public key for keyId " + keyId + ", caching negative lookup.", error);
                 }).onErrorResume(e -> Mono.empty());
-
     }
 }
