@@ -27,6 +27,19 @@ public class VisibilityService {
     final String DIRECT_VISIBILITY = "direct";
     final String PRIVATE_VISIBILITY = "private";
 
+    public enum VISIBILITY {
+        PUBLIC, UNLISTED, PRIVATE, DIRECT, UNDEFINED
+    }
+
+    public static VISIBILITY fromString(String visibility) {
+        return switch (visibility) {
+            case "public" -> VISIBILITY.PUBLIC;
+            case "unlisted" -> VISIBILITY.UNLISTED;
+            case "private" -> VISIBILITY.PRIVATE;
+            case "direct" -> VISIBILITY.DIRECT;
+            default -> VISIBILITY.UNDEFINED;
+        };
+    }
 
     public Flux<Status> publicTimelinesViewable(Status status) {
         if (status.visibility.equals(PUBLIC_VISIBILITY)) return Flux.just(status);
