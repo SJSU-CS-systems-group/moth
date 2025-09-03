@@ -1,7 +1,6 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.generated.Status;
-import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import lombok.extern.apachecommons.CommonsLog;
@@ -32,7 +31,7 @@ public class VisibilityService {
         PUBLIC, UNLISTED, PRIVATE, DIRECT, UNDEFINED
     }
 
-    public static VISIBILITY fromString(Optional<String> visibility) {
+    public static VISIBILITY visibilityFromString(Optional<String> visibility) {
         return visibility.map(s -> switch (s) {
             case "public" -> VISIBILITY.PUBLIC;
             case "unlisted" -> VISIBILITY.UNLISTED;
