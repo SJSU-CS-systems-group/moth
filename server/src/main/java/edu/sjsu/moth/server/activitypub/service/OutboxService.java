@@ -10,6 +10,8 @@ import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.message.NoteMessage;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.OutboxRepository;
+import edu.sjsu.moth.server.service.VisibilityService;
+import edu.sjsu.moth.server.service.VisibilityService.VISIBILITY;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -17,16 +19,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
@@ -61,7 +62,8 @@ public class OutboxService {
         String cc = "";
         String bcc = "";
 
-        if (status.visibility != null && status.visibility.equals("private")) {
+        VISIBILITY visibility = VisibilityService.visibilityFromString(Optional.ofNullable(status.visibility));
+        if (visibility == VISIBILITY.PRIVATE) {
             cc = actorUrl + "/followers";
             bcc = "";
         } else {

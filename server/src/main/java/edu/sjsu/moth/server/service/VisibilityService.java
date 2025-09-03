@@ -1,7 +1,6 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.generated.Status;
-import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import lombok.extern.apachecommons.CommonsLog;
@@ -12,6 +11,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @CommonsLog
@@ -27,6 +27,19 @@ public class VisibilityService {
     final String DIRECT_VISIBILITY = "direct";
     final String PRIVATE_VISIBILITY = "private";
 
+    public enum VISIBILITY {
+        PUBLIC, UNLISTED, PRIVATE, DIRECT, UNDEFINED
+    }
+
+    public static VISIBILITY visibilityFromString(Optional<String> visibility) {
+        return visibility.map(s -> switch (s) {
+            case "public" -> VISIBILITY.PUBLIC;
+            case "unlisted" -> VISIBILITY.UNLISTED;
+            case "private" -> VISIBILITY.PRIVATE;
+            case "direct" -> VISIBILITY.DIRECT;
+            default -> VISIBILITY.UNDEFINED;
+        }).orElse(VISIBILITY.UNDEFINED);
+    }
 
     public Flux<Status> publicTimelinesViewable(Status status) {
         if (status.visibility.equals(PUBLIC_VISIBILITY)) return Flux.just(status);
