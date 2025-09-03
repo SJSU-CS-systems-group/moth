@@ -17,16 +17,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
@@ -58,23 +57,23 @@ public class OutboxService {
         first.setNext(status.getUri() + "/replies?only_other_accounts=true&page=true");
         first.setPartOf(status.getUri() + "/replies");
         first.setItems(Collections.emptyList());
+        String to = "";
         String cc = "";
-        String bcc = "";
 
         if (status.visibility != null && status.visibility.equals("private")) {
-            cc = actorUrl + "/followers";
-            bcc = "";
+            to = actorUrl + "/followers";
+            cc = "";
         } else {
-            cc = "https://www.w3.org/ns/activitystreams#Public";
-            bcc = actorUrl + "/followers";
+            to = "https://www.w3.org/ns/activitystreams#Public";
+            cc = actorUrl + "/followers";
         }
 
         NoteMessage.Replies replies = new NoteMessage.Replies();
         replies.setId(status.getUri() + "/replies");
         replies.setFirst(first);
 
-        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl, List.of(cc),
-                               List.of(bcc), status.sensitive, status.getUri(), null, status.text, status.content,
+        return new NoteMessage(status.getUri(), null, null, status.createdAt, status.getUrl(), actorUrl, List.of(to),
+                               List.of(cc), status.sensitive, status.getUri(), null, status.text, status.content,
                                Map.of("en", status.content), Collections.emptyList(), Collections.emptyList(), replies);
     }
 
