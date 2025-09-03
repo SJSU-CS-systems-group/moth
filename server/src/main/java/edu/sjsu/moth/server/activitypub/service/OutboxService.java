@@ -24,7 +24,6 @@ import reactor.core.publisher.Mono;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,12 +62,11 @@ public class OutboxService {
         first.setItems(Collections.emptyList());
         String to = "";
         String cc = "";
-        String bcc = "";
 
         VISIBILITY visibility = VisibilityService.visibilityFromString(Optional.ofNullable(status.visibility));
         if (visibility == VISIBILITY.PRIVATE) {
-            cc = actorUrl + "/followers";
-            bcc = "";
+            to = actorUrl + "/followers";
+            cc = "";
         } else {
             to = "https://www.w3.org/ns/activitystreams#Public";
             cc = actorUrl + "/followers";
