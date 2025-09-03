@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.beans.support.PagedListHolder.DEFAULT_PAGE_SIZE;
 
@@ -63,7 +64,7 @@ public class OutboxService {
         String cc = "";
         String bcc = "";
 
-        VISIBILITY visibility = VisibilityService.fromString(status.visibility);
+        VISIBILITY visibility = VisibilityService.fromString(Optional.ofNullable(status.visibility));
         if (visibility == VISIBILITY.PRIVATE) {
             cc = actorUrl + "/followers";
             bcc = "";

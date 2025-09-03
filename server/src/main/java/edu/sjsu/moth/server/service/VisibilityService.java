@@ -12,6 +12,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @CommonsLog
@@ -31,14 +32,14 @@ public class VisibilityService {
         PUBLIC, UNLISTED, PRIVATE, DIRECT, UNDEFINED
     }
 
-    public static VISIBILITY fromString(String visibility) {
-        return switch (visibility) {
+    public static VISIBILITY fromString(Optional<String> visibility) {
+        return visibility.map(s -> switch (s) {
             case "public" -> VISIBILITY.PUBLIC;
             case "unlisted" -> VISIBILITY.UNLISTED;
             case "private" -> VISIBILITY.PRIVATE;
             case "direct" -> VISIBILITY.DIRECT;
             default -> VISIBILITY.UNDEFINED;
-        };
+        }).orElse(VISIBILITY.UNDEFINED);
     }
 
     public Flux<Status> publicTimelinesViewable(Status status) {
