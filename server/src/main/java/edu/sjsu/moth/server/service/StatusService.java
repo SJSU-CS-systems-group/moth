@@ -201,7 +201,7 @@ public class StatusService {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        Mono<List<ExternalStatus>> external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+        Mono<List<Status>> external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
         Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
@@ -213,7 +213,7 @@ public class StatusService {
                 });
     }
 
-    private List<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
+    private List<Status> mergeByCreatedAtDesc(List<Status> externalStatus, List<Status> internalStatus) {
         List<Status> merged = new ArrayList<>(externalStatus.size() + internalStatus.size());
         int i = 0, j = 0;
 
