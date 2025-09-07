@@ -1,14 +1,7 @@
 package edu.sjsu.moth.server.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
 import edu.sjsu.moth.util.EmailCodeUtils;
-import edu.sjsu.moth.util.HttpSignature;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.lang.ref.WeakReference;
@@ -16,14 +9,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.PrivateKey;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -104,57 +92,6 @@ public class Util {
             } else {
                 System.out.println(indent + value);
             }
-        }
-    }
-
-    public static Mono<Void> signAndSend(JsonNode message, String actorUrl, String inbox, String privateKeyPEM) {
-        try {
-            // Construct actor and inbox info
-            URI inboxUri = URI.create(inbox);
-            String targetDomain = ActivityPubUtil.getRemoteDomain(inbox);
-            PrivateKey signingKey = HttpSignature.pemToPrivateKey(privateKeyPEM);
-
-            // Prepare request body and compute digest
-            byte[] bodyBytes = new ObjectMapper().writeValueAsBytes(message);
-
-            // Prepare date string in HTTP format
-            DateTimeFormatter formatter =
-                    DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'").withLocale(Locale.US);
-            String date = ZonedDateTime.now(ZoneOffset.UTC).format(formatter);
-            // Set initial headers
-            HttpHeaders headers = new HttpHeaders();
-            headers.add("Host", targetDomain);
-            headers.add("Date", date);
-            HttpSignature.addDigest(headers, bodyBytes); // adds SHA-256 digest header
-
-            // Headers to be signed
-            List<String> signedHeaders = List.of(HttpSignature.REQUEST_TARGET, "host", "date", "digest");
-
-            // Create WebClient builder
-            WebClient.Builder builder =
-                    WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
-                            .defaultHeader("Host", targetDomain).defaultHeader("Date", date)
-                            .defaultHeader("Digest", headers.getFirst("Digest"));
-
-            // Attach HTTP Signature filter
-            HttpSignature.signHeaders(builder, signedHeaders, signingKey, actorUrl + "#main-key");
-
-            WebClient client = builder.build();
-
-            // Send the signed POST request
-            return client.post().uri(inboxUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message).retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, res -> res.bodyToMono(String.class).flatMap(body -> {
-                        System.err.println("4xx error body: " + body);
-                        return Mono.error(new RuntimeException("Client error: " + body));
-                    })).onStatus(HttpStatusCode::is5xxServerError, res -> res.bodyToMono(String.class).flatMap(body -> {
-                        System.err.println("5xx error body: " + body);
-                        return Mono.error(new RuntimeException("Server error: " + body));
-                    })).bodyToMono(String.class).doOnNext(response -> System.out.println("Response: " + response))
-                    .then();
-
-        } catch (Exception e) {
-            System.err.println("Error during signAndSend: " + e.getMessage());
-            return Mono.error(new RuntimeException("Signing failed", e));
         }
     }
 

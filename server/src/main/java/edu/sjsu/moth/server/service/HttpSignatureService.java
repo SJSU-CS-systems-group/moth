@@ -1,23 +1,21 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
+import edu.sjsu.moth.server.keyManager.PublicKeyResolver;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.HttpSignature;
 import lombok.extern.apachecommons.CommonsLog;
-import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.ClientRequest;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -26,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,15 +33,17 @@ import java.util.Objects;
 public class HttpSignatureService {
     private static final int TIMESTAMP_TOLERANCE_SECONDS = 12 * 60 * 60; // TODO : should be configurable
     private static final int SHA256_DIGEST_LENGTH_BYTES = 32;
+    private static final DateTimeFormatter RFC_1123_COMPLIANT_FORMATTER =
+            DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US).withZone(ZoneOffset.UTC);
     private final PubKeyPairRepository pubKeyPairRepository;
-    private final WebClient webClient;
     private final String serverName;
     // https://docs.joinmastodon.org/spec/security/
-    private final List<String> headersToSign = List.of(HttpSignature.REQUEST_TARGET, "host", "date");
+    private final List<String> baseHeadersToSign = List.of(HttpSignature.REQUEST_TARGET, "host", "date");
+    private final PublicKeyResolver keyResolver;
 
-    public HttpSignatureService(PubKeyPairRepository pubKeyPairRepository, WebClient.Builder webClientBuilder) {
+    public HttpSignatureService(PubKeyPairRepository pubKeyPairRepository, PublicKeyResolver keyResolver) {
         this.pubKeyPairRepository = pubKeyPairRepository;
-        this.webClient = webClientBuilder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+        this.keyResolver = keyResolver;
         this.serverName = MothConfiguration.mothConfiguration.getServerName();
     }
 
@@ -50,63 +51,56 @@ public class HttpSignatureService {
     // https://stackoverflow.com/questions/45829799/java-time-format-datetimeformatter-rfc-1123-date-time-fails-to-parse-time-zone-n
     // RFC 1123 = HTTP Date Format (https://github.com/mastodon/mastodon/blob/main/app/lib/request.rb)
     public static String formatHttpDate(ZonedDateTime dateTime) {
-        return DateTimeFormatter.RFC_1123_DATE_TIME.format(dateTime);
-        // TODO : lookup for the edge cases (https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html)
-        // TODO : move to HttpSignature class?
+        return RFC_1123_COMPLIANT_FORMATTER.format(dateTime);
     }
 
-    public Mono<ClientRequest> signRequest(ClientRequest request, String accountId, @Nullable byte[] body) {
-        return pubKeyPairRepository.findItemByAcct(accountId).flatMap(keyPair -> {
-            try {
+    public Mono<HttpHeaders> prepareSignedHeaders(HttpMethod method, String sendingActorId, URI targetUri,
+                                                  byte[] bodyBytes) {
+        return pubKeyPairRepository.findItemByAcct(sendingActorId).switchIfEmpty(
+                        Mono.error(() -> new RuntimeException("Private key not found for actor: " + sendingActorId)))
+                .handle((keyPair, sink) -> {
+                    try {
+                        PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
+                        String keyId = "https://" + serverName + "/users/" + sendingActorId + "#main-key";
+                        String targetHost = targetUri.getHost();
+                        if (targetHost == null) {
+                            sink.error(new IllegalArgumentException("Invalid target URI host in " + targetUri));
+                            return;
+                        }
 
-                // mutable headers (https://stackoverflow.com/questions/53071229/httpclient-what-is-the-difference-between-setheader-and-addheader)
-                HttpHeaders headers = HttpHeaders.writableHttpHeaders(request.headers());
-                if (!headers.containsKey(HttpHeaders.DATE)) {
-                    headers.set(HttpHeaders.DATE, formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC)));
-                }
-                if (!headers.containsKey(HttpHeaders.HOST)) {
-                    headers.set(HttpHeaders.HOST, request.url().getHost());
-                }
-                // Add Digest header for requests with body
-                List<String> headersToSign = new ArrayList<>(this.headersToSign);
-                if (body != null && body.length > 0) {
-                    HttpSignature.addDigest(headers, body);
-                    headersToSign.add("digest");
-                }
-                // TODO Add (recommended) created, (optional) expires
-                // TODO algorithm? as metadata?
-                PrivateKey privateKey = HttpSignature.pemToPrivateKey(keyPair.privateKeyPEM);
-                String keyId = "https://" + serverName + "/users/" + accountId + "#main-key"; //
-                String signatureHeader =
-                        HttpSignature.generateSignatureHeader(request.method().name(), request.url(), headers,
-                                                              headersToSign, privateKey, keyId);
-                headers.set("Signature", signatureHeader);
-
-                // build a new ClientRequest with updated headers
-                ClientRequest.Builder newRequestBuilder = ClientRequest.from(request).headers(h -> {
-                    h.clear();
-                    h.addAll(headers);
+                        HttpHeaders headers = new HttpHeaders();
+                        String httpDate = formatHttpDate(ZonedDateTime.now(ZoneOffset.UTC));
+                        headers.setDate(ZonedDateTime.parse(httpDate, RFC_1123_COMPLIANT_FORMATTER));
+                        headers.set(HttpHeaders.HOST, targetHost);
+                        headers.setAccept(List.of(MediaType.valueOf("application/activity+json"), MediaType.valueOf(
+                                "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")));
+                        List<String> headersToSign = new ArrayList<>(baseHeadersToSign); // Start with base
+                        if (method == HttpMethod.POST) {
+                            headers.setContentType(MediaType.valueOf(
+                                    "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""));
+                            HttpSignature.addDigest(headers, bodyBytes != null ? bodyBytes : new byte[0]);
+                            headersToSign.add("digest");
+                        }
+                        String signatureHeaderValue =
+                                HttpSignature.generateSignatureHeader(method.name(), targetUri, headers, headersToSign,
+                                                                      privateKey, keyId);
+                        headers.set("Signature", signatureHeaderValue);
+                        sink.next(headers);
+                    } catch (Exception e) {
+                        sink.error(new RuntimeException("Failed to prepare signed headers", e));
+                    }
                 });
-
-                ClientRequest signedClientRequest = newRequestBuilder.build();
-                return Mono.just(signedClientRequest);
-            } catch (Exception e) {
-                log.error("Error during request signing", e);
-                return Mono.just(request); // Return original request if process fails
-            }
-        }).defaultIfEmpty(request); // Return original request if key not found
     }
 
     // https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/controllers/concerns/signature_verification.rb
-    public Mono<Boolean> verifySignature(ServerWebExchange exchange) {
-        // TODO : Caching, Domain Blocking, Local URI Checks, Rate Limiting, retry if key fetching fails.
+    public Mono<Boolean> verifySignature(ServerWebExchange exchange, byte[] bodyBytes) {
+        // TODO : Domain Blocking, Local URI Checks
         HttpHeaders headers = exchange.getRequest().getHeaders();
         String signatureHeader = headers.getFirst("Signature");
 
         if (signatureHeader == null) {
             log.warn("No Signature header in request to " + exchange.getRequest().getPath());
             return Mono.just(false);
-            // TODO : more error handling?
         }
 
         Map<String, String> fields = HttpSignature.extractFields(signatureHeader);
@@ -176,12 +170,7 @@ public class HttpSignatureService {
         Mono<Boolean> digestCheckResult;
         if (headersToVerifyList.contains("digest")) {
             String digestHeaderValue = headers.getFirst("Digest");
-            if (digestHeaderValue == null || digestHeaderValue.isBlank()) {
-                log.warn("Digest header signed but missing/empty in request.");
-                digestCheckResult = Mono.just(false);
-            } else {
-                digestCheckResult = checkRequestDigest(exchange, headers);
-            }
+            digestCheckResult = checkRequestDigest(digestHeaderValue, bodyBytes);
         } else {
             digestCheckResult = Mono.just(true);
         }
@@ -189,14 +178,14 @@ public class HttpSignatureService {
         return digestCheckResult.filter(Boolean::booleanValue).switchIfEmpty(Mono.defer(() -> {
                     log.warn("Digest verification failed or header mismatch.");
                     return Mono.just(false);
-                })).flatMap(ignored -> fetchPublicKey(keyId)) // digest verified, good to go for the signature
+                })).flatMap(ignored -> keyResolver.resolve(keyId)) // digest verified, good to go for the signature
                 .flatMap(publicKey -> {
                     try {
+                        log.info("Validating signature for keyId: " + keyId);
                         boolean isValid =
                                 HttpSignature.validateSignatureHeader(exchange.getRequest().getMethod().name(),
                                                                       exchange.getRequest().getURI(), headers,
                                                                       headersToVerify, publicKey, signature);
-
                         if (!isValid) {
                             log.warn("Invalid signature value for request from keyId: " + keyId);
                         }
@@ -208,9 +197,7 @@ public class HttpSignatureService {
                 }).defaultIfEmpty(false);
     }
 
-    private Mono<Boolean> checkRequestDigest(ServerWebExchange exchange, HttpHeaders headers) {
-        // ONLY "SHA-256=value", might need to add
-        String digestHeaderValue = headers.getFirst("Digest");
+    private Mono<Boolean> checkRequestDigest(String digestHeaderValue, @Nullable byte[] bytes) {
         String expectedValueBase64;
         if (digestHeaderValue == null) return Mono.just(false);
         String[] parts = digestHeaderValue.trim().split("=", 2); // Split into max 2 parts
@@ -237,71 +224,29 @@ public class HttpSignatureService {
             return Mono.just(false);
         }
 
-        final String finalExpectedValueBase64 = expectedValueBase64;
-
-        // calculate the actual digest
-        return DataBufferUtils.join(exchange.getRequest().getBody()).map(dataBuffer -> {
-            byte[] bodyBytes = new byte[dataBuffer.readableByteCount()];
-            dataBuffer.read(bodyBytes);
-            DataBufferUtils.release(dataBuffer);
-            return bodyBytes;
-        }).defaultIfEmpty(new byte[0]).<Boolean>handle((bodyBytes, sink) -> {
+        try {
             MessageDigest sha256 = HttpSignature.newSHA256Digest();
             if (sha256 == null) {
-                sink.error(new NoSuchAlgorithmException("SHA-256 MessageDigest unavailable"));
-                return;
+                log.error("SHA-256 MessageDigest algorithm not available.");
+                return Mono.just(false);
             }
 
-            byte[] actualDigestBytes = sha256.digest(bodyBytes);
-            String actualDigestBase64 = Base64.getEncoder().encodeToString(actualDigestBytes);
+            byte[] bodyToDigest = (bytes != null) ? bytes : new byte[0];
+            byte[] actualDigestBytes = sha256.digest(bodyToDigest);
 
-            // 7. Compare
-            boolean match = Objects.equals(actualDigestBase64, finalExpectedValueBase64);
+            String actualDigestBase64 = Base64.getEncoder().encodeToString(actualDigestBytes);
+            boolean match = Objects.equals(actualDigestBase64, expectedValueBase64);
             if (!match) {
-                log.warn("Digest mismatch. Header: SHA-256=" + finalExpectedValueBase64 + ", Calculated: SHA-256=" +
+                log.warn("Digest mismatch. Header: SHA-256=" + expectedValueBase64 + ", Calculated: SHA-256=" +
                                  actualDigestBase64);
             } else {
                 log.trace("Digest matched.");
             }
-            sink.next(match);
-        }).onErrorResume(e -> {
+            return Mono.just(match);
+        } catch (Exception e) {
             log.error("Error calculating request body digest", e);
             return Mono.just(false);
-        });
-    }
-
-    public Mono<PublicKey> fetchPublicKey(String keyId) {
-        // mastodon has separate remote key fetching service (https://github.com/mastodon/mastodon/blob/ff7230df065461ad3fafefdb974f723641059388/app/services/activitypub/fetch_remote_key_service.rb)
-        // TODO : Check cache first
-        // TODO : check if its local users? optimisation
-
-        // Fetch if not local (keyId -> actor > publicKey > publicKeyPem)
-        String actorUrl = keyId.split("#")[0];
-        return webClient.get().uri(actorUrl).retrieve().bodyToMono(Map.class).flatMap(actor -> {
-            try {
-                Map<String, Object> publicKeyObject = (Map<String, Object>) actor.get("publicKey");
-                if (publicKeyObject == null) {
-                    log.warn("No publicKey in actor document: " + actorUrl);
-                    return Mono.empty();
-                }
-
-                String publicKeyPem = (String) publicKeyObject.get("publicKeyPem");
-                if (publicKeyPem == null) {
-                    log.warn("No publicKeyPem in actor document: " + actorUrl);
-                    return Mono.empty();
-                }
-                PublicKey publicKey = HttpSignature.pemToPublicKey(publicKeyPem);
-
-                if (publicKey == null) return Mono.empty();
-                return Mono.just(publicKey);
-            } catch (Exception e) {
-                log.error("Error extracting public key from actor", e);
-                return Mono.empty();
-            }
-        }).onErrorResume(e -> {
-            log.error("Error fetching actor document: " + actorUrl, e);
-            return Mono.empty();
-        });
+        }
     }
 
     private boolean isDateValid(String dateHeader) {

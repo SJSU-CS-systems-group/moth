@@ -20,23 +20,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
-import static edu.sjsu.moth.server.util.Util.signAndSend;
-
 @CommonsLog
 @Configuration
 public class FollowService {
 
     @Autowired
+    PubKeyPairRepository pubKeyPairRepository;
+    @Autowired
     private FollowRepository followRepository;
-
     @Autowired
     private AccountRepository accountRepository;
-
     @Autowired
     private ObjectMapper objectMapper;
-
     @Autowired
-    PubKeyPairRepository pubKeyPairRepository;
+    private ActivityPubService activityPubService;
 
     public Mono<Relationship> followUser(String followerId, String followedId) {
         return Mono.zip(accountRepository.findById(followerId), accountRepository.findById(followedId)).switchIfEmpty(
@@ -62,13 +59,9 @@ public class FollowService {
                                 new FollowMessage(actorUrl, ActivityPubUtil.toActivityPubUserUrl(followedAccount.url));
                         JsonNode message = objectMapper.valueToTree(followMessage);
 
-                        Mono<Void> sendFollow = getPrivateKey(followerAccount.id, true).switchIfEmpty(Mono.error(
-                                new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                                                            "Private key " + "missing"))).flatMap(
-                                privKey -> signAndSend(message, actorUrl, message.get("object").asText() + "/inbox",
-                                                       privKey).onErrorResume(ex -> Mono.error(
-                                        new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                                                                    "Failed to send follow request", ex))));
+                        Mono<Void> sendFollow = activityPubService.sendSignedActivity(message, followerAccount.id,
+                                                                                      message.get("object").asText() +
+                                                                                              "/inbox");
 
                         return sendFollow.then(checkFollows.map(
                                 follow -> new Relationship(followerAccount.id, false, false, false, true, false, false,
@@ -112,10 +105,9 @@ public class FollowService {
                         JsonNode fMsg = objectMapper.valueToTree(followMessage);
                         UndoMessage undoMessage = new UndoMessage(fMsg);
                         JsonNode message = objectMapper.valueToTree(undoMessage);
-                        Mono<Void> sendUnFollow = getPrivateKey(followerAccount.id, true).flatMap(
-                                privKey -> signAndSend(message, actorUrl,
-                                                       message.get("object").get("object").asText() + "/inbox",
-                                                       privKey));
+                        Mono<Void> sendUnFollow = activityPubService.sendSignedActivity(message, followerAccount.id,
+                                                                                        fMsg.get("object").asText() +
+                                                                                                "/inbox");
                         return sendUnFollow.then(saveAndRecount).flatMap(follow -> postUnfollow);
                     } else {
                         Mono<String> saveAndRecount = removeFollow(followerAccount, followedAccount);
