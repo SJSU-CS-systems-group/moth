@@ -41,6 +41,7 @@ import java.security.Principal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Configuration
 @CommonsLog
@@ -192,27 +193,14 @@ public class StatusService {
                 .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit).collectList();
 
         return Mono.zip(external, internal).map(tuple -> {
-            List<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
-            return merged.stream().limit(limit).toList();
+            Stream<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
+            return merged.limit(limit).toList();
         });
     }
 
-    private List<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
-        List<Status> merged = new ArrayList<>(externalStatus.size() + internalStatus.size());
-        int i = 0, j = 0;
-
-        while (i < externalStatus.size() && j < internalStatus.size()) {
-            Instant externalCreatedAt = Instant.parse(externalStatus.get(i).createdAt);
-            Instant internalCreatedAt = Instant.parse(internalStatus.get(j).createdAt);
-            if (externalCreatedAt.isAfter(internalCreatedAt)) {
-                merged.add(externalStatus.get(i++));
-            } else {
-                merged.add(internalStatus.get(j++));
-            }
-        }
-        while (i < externalStatus.size()) merged.add(externalStatus.get(i++));
-        while (j < internalStatus.size()) merged.add(internalStatus.get(j++));
-        return merged;
+    private Stream<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
+        return Stream.concat(externalStatus.stream().map(e -> (Status) e), internalStatus.stream())
+                .sorted((a, b) -> Instant.parse(b.createdAt).compareTo(Instant.parse(a.createdAt)));
     }
 
     public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id,
