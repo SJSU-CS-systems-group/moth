@@ -189,7 +189,7 @@ public class StatusService {
                 externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit)
                         .collectList();
         Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit).collectList();
+                .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit).collectList();
 
         return Mono.zip(external, internal).map(tuple -> {
             List<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
