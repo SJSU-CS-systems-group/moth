@@ -38,6 +38,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -184,13 +185,34 @@ public class StatusService {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
-        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
+        Mono<List<ExternalStatus>> external =
+                externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit)
+                        .collectList();
+        Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit).collectList();
 
-        //TODO: we may want to merge sort them, unsure if merge does that
-        return Flux.merge(external, internal).collectList();
+        return Mono.zip(external, internal).map(tuple -> {
+            List<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
+            return merged.stream().limit(limit).toList();
+        });
+    }
+
+    private List<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
+        List<Status> merged = new ArrayList<>(externalStatus.size() + internalStatus.size());
+        int i = 0, j = 0;
+
+        while (i < externalStatus.size() && j < internalStatus.size()) {
+            Instant externalCreatedAt = Instant.parse(externalStatus.get(i).createdAt);
+            Instant internalCreatedAt = Instant.parse(internalStatus.get(j).createdAt);
+            if (externalCreatedAt.isAfter(internalCreatedAt)) {
+                merged.add(externalStatus.get(i++));
+            } else {
+                merged.add(internalStatus.get(j++));
+            }
+        }
+        while (i < externalStatus.size()) merged.add(externalStatus.get(i++));
+        while (j < internalStatus.size()) merged.add(internalStatus.get(j++));
+        return merged;
     }
 
     public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id,
