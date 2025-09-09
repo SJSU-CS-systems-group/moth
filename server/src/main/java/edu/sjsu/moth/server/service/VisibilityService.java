@@ -47,19 +47,16 @@ public class VisibilityService {
     }
 
     public Flux<Status> homefeedViewable(Principal user, Status status) {
-        return accountService
-                .getAccount(user.getName())
+        return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found")))
-                .flatMapMany(account -> followRepository.findAllByFollowerId(account.id).flatMap(
-                        follow -> {
-                                if (follow.id.followed_id.equals(status.account.id)
-                                        && validHomeFeedVisibility(status.visibility)) {
-                                    return Flux.just(status);
-                                }
-                                return Flux.empty();
-                            }
-                        )
-                );
+                .flatMapMany(account -> followRepository.findAllByFollowerId(account.id).flatMap(follow -> {
+                    if ((follow.id.followed_id.equals(status.account.id) &&
+                            validHomeFeedVisibility(status.visibility)) ||
+                            (user.getName().equals(status.account.username))) {
+                        return Flux.just(status);
+                    }
+                    return Flux.empty();
+                }));
     }
 
     private boolean validHomeFeedVisibility(String visibility) {
@@ -74,10 +71,8 @@ public class VisibilityService {
             return Flux.just(status);
         }
 
-        return accountService
-                .getAccount(user.getName())
-                .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found")))
-                .flatMapMany(account -> {
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found"))).flatMapMany(account -> {
                     if (status.account.id.equals(account.id)) {
                         return Flux.just(status);
                     }

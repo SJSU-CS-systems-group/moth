@@ -38,8 +38,10 @@ import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Configuration
 @CommonsLog
@@ -184,13 +186,21 @@ public class StatusService {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
-        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(statuses -> visibilityService.homefeedViewable(user, statuses)).take(limit);
+        Mono<List<ExternalStatus>> external =
+                externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit)
+                        .collectList();
+        Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit).collectList();
 
-        //TODO: we may want to merge sort them, unsure if merge does that
-        return Flux.merge(external, internal).collectList();
+        return Mono.zip(external, internal).map(tuple -> {
+            Stream<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
+            return merged.limit(limit).toList();
+        });
+    }
+
+    private Stream<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
+        return Stream.concat(externalStatus.stream().map(e -> (Status) e), internalStatus.stream())
+                .sorted((a, b) -> Instant.parse(b.createdAt).compareTo(Instant.parse(a.createdAt)));
     }
 
     public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id,
