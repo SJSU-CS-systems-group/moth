@@ -9,8 +9,10 @@ public interface AccountRepository extends ReactiveMongoRepository<Account, Stri
     Mono<Account> findItemByAcct(String acct);
 
     @Query("{ 'acct': { $regex: '?0', $options: 'i' } }")
-        //// regex: ?#, the number referring to the args passed thru the method. it will search based off of args[#],
-        // which is acct. if additional args, can pass by doing ?1, ?2, etc.
-        //// options: 'i' makes search case-insensitive
+    //// regex: ?#, the number referring to the args passed thru the method. it will search based off of args[#],
+    // which is acct. if additional args, can pass by doing ?1, ?2, etc.
+    //// options: 'i' makes search case-insensitive
     Flux<Account> findByAcctLike(String acct);
+    
+    Mono<Boolean> existsByAcct(String acct);
 }

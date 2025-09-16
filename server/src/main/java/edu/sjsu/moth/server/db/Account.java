@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @QueryEntity
 // Definition is https://docs.joinmastodon.org/entities/Account/
@@ -77,10 +78,19 @@ public class Account {
         this.following_count = following_count;
     }
 
-    public Account(String username) {
-        this(username, username, username, MothController.BASE_URL + "/@" + username, "", "", "", "", "", "", false,
-             new ArrayList<AccountField>(), new CustomEmoji[0], false, false, false, false, false, false, false,
-             EmailCodeUtils.now(), EmailCodeUtils.now(), 0, 0, 0);
+    public Account(String username, String acct, String url, String display_name, String note, String avatar,
+                   String avatar_static, String header, String header_static, boolean locked,
+                   List<AccountField> fields, CustomEmoji[] emojis, boolean bot, boolean group, boolean discoverable,
+                   boolean noindex, boolean moved, boolean suspended, boolean limited, String created_at,
+                   String last_status_at, int statuses_count, int followers_count, int following_count) {
+        this(UUID.randomUUID().toString(), username, acct, url, display_name, note, avatar, avatar_static, header,
+             header_static, locked, fields, emojis, bot, group, discoverable, noindex, moved, suspended, limited,
+             created_at, last_status_at, statuses_count, followers_count, following_count);
     }
 
+    public Account(String username) {
+        this(UUID.randomUUID().toString(), username, username, MothController.BASE_URL + "/@" + username, "", "", "",
+             "", "", "", false, new ArrayList<AccountField>(), new CustomEmoji[0], false, false, false, false, false,
+             false, false, EmailCodeUtils.now(), EmailCodeUtils.now(), 0, 0, 0);
+    }
 }

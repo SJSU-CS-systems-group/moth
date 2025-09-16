@@ -105,9 +105,8 @@ public class InboxService {
                     //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
                     //change from String.valueOf(generateUniqueId()) to just their name
                     //changed last status from null to actor.published
-                    return new Account(actor.preferredUsername, actor.preferredUsername,
-                                       actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
-                                       actor.summary, iconLink, iconLink, imageLink, imageLink,
+                    return new Account(actor.preferredUsername, actor.preferredUsername + "@" + finalServerName,
+                                       actor.url, actor.name, actor.summary, iconLink, iconLink, imageLink, imageLink,
                                        actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
                                        actor.discoverable, false, false, false, false, actor.published, actor.published,
                                        totalItems, totalItemFollowers, totalItemFollowing);
