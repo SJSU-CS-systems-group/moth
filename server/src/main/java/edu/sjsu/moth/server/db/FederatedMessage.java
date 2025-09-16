@@ -17,8 +17,6 @@ public class FederatedMessage {
     public Instant created_at;  // when the message was created
     public int attempts;      // number of send attempts
 
-    public FederatedMessage() {}
-
     public FederatedMessage(String id, String messageId, String inboxUrl, String status, String error, int attempts) {
         this.id = id;
         this.messageId = messageId;
