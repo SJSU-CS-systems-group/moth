@@ -1,20 +1,43 @@
 package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.generated.Actor;
+import edu.sjsu.moth.server.activitypub.service.WebfingerService;
+import edu.sjsu.moth.server.controller.InboxController;
+import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.ExternalActorRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-@Configuration
+@Service
 public class ActorService {
 
-    @Autowired
-    ExternalActorRepository externalActorRepository;
+    private final ExternalActorRepository externalActorRepository;
+    private final WebfingerService webfingerService;
+    private final WebClient webClient;
 
-    public Mono<Actor> save(Actor actor) {
-        return externalActorRepository.save(actor);
+    public ActorService(ExternalActorRepository externalActorRepository, WebfingerService webfingerService,
+                        WebClient.Builder webClientBuilder) {
+        this.externalActorRepository = externalActorRepository;
+        this.webfingerService = webfingerService;
+        this.webClient = webClientBuilder.build();
     }
 
-    public Mono<Actor> getActor(String actor) {return externalActorRepository.findItemById(actor);}
+    public Mono<Actor> save(Actor actor) {
+        return externalActorRepository != null ? externalActorRepository.save(actor) : Mono.just(actor);
+    }
+
+    public Mono<Actor> getActor(String actor) {
+        return externalActorRepository != null ? externalActorRepository.findItemById(actor) : Mono.empty();
+    }
+
+    public Mono<Account> resolveRemoteAccount(String userHandle) {
+        return webfingerService.discoverProfileUrl(userHandle)
+                .flatMap(profileUrl -> webClient.get().uri(profileUrl)
+                        .accept(MediaType.parseMediaType("application/activity+json"))
+                        .retrieve()
+                        .bodyToMono(Actor.class))
+                .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)));
+    }
 }
