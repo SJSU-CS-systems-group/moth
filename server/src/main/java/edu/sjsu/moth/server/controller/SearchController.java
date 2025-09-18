@@ -1,7 +1,6 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.SearchResult;
-import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.StatusService;
@@ -49,12 +48,20 @@ public class SearchController {
 
         if (query.contains("@")) {
             String userHandle = query.startsWith("@") ? query.substring(1) : query;
-            return actorService.resolveRemoteAccount(userHandle).map(account -> {
-                result.accounts.add(account);
-                Status statuses = Mono.just(new Status()).block();
-                result.statuses.add(statuses);
-                return result;
-            }).switchIfEmpty(Mono.just(new SearchResult())).onErrorResume(e -> Mono.just(new SearchResult()));
+            Integer count = limit;
+            return actorService.resolveRemoteAccount(userHandle).flatMap(account ->
+                                                                                 // ensure remote account id can be
+                                                                                 // used as a key in profile routes
+                                                                                 Mono.just(account).map(a -> {
+                                                                                     a.id = a.acct;
+                                                                                     return a;
+                                                                                 })).flatMap(
+                    account -> statusService.getStatusesForId(user, account.acct, null, null, null, false, false, false,
+                                                              null, null, count).map(statuses -> {
+                        result.accounts.add(account);
+                        result.statuses.addAll(statuses);
+                        return result;
+                    })).switchIfEmpty(Mono.just(new SearchResult())).onErrorResume(e -> Mono.just(new SearchResult()));
         } else {
             // normal search (of local instance)
             String searchType = type == null ? "" : type;

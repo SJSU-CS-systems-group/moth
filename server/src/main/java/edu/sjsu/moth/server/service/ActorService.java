@@ -32,12 +32,14 @@ public class ActorService {
         return externalActorRepository != null ? externalActorRepository.findItemById(actor) : Mono.empty();
     }
 
+    public Mono<Actor> fetchAndSaveActorById(String actorId) {
+        return webClient.get().uri(actorId).accept(MediaType.parseMediaType("application/activity+json")).retrieve()
+                .bodyToMono(Actor.class).flatMap(this::save);
+    }
+
     public Mono<Account> resolveRemoteAccount(String userHandle) {
-        return webfingerService.discoverProfileUrl(userHandle)
-                .flatMap(profileUrl -> webClient.get().uri(profileUrl)
-                        .accept(MediaType.parseMediaType("application/activity+json"))
-                        .retrieve()
-                        .bodyToMono(Actor.class))
+        return webfingerService.discoverProfileUrl(userHandle).flatMap(profileUrl -> webClient.get().uri(profileUrl)
+                        .accept(MediaType.parseMediaType("application/activity+json")).retrieve().bodyToMono(Actor.class))
                 .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)));
     }
 }
