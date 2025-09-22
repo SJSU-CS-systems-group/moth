@@ -36,9 +36,9 @@ public class FollowService {
     private ActivityPubService activityPubService;
 
     public Mono<Relationship> followUser(String followerId, String followedId) {
-        return Mono.zip(accountRepository.findById(followerId), accountRepository.findById(followedId)).switchIfEmpty(
-                        Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
-                                                               "Follower or Followed account " + "not found")))
+        return Mono.zip(accountRepository.findItemByAcct(followerId), accountRepository.findById(followedId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                                      "Follower or Followed account " + "not found")))
                 .flatMap(tuple -> {
                     Account followerAccount = tuple.getT1();
                     Account followedAccount = tuple.getT2();

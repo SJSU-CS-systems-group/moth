@@ -18,6 +18,7 @@ import edu.sjsu.moth.server.db.TokenRepository;
 import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,81 +100,90 @@ public class FollowServiceTest {
     public void testLocalSendFollowUnfollowHappyPath() {
 
         accountRepository.save(new Account(OTHER_USER)).block();
-        assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
+        Account account = accountRepository.findItemByAcct(OTHER_USER).block();
+        Account currentUserAccount = accountRepository.findItemByAcct(CURRENT_USER_ID).block();
+        String otherUserId = account.id;
+        String currentUserId = currentUserAccount.id;
+        assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
         // Mock the authentication
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", CURRENT_USER_ID))).post()
-                .uri(POST_FOLLOW_ENDPOINT, OTHER_USER).contentType(MediaType.APPLICATION_JSON).exchange().expectStatus()
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", currentUserId))).post()
+                .uri(POST_FOLLOW_ENDPOINT, account.id).contentType(MediaType.APPLICATION_JSON).exchange().expectStatus()
                 .isOk().expectBody(Relationship.class).consumeWith(response -> {
                     Relationship relationship = response.getResponseBody();
                     assertNotNull(relationship);
                     assertThat(relationship.following).isTrue();
                     assertThat(relationship.followedBy).isFalse();
-                    assertThat(followRepository.findIfFollows(CURRENT_USER_ID, OTHER_USER).block()).isNotNull();
-                    assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(1);
-                    assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(1);
-                    assertThat(followRepository.countAllByFollowedId(CURRENT_USER_ID).block()).isEqualTo(0);
-                    assertThat(followRepository.countAllByFollowerId(OTHER_USER).block()).isEqualTo(0);
+                    assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNotNull();
+                    assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(1);
+                    assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(1);
+                    assertThat(followRepository.countAllByFollowedId(currentUserId).block()).isEqualTo(0);
+                    assertThat(followRepository.countAllByFollowerId(otherUserId).block()).isEqualTo(0);
                 });
 
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", CURRENT_USER_ID))).post()
-                .uri(POST_UNFOLLOW_ENDPOINT, OTHER_USER).contentType(MediaType.APPLICATION_JSON).exchange()
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", currentUserId))).post()
+                .uri(POST_UNFOLLOW_ENDPOINT, otherUserId).contentType(MediaType.APPLICATION_JSON).exchange()
                 .expectStatus().isOk().expectBody(Relationship.class).consumeWith(response -> {
                     Relationship relationship = response.getResponseBody();
                     assertNotNull(relationship);
                     assertThat(relationship.following).isFalse();
                     assertThat(relationship.followedBy).isFalse();
-                    assertThat(followRepository.findIfFollows(CURRENT_USER_ID, OTHER_USER).block()).isNull();
-                    assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(0);
-                    assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
-                    assertThat(followRepository.countAllByFollowedId(CURRENT_USER_ID).block()).isEqualTo(0);
-                    assertThat(followRepository.countAllByFollowerId(OTHER_USER).block()).isEqualTo(0);
+                    assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+                    assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(0);
+                    assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
+                    assertThat(followRepository.countAllByFollowedId(currentUserId).block()).isEqualTo(0);
+                    assertThat(followRepository.countAllByFollowerId(otherUserId).block()).isEqualTo(0);
                 });
     }
 
     @Test
     public void testLocalSendFollowUnfollowInvalidUser() throws Exception {
         // 1) Perform the request and capture the raw body
-        assertThat(followRepository.countAllByFollowedId(DOES_NOT_EXIST).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", CURRENT_USER_ID))).post()
+        Account currentUserAccount = accountRepository.findItemByAcct(CURRENT_USER_ID).block();
+        String otherUserId = DOES_NOT_EXIST;
+        String currentUserId = currentUserAccount.id;
+        assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", currentUserId))).post()
                 // make sure you’re supplying a non‐existent account in the path
-                .uri(POST_FOLLOW_ENDPOINT, DOES_NOT_EXIST).contentType(MediaType.APPLICATION_JSON).exchange()
+                .uri(POST_FOLLOW_ENDPOINT, otherUserId).contentType(MediaType.APPLICATION_JSON).exchange()
                 .expectStatus().isNotFound()           // still assert the 404
                 .expectStatus().isEqualTo(HttpStatus.NOT_FOUND).expectBody().jsonPath("$.message")
                 .isEqualTo("Follower or Followed account not found").jsonPath("$.error").isEqualTo("404 NOT_FOUND");
 
-        assertThat(followRepository.findIfFollows(CURRENT_USER_ID, DOES_NOT_EXIST).block()).isNull();
-        assertThat(followRepository.findIfFollows(CURRENT_USER_ID, DOES_NOT_EXIST).block()).isNull();
-        assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowedId(CURRENT_USER_ID).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(DOES_NOT_EXIST).block()).isEqualTo(0);
+        assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+        assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+        assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowedId(currentUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(otherUserId).block()).isEqualTo(0);
 
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", CURRENT_USER_ID))).post()
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", currentUserId))).post()
                 // make sure you’re supplying a non‐existent account in the path
-                .uri(POST_UNFOLLOW_ENDPOINT, DOES_NOT_EXIST).contentType(MediaType.APPLICATION_JSON).exchange()
+                .uri(POST_UNFOLLOW_ENDPOINT, otherUserId).contentType(MediaType.APPLICATION_JSON).exchange()
                 .expectStatus().isNotFound()           // still assert the 404
                 .expectStatus().isEqualTo(HttpStatus.NOT_FOUND).expectBody().jsonPath("$.message")
                 .isEqualTo("Follower or Followed account not found").jsonPath("$.error").isEqualTo("404 NOT_FOUND");
 
-        assertThat(followRepository.findIfFollows(CURRENT_USER_ID, DOES_NOT_EXIST).block()).isNull();
-        assertThat(followRepository.findIfFollows(CURRENT_USER_ID, DOES_NOT_EXIST).block()).isNull();
-        assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowedId(CURRENT_USER_ID).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(DOES_NOT_EXIST).block()).isEqualTo(0);
+        assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+        assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+        assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowedId(currentUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(otherUserId).block()).isEqualTo(0);
     }
 
     @Test
     public void testLocalSendUnfollowNotFollowingUser() throws Exception {
         // 1) Perform the request and capture the raw body
-        accountRepository.save(new Account(OTHER_USER)).block();
-        assertThat(followRepository.countAllByFollowedId(OTHER_USER).block()).isEqualTo(0);
-        assertThat(followRepository.countAllByFollowerId(CURRENT_USER_ID).block()).isEqualTo(0);
-        assertThat(followRepository.findIfFollows(CURRENT_USER_ID, OTHER_USER).block()).isNull();
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", CURRENT_USER_ID))).post()
-                .uri(POST_UNFOLLOW_ENDPOINT, OTHER_USER).contentType(MediaType.APPLICATION_JSON).exchange()
+        Account account = accountRepository.findItemByAcct(OTHER_USER).block();
+        Account currentUserAccount = accountRepository.findItemByAcct(CURRENT_USER_ID).block();
+        String otherUserId = account.id;
+        String currentUserId = currentUserAccount.id;
+        assertThat(followRepository.countAllByFollowedId(otherUserId).block()).isEqualTo(0);
+        assertThat(followRepository.countAllByFollowerId(currentUserId).block()).isEqualTo(0);
+        assertThat(followRepository.findIfFollows(currentUserId, otherUserId).block()).isNull();
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", currentUserId))).post()
+                .uri(POST_UNFOLLOW_ENDPOINT, otherUserId).contentType(MediaType.APPLICATION_JSON).exchange()
                 .expectStatus().isNotFound()           // still assert the 404
                 .expectStatus().isEqualTo(HttpStatus.NOT_FOUND).expectBody().jsonPath("$.message")
                 .isEqualTo("No follow relation exists").jsonPath("$.error").isEqualTo("404 NOT_FOUND");

@@ -138,10 +138,11 @@ public class StatusControllerTest {
         request.status = "Hello, @test-mention @test-mention-2 world!";
 
         accountRepository.save(new Account("test-user")).block();
+        Account testUserId = accountRepository.findItemByAcct("test-user").block();
         accountRepository.save(new Account("test-mention")).block();
         accountRepository.save(new Account("test-mention-2")).block();
         // Mock the authentication
-        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).post().uri(POST_STATUS_ENDPOINT)
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUserId.id))).post().uri(POST_STATUS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange().expectStatus().isOk();
 
         Status status = statusRepository.findByStatusLike("Hello").blockFirst();
@@ -270,7 +271,6 @@ public class StatusControllerTest {
         // 4) fetch all outbox messages for this actor
         List<CreateMessage> outboxList =
                 outboxRepository.findAllByActorOrderByPublishedAtDesc(actor).collectList().block();
-
 
         // 5) verify that we stored exactly one Create per post
         assertNotNull(outboxList, "Outbox list should not be null");
