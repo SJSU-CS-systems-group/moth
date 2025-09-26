@@ -7,8 +7,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.function.UnaryOperator;
+
 /**
- * Fetches the first page of a remote actor's outbox and returns Create activities.
+ * Fetches activities from a remote actor's outbox.
  */
 @Service
 public class RemoteOutboxFetcher {
@@ -19,7 +21,10 @@ public class RemoteOutboxFetcher {
         this.webClient = builder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
     }
 
-    public Flux<JsonNode> fetchCreateActivities(String outboxUrl, int limit) {
+    public Flux<JsonNode> fetchCreateActivities(String outboxUrl, Integer limit) {
+        // apply limit to the flux, or do nothing if the limit is null
+        UnaryOperator<Flux<JsonNode>> takeOperator = f -> limit == null ? f : f.take(limit);
+
         return fetch(outboxUrl).flatMapMany(root -> {
             String type = text(root.path("type"));
             if ("OrderedCollection".equals(type)) {
@@ -27,15 +32,27 @@ public class RemoteOutboxFetcher {
                 if (first == null || first.isBlank()) {
                     return Flux.empty();
                 }
-                return fetch(first).flatMapMany(this::itemsFromPage);
+                return fetchAllPages(first);
             } else {
                 return itemsFromPage(root);
             }
-        }).filter(this::isCreateNote).take(limit);
+        }).filter(this::isCreateNote).transform(takeOperator);
     }
 
     private Mono<JsonNode> fetch(String url) {
         return webClient.get().uri(url).retrieve().bodyToMono(JsonNode.class);
+    }
+
+    private Flux<JsonNode> fetchAllPages(String url) {
+        return fetch(url).flatMapMany(page -> {
+            Flux<JsonNode> items = itemsFromPage(page);
+            String next = text(page.path("next"));
+            if (next != null && !next.isBlank()) {
+                return items.concatWith(fetchAllPages(next));
+            } else {
+                return items;
+            }
+        });
     }
 
     private Flux<JsonNode> itemsFromPage(JsonNode page) {
