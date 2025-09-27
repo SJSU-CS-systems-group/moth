@@ -142,4 +142,59 @@ public class SearchControllerTest {
         Assertions.assertNotNull(savedActor, "Expected actor to be saved: " + expectedActorId);
     }
 
+    @Test
+    public void testOnlyRemoteUsersAreSavedByURL() {
+        // Step 1: Clear DB
+        accountRepository.deleteAll().block();
+
+        // Step 2: Make a remote search request (simulate via real domain, or mock if isolated)
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
+                        .queryParam("q", "https://mastodon.social/users/divyamonmastodon") // Example remote user
+                        .queryParam("type", "accounts").build()).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.accounts").exists();
+
+        // Step 3: Assert no local Account entities are persisted for remote users
+        var allAccounts = accountRepository.findAll().collectList().block();
+        Assertions.assertTrue(allAccounts == null || allAccounts.isEmpty(),
+                              "Remote users must not be saved to AccountRepository");
+
+        // Step 4: Assert specific remote Actor persisted in ExternalActorRepository
+        String expectedActorId = "https://mastodon.social/users/divyamonmastodon";
+        var savedActor = externalActorRepository.findItemById(expectedActorId).block();
+        System.out.println(savedActor);
+        Assertions.assertNotNull(savedActor, "Expected actor to be saved: " + expectedActorId);
+    }
+
+    @Test
+    public void testResolveByAtUserUrlVariant() {
+        accountRepository.deleteAll().block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
+                        .queryParam("q", "https://mastodon.social/@divyamonmastodon").queryParam("type", "accounts")
+                        .build()).exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts").exists();
+    }
+
+    @Test
+    public void testResolveByUsersUrlWithTrailingSlash() {
+        accountRepository.deleteAll().block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
+                        .queryParam("q", "https://mastodon.social/users/divyamonmastodon/")
+                        .queryParam("type", "accounts").build()).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.accounts").exists();
+    }
+
+    @Test
+    public void testInvalidProfileUrlReturnsEmpty() {
+        accountRepository.deleteAll().block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
+                        .queryParam("q", "https://invalid.example/users/doesnotexist").queryParam("type", "accounts")
+                        .build()).exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts.length()")
+                .isEqualTo(0);
+    }
 }

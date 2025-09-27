@@ -46,7 +46,21 @@ public class SearchController {
             limit = 20;
         }
 
-        if (query.contains("@")) {
+        if (query.startsWith("http://") || query.startsWith("https://")) {
+            String profileUrl = query;
+            Integer count = limit;
+            return actorService.resolveRemoteAccountFromProfileUrl(profileUrl).flatMap(account ->
+                    Mono.just(account).map(a -> {
+                        a.id = a.acct;
+                        return a;
+                    })).flatMap(account ->
+                    statusService.getStatusesForId(user, account.acct, null, null, null, false, false, false,
+                            null, null, count).map(statuses -> {
+                        result.accounts.add(account);
+                        result.statuses.addAll(statuses);
+                        return result;
+                    })).switchIfEmpty(Mono.just(new SearchResult())).onErrorResume(e -> Mono.just(new SearchResult()));
+        } else if (query.contains("@")) {
             String userHandle = query.startsWith("@") ? query.substring(1) : query;
             Integer count = limit;
             return actorService.resolveRemoteAccount(userHandle).flatMap(account ->
