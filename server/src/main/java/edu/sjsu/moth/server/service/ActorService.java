@@ -5,12 +5,14 @@ import edu.sjsu.moth.server.activitypub.service.WebfingerService;
 import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.ExternalActorRepository;
+import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 @Service
+@CommonsLog
 public class ActorService {
 
     private final ExternalActorRepository externalActorRepository;
@@ -37,45 +39,86 @@ public class ActorService {
                 .bodyToMono(Actor.class).flatMap(this::save);
     }
 
-    public Mono<Account> resolveRemoteAccount(String userHandle) {
-        return webfingerService.discoverProfileUrl(userHandle).flatMap(profileUrl -> webClient.get().uri(profileUrl)
-                        .accept(MediaType.parseMediaType("application/activity+json")).retrieve().bodyToMono(Actor.class))
-                .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)));
+    private Mono<Account> fetchAndConvertActor(String url) {
+        // try to get from the local DB, URL = https://mastodon.social/users/divyamonmastodon
+        return getActor(url).flatMap(InboxController::convertToAccount).switchIfEmpty(Mono.defer(() -> {
+
+            // If not found, fetch from remote server
+            log.debug("Actor " + url + " not in DB, fetching from remote");
+            return webClient.get().uri(url).accept(MediaType.parseMediaType("application/activity+json")).retrieve()
+                    .bodyToMono(Actor.class)
+                    .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)));
+        }));
     }
 
-    public Mono<Account> resolveRemoteAccountFromProfileUrl(String profileUrl) {
-        return webClient.get().uri(profileUrl)
-                .accept(MediaType.parseMediaType("application/activity+json"))
-                .retrieve()
-                .bodyToMono(Actor.class)
-                .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)))
-                .onErrorResume(e -> {
-                    try {
-                        java.net.URI uri = java.net.URI.create(profileUrl);
-                        String host = uri.getHost();
-                        String path = uri.getPath();
-                        if (host == null || path == null) {
-                            return Mono.error(e);
-                        }
-                        String username = null;
-                        if (path.startsWith("/users/")) {
-                            String[] segments = path.split("/");
-                            if (segments.length >= 3) {
-                                username = segments[2];
-                            }
-                        } else if (path.startsWith("/@")) {
-                            String[] segments = path.split("/");
-                            if (segments.length >= 2) {
-                                username = segments[1].startsWith("@") ? segments[1].substring(1) : segments[1];
-                            }
-                        }
-                        if (username != null) {
-                            String handle = username + "@" + host;
-                            return resolveRemoteAccount(handle);
-                        }
-                    } catch (Exception ignored) {
-                    }
+    private Mono<Account> resolveRemoteAccountByHandle(String userHandle) {
+        return webfingerService.discoverProfileUrl(userHandle).flatMap(this::fetchAndConvertActor);
+    }
+
+    private String extractUsernameFromPath(String path) {
+        if (path == null || !path.startsWith("/@")) {
+            return null; // Path must start with /@
+        }
+        String potentialUsername = path.substring(2);
+        // The username must not be empty and must not contain any further path segments.
+        if (potentialUsername.isEmpty() || potentialUsername.contains("/")) {
+            return null;
+        }
+        return potentialUsername;
+    }
+
+    private String getCanonicalActorId(String profileUrl) {
+        try {
+            java.net.URI uri = java.net.URI.create(profileUrl);
+            String host = uri.getHost();
+            String path = uri.getPath(); // path = /@divyamonmastodon in https://mastodon.social/@amazing_justDivyam
+            if (host == null || path == null) {
+                return profileUrl; // Not parsable URL
+            }
+            String username = extractUsernameFromPath(path);
+            if (username != null) {
+                return "https://" + host + "/users/" + username;
+            }
+        } catch (Exception ignored) {
+            // if URI parsing fails, just fall through
+        }
+        return profileUrl; // Return original if no translation is needed or possible
+    }
+
+    private Mono<Account> resolveRemoteAccountFromProfileUrl(String profileUrl) {
+        String canonicalId = getCanonicalActorId(profileUrl);
+        return fetchAndConvertActor(canonicalId).onErrorResume(e -> {
+            log.info("Failed to fetch actor from URL " + canonicalId + ". Attempting fallback to handle resolution.");
+            try {
+                java.net.URI uri = java.net.URI.create(canonicalId);
+                String host = uri.getHost();
+                String path = uri.getPath();
+                if (host == null || path == null) {
                     return Mono.error(e);
-                });
+                }
+                // Use the already extracted username from the canonical ID
+                if (path.startsWith("/users/")) {
+                    String username = path.substring("/users/".length());
+                    String handle = username + "@" + host;
+                    log.info("Fallback successful, resolving handle: " + handle);
+                    return resolveRemoteAccountByHandle(handle);
+                }
+            } catch (Exception ignored) {
+                // if URI parsing fails, just fall through to the original error
+            }
+            return Mono.error(e);
+        });
+    }
+
+    public Mono<Account> resolveRemoteAccount(String handleOrUrl) {
+        System.out.println("resolveRemoteAccount");
+        if (handleOrUrl.startsWith("http://") || handleOrUrl.startsWith("https://")) {
+            return resolveRemoteAccountFromProfileUrl(handleOrUrl);
+        } else if (handleOrUrl.contains("@")) {
+            String processedHandle = handleOrUrl.startsWith("@") ? handleOrUrl.substring(1) : handleOrUrl;
+            return resolveRemoteAccountByHandle(processedHandle);
+        }
+        // Not a format we can resolve remotely, return empty.
+        return Mono.empty();
     }
 }
