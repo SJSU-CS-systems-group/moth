@@ -3,7 +3,12 @@ package edu.sjsu.moth.server.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.sjsu.moth.server.db.FederatedActivity;
+import edu.sjsu.moth.server.db.FederatedActivityRepository;
 import lombok.extern.apachecommons.CommonsLog;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -12,16 +17,22 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Instant;
 
 // orchestrating the sending of signed ActivityPub activities.
-@Service
 @CommonsLog
+@Configuration
 public class ActivityPubService {
 
-    private final HttpSignatureService httpSignatureService;
+    @Autowired
+    HttpSignatureService httpSignatureService;
 
-    public ActivityPubService(HttpSignatureService httpSignatureService) {
-        this.httpSignatureService = httpSignatureService;
+    @Autowired
+    FederatedActivityRepository federatedActivityRepository;
+
+    private Mono<Void> asyncSendActivityPubMessage(JsonNode content, String senderActorId, String targetInbox) {
+        FederatedActivity activity = new FederatedActivity(targetInbox, senderActorId, content, Instant.now());;
+        return federatedActivityRepository.save(activity).then();
     }
 
     public Mono<Void> sendSignedActivity(JsonNode message, String sendingActorId, String targetInbox) {
@@ -49,7 +60,8 @@ public class ActivityPubService {
                     WebClient client =
                             WebClient.builder().defaultHeaders(httpHeaders -> httpHeaders.addAll(headers)).build();
                     log.info("Sending signed activity from " + sendingActorId + " to " + targetInbox);
-                    return client.post().uri(targetUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message)
+
+                    return asyncSendActivityPubMessage(message, sendingActorId, targetInbox).then(client.post().uri(targetUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message)
                             .retrieve().onStatus(HttpStatusCode::is4xxClientError,
                                                  res -> res.bodyToMono(String.class).flatMap(body -> {
                                                      log.error("4xx error sending activity to " + targetInbox + ": " +
@@ -62,7 +74,7 @@ public class ActivityPubService {
                                                                   return Mono.error(new RuntimeException(
                                                                           "Server error: " + body));
                                                               })).bodyToMono(String.class)
-                            .doOnSuccess(response -> log.info("Successfully sent activity to " + targetInbox)).then();
+                            .doOnSuccess(response -> log.info("Successfully sent activity to " + targetInbox)).then());
                 }).onErrorResume(e -> {
                     log.error("Failed pipeline before/during sending signed activity to " + targetInbox + ": " +
                                       e.getMessage(), e);
