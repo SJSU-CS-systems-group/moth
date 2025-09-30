@@ -24,12 +24,12 @@ import java.util.Set;
 
 @Configuration
 public class InboxService {
-
-    @Autowired
-    ActorService actorService;
-
+    
     @Autowired
     StatusService statusService;
+
+    @Autowired
+    AccountService accountService;
 
     private static final String PUBLIC_URI = "https://www.w3.org/ns/activitystreams#Public";
 
@@ -48,83 +48,18 @@ public class InboxService {
 
         //Making an actor and then converting to account
         String accountLink = node.get("actor").asText();
-        return actorService.getActor(accountLink).switchIfEmpty(createActor(accountLink))
-                .flatMap(InboxService::convertToAccount).flatMap(account -> {
-                    //not sure about spoiler text
-                    //haven't implemented media service yet, not sure about visibility
-                    //changed inreplyto to null
-                    ExternalStatus status =
-                            new ExternalStatus(null, createdAt, null, null, sensitive, "", visibility, language, null,
-                                               null, 0, 0, 0, false, false, false, false, content, null, null, account,
-                                               List.of(), List.of(), List.of(), List.of(), null, null, content,
-                                               node.get("published").asText());
-                    return statusService.saveExternal(status).map(ResponseEntity::ok);
-                });
-    }
 
-    public static Mono<Account> convertToAccount(Actor actor) {
-        String serverName = "";
-        try {
-            serverName = new URL(actor.id).getHost();
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
-
-        ArrayList<AccountField> accountFields = new ArrayList<>();
-        for (Attachment attachment : actor.attachment) {
-            AccountField accountField = new AccountField(attachment.name, attachment.value, null);
-            accountFields.add(accountField);
-        }
-
-        String iconLink;
-        if (actor.icon != null) {
-            iconLink = actor.icon.url;
-        } else {
-            iconLink = "";
-        }
-
-        String imageLink;
-        if (actor.image != null) {
-            imageLink = actor.image.url;
-        } else {
-            imageLink = "";
-        }
-
-        WebClient webClient =
-                WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
-        Mono<JsonNode> outboxResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
-        Mono<JsonNode> followersResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
-        Mono<JsonNode> followingResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
-        String finalServerName = serverName;
-        return outboxResponse.flatMap(jsonNodeOutbox -> {
-            int totalItems = jsonNodeOutbox.get("totalItems").asInt();
-            return followersResponse.flatMap(jsonNodeFollowers -> {
-                int totalItemFollowers = jsonNodeFollowers.get("totalItems").asInt();
-                return followingResponse.map(jsonNodeFollowing -> {
-                    int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
-                    //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
-                    //change from String.valueOf(generateUniqueId()) to just their name
-                    //changed last status from null to actor.published
-                    return new Account(actor.preferredUsername, actor.preferredUsername,
-                                       actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
-                                       actor.summary, iconLink, iconLink, imageLink, imageLink,
-                                       actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
-                                       actor.discoverable, false, false, false, false, actor.published, actor.published,
-                                       totalItems, totalItemFollowers, totalItemFollowing);
-                });
-            });
+        return accountService.fetchAccount(accountLink).flatMap(account -> {
+            //not sure about spoiler text
+            //haven't implemented media service yet, not sure about visibility
+            //changed inreplyto to null
+            ExternalStatus status =
+                    new ExternalStatus(null, createdAt, null, null, sensitive, "", visibility, language, null, null, 0,
+                                       0, 0, false, false, false, false, content, null, null, account, List.of(),
+                                       List.of(), List.of(), List.of(), null, null, content,
+                                       node.get("published").asText());
+            return statusService.saveExternal(status).map(ResponseEntity::ok);
         });
-        //don't know about custom emojis, bot, and group
-        //noindex, moved, suspended, and limited are optional?
-        //icon, image, tag, attachment might be null
-        //not sure how to get last_status_at. outbox doesn't give a time, only the last status
-    }
-
-    public Mono<Actor> createActor(String accountLink) {
-        WebClient webClient =
-                WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
-        Mono<Actor> response = webClient.get().uri(accountLink).retrieve().bodyToMono(Actor.class);
-        return response.flatMap(actor -> actorService.save(actor));
     }
 
     public static String getVisibility(JsonNode activity) {
