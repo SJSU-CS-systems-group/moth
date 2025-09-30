@@ -11,6 +11,7 @@ import edu.sjsu.moth.IntegrationTest;
 import edu.sjsu.moth.server.MothServerMain;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.ExternalActorRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -39,9 +40,6 @@ public class SearchControllerTest {
     static private final int RAND_MONGO_PORT = 27017 + new Random().nextInt(17, 37);
     static private TransitionWalker.ReachedState<RunningMongodProcess> eMongod;
 
-    final WebTestClient webTestClient;
-    final AccountRepository accountRepository;
-
     static {
         try {
             var fullname = IntegrationTest.class.getResource("/test.cfg").getFile();
@@ -52,10 +50,16 @@ public class SearchControllerTest {
         }
     }
 
+    final WebTestClient webTestClient;
+    final AccountRepository accountRepository;
+    final ExternalActorRepository externalActorRepository;
+
     @Autowired
-    public SearchControllerTest(WebTestClient webTestClient, AccountRepository accountRepository) {
+    public SearchControllerTest(WebTestClient webTestClient, AccountRepository accountRepository,
+                                ExternalActorRepository externalActorRepository) {
         this.webTestClient = webTestClient;
         this.accountRepository = accountRepository;
+        this.externalActorRepository = externalActorRepository;
     }
 
     @BeforeAll
@@ -80,12 +84,8 @@ public class SearchControllerTest {
     @Test
     public void testSearchQueryTooShortReturnsEmpty() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
-                        .queryParam("q", "ab").build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.accounts.length()").isEqualTo(0)
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "ab").build()).exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.accounts.length()").isEqualTo(0)
                 .jsonPath("$.statuses.length()").isEqualTo(0);
     }
 
@@ -94,73 +94,52 @@ public class SearchControllerTest {
         accountRepository.save(new Account("test-local")).block();
 
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-local"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
-                        .queryParam("q", "test-local")
-                        .queryParam("type", "accounts")
-                        .build())
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "test-local")
+                        .queryParam("type", "accounts").build())
 
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.accounts[0].acct").isEqualTo("test-local");
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts[0].acct").isEqualTo("test-local");
     }
 
     @Test
     public void testRemoteSearchWithInvalidDomainReturnsEmpty() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
-                        .queryParam("q", "@user@invalid_domain")
-                        .build())
-
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .consumeWith(response -> Assertions.assertTrue(response.getResponseBody() == null || response.getResponseBody().length == 0));
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@user@invalid_domain").build())
+                .exchange().expectStatus().isOk().expectHeader().contentType(MediaType.APPLICATION_JSON).expectBody()
+                .jsonPath("$.accounts").isEmpty().jsonPath("$.statuses").isEmpty().jsonPath("$.hashtags").isEmpty();
     }
 
     // Optional: For remote test with real Mastodon instance (only for manual testing)
     @Test
     public void testRemoteSearchValidDomain() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
-                        .queryParam("q", "@Gargron@mastodon.social")
-                        .build())
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@Gargron@mastodon.social").build())
 
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.accounts").exists(); // Will vary depending on actual Mastodon availability
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts")
+                .exists(); // Will vary depending on actual Mastodon availability
     }
 
     @Test
     public void testOnlyRemoteUsersAreSaved() {
-        String localDomain = "moth.vamshiraj.me"; // Replace with actual domain logic used in app
-
         // Step 1: Clear DB
         accountRepository.deleteAll().block();
 
         // Step 2: Make a remote search request (simulate via real domain, or mock if isolated)
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder
-                        .path(SEARCH_ENDPOINT)
-                        .queryParam("q", "@Gargron@mastodon.social") // Example remote user
-                        .queryParam("type", "accounts")
-                        .build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
+                        .queryParam("q", "@divyamonmastodon@mastodon.social") // Example remote user
+                        .queryParam("type", "accounts").build()).exchange().expectStatus().isOk().expectBody()
                 .jsonPath("$.accounts").exists();
 
-        // Step 3: Assert only remote users are saved
+        // Step 3: Assert no local Account entities are persisted for remote users
         var allAccounts = accountRepository.findAll().collectList().block();
-        Assertions.assertNotNull(allAccounts);
-        Assertions.assertFalse(allAccounts.isEmpty());
+        Assertions.assertTrue(allAccounts == null || allAccounts.isEmpty(),
+                              "Remote users must not be saved to AccountRepository");
 
-        for (Account acc : allAccounts) {
-            System.out.println("Saved account: " + acc.acct);
-            Assertions.assertTrue(acc.acct.contains("@"), "Remote user acct should include domain");
-            Assertions.assertFalse(acc.url.contains(localDomain), "Should not save local users");
-        }
+        // Step 4: Assert specific remote Actor persisted in ExternalActorRepository
+        String expectedActorId = "https://mastodon.social/users/divyamonmastodon";
+        var savedActor = externalActorRepository.findItemById(expectedActorId).block();
+        System.out.println(savedActor);
+        Assertions.assertNotNull(savedActor, "Expected actor to be saved: " + expectedActorId);
     }
 
 }
