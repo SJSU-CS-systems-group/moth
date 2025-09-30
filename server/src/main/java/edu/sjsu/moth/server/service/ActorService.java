@@ -2,7 +2,6 @@ package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.generated.Actor;
 import edu.sjsu.moth.server.activitypub.service.WebfingerService;
-import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.ExternalActorRepository;
 import org.springframework.http.MediaType;
@@ -40,6 +39,6 @@ public class ActorService {
     public Mono<Account> resolveRemoteAccount(String userHandle) {
         return webfingerService.discoverProfileUrl(userHandle).flatMap(profileUrl -> webClient.get().uri(profileUrl)
                         .accept(MediaType.parseMediaType("application/activity+json")).retrieve().bodyToMono(Actor.class))
-                .flatMap(actor -> save(actor).then(InboxController.convertToAccount(actor)));
+                .flatMap(actor -> save(actor).then(InboxService.convertToAccount(actor)));
     }
 }

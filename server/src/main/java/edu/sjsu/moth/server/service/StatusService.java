@@ -13,7 +13,6 @@ import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.service.OutboxService;
-import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
@@ -267,9 +266,7 @@ public class StatusService {
 
             return actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(actor -> {
                 return remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
-                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
-                                                                                 a -> InboxController.convertToAccount(
-                                                                                         a)))
+                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor, InboxService::convertToAccount))
                         .then(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
                                       .map(s -> (Status) s).collectList());
             }).switchIfEmpty(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
