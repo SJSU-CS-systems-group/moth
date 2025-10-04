@@ -24,11 +24,11 @@ public class ActorService {
     }
 
     public Mono<Actor> save(Actor actor) {
-        return externalActorRepository != null ? externalActorRepository.save(actor) : Mono.just(actor);
+        return externalActorRepository.save(actor);
     }
 
     public Mono<Actor> getActor(String actor) {
-        return externalActorRepository != null ? externalActorRepository.findItemById(actor) : Mono.empty();
+        return externalActorRepository.findItemById(actor);
     }
 
     public Mono<Actor> fetchAndSaveActorById(String actorId) {

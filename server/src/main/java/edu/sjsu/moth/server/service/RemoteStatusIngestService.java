@@ -2,6 +2,7 @@ package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import edu.sjsu.moth.generated.Actor;
+import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.function.Function;
 
 @Service
 public class RemoteStatusIngestService {
@@ -20,8 +22,8 @@ public class RemoteStatusIngestService {
     }
 
     public Mono<List<ExternalStatus>> ingestCreateNotes(Flux<JsonNode> createActivities, Actor actor,
-                                                        AccountSnapshotProvider accountSnapshotProvider) {
-        return accountSnapshotProvider.getAccountSnapshot(actor).flatMap(account -> createActivities.flatMap(item -> {
+                                                        Function<Actor, Mono<Account>> accountProvider) {
+        return accountProvider.apply(actor).flatMap(account -> createActivities.flatMap(item -> {
             JsonNode obj = item.path("object");
             String id = text(obj.path("id"));
             if (id == null || id.isBlank()) return Mono.empty();
@@ -31,8 +33,7 @@ public class RemoteStatusIngestService {
         }).collectList());
     }
 
-    private Mono<ExternalStatus> mapNoteToExternal(JsonNode note, JsonNode create,
-                                                   edu.sjsu.moth.server.db.Account acc) {
+    private Mono<ExternalStatus> mapNoteToExternal(JsonNode note, JsonNode create, Account acc) {
         String id = text(note.path("id"));
         String published = text(create.path("published"));
         boolean sensitive = note.path("sensitive").asBoolean(false);
@@ -52,9 +53,5 @@ public class RemoteStatusIngestService {
 
     private String text(JsonNode node) {
         return node != null && node.isTextual() ? node.asText() : null;
-    }
-
-    public interface AccountSnapshotProvider {
-        Mono<edu.sjsu.moth.server.db.Account> getAccountSnapshot(Actor actor);
     }
 }

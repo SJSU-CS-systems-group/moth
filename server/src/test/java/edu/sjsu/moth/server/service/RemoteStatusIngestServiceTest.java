@@ -13,6 +13,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,7 +46,7 @@ public class RemoteStatusIngestServiceTest {
         actor.preferredUsername = "alice";
         actor.url = "https://remote.example/@alice";
 
-        RemoteStatusIngestService.AccountSnapshotProvider provider = a -> {
+        Function<Actor, Mono<Account>> provider = a -> {
             Account acc = new Account();
             acc.id = "alice@remote.example";
             acc.username = "alice";
