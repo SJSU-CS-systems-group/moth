@@ -29,10 +29,11 @@ public class ActivityPubService implements AutoCloseable {
 
     ScheduledThreadPoolExecutor threadPool;
 
+    final int MAX_ATTEMPTS = 3;
     ActivityPubService(HttpSignatureService httpSignatureService, FederatedActivityRepository federatedActivityRepository) {
         this.httpSignatureService = httpSignatureService;
         this.federatedActivityRepository = federatedActivityRepository;
-        this.threadPool = new ScheduledThreadPoolExecutor(5);
+        this.threadPool = new ScheduledThreadPoolExecutor(1);
         this.threadPool.scheduleWithFixedDelay(this::scheduled_send, 30, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
@@ -44,7 +45,7 @@ public class ActivityPubService implements AutoCloseable {
 
     private boolean isValidFederatedActivity(FederatedActivity activity) {
         return (activity.id != null && activity.content != null && activity.senderActorId != null
-                && activity.inboxUrl != null);
+                && activity.inboxUrl != null && activity.attempts < MAX_ATTEMPTS);
     }
 
     private String serializeContent(JsonNode content) {
@@ -68,7 +69,6 @@ public class ActivityPubService implements AutoCloseable {
     }
 
     private void scheduled_send() {
-        //TODO: fetched records with attempt < 3
         federatedActivityRepository.findAll().filter(this::isValidFederatedActivity).parallel().runOn(Schedulers.boundedElastic()).doOnNext(activity -> {
             JsonNode content = deserializeContent(activity.content);
             sendSignedActivity(activity.id, content, activity.senderActorId, activity.inboxUrl).publishOn(
