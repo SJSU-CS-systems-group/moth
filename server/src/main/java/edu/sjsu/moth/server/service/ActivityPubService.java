@@ -34,7 +34,8 @@ public class ActivityPubService {
     ScheduledFuture<?> v = new ScheduledThreadPoolExecutor(1).scheduleWithFixedDelay(this::scheduled_send, 30, 30, java.util.concurrent.TimeUnit.SECONDS);
 
     private Mono<Void> asyncSendActivityPubMessage(JsonNode content, String senderActorId, String targetInbox) {
-        FederatedActivity activity = new FederatedActivity(targetInbox, senderActorId, content, Instant.now());;
+        String contentStr = serializeContent(content);
+        FederatedActivity activity = new FederatedActivity(targetInbox, senderActorId, contentStr, Instant.now());;
         return federatedActivityRepository.save(activity).then();
     }
 
@@ -43,10 +44,31 @@ public class ActivityPubService {
                 && activity.inboxUrl != null);
     }
 
+    private String serializeContent(JsonNode content) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.writeValueAsString(content);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize content: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private JsonNode deserializeContent(String content)  {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readTree(content);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize content: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
     private void scheduled_send() {
         //TODO: fetched records with attempt < 3
         federatedActivityRepository.findAll().filter(this::isValidFederatedActivity).parallel().runOn(Schedulers.boundedElastic()).doOnNext(activity -> {
-            sendSignedActivity(activity.id, activity.content, activity.senderActorId, activity.inboxUrl).publishOn(
+            JsonNode content = deserializeContent(activity.content);
+            sendSignedActivity(activity.id, content, activity.senderActorId, activity.inboxUrl).publishOn(
                             Schedulers.boundedElastic())
                     .doOnSuccess(v -> {
                         log.info("delete the activity " + activity.id + " after successful send");

@@ -11,14 +11,14 @@ import java.time.Instant;
 public class FederatedActivity {
     @Id
     public String id;
-    public JsonNode content; // the message content
+    public String content; // the message content
     public String inboxUrl;   // the inbox URL where we sent it
     public String error;      // if failed, the error message
     public Instant created_at;  // when the message was created
     public int attempts;      // number of send attempts
     public String senderActorId; // the actor ID of the sender;
 
-    public FederatedActivity(String inboxUrl, String senderActorId, JsonNode content, Instant created_at) {
+    public FederatedActivity(String inboxUrl, String senderActorId, String content, Instant created_at) {
         this.inboxUrl = inboxUrl;
         this.error = null;
         this.attempts = 0;
