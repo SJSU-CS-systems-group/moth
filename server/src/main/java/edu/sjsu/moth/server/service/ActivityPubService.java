@@ -3,17 +3,13 @@ package edu.sjsu.moth.server.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.sjsu.moth.server.db.FederatedActivity;
-import edu.sjsu.moth.server.db.FederatedActivityRepository;
 import lombok.extern.apachecommons.CommonsLog;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.time.Instant;
@@ -21,6 +17,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 // orchestrating the sending of signed ActivityPub activities.
+@Service
 @CommonsLog
 @Configuration
 public class ActivityPubService {
