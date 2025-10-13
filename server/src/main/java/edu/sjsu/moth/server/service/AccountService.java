@@ -245,19 +245,8 @@ public class AccountService {
             accountFields.add(accountField);
         }
 
-        String iconLink;
-        if (actor.icon != null) {
-            iconLink = actor.icon.url;
-        } else {
-            iconLink = "";
-        }
-
-        String imageLink;
-        if (actor.image != null) {
-            imageLink = actor.image.url;
-        } else {
-            imageLink = "";
-        }
+        String iconLink = actor.icon != null ? actor.icon.url : "";
+        String imageLink = actor.image != null ? actor.image.url : "";
 
         WebClient webClient =
                 WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
