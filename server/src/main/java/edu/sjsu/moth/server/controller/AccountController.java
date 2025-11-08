@@ -154,7 +154,9 @@ public class AccountController {
     @GetMapping("/api/v1/accounts/{id}")
     public Mono<ResponseEntity<Account>> getApiV1AccountsById(Principal user, @PathVariable String id) {
         // it's not clear what we need to do with the user...
-        return accountService.getAccount(id).map(ResponseEntity::ok);
+        return accountService.getAccount(id)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     // TODO: placeholder for testing
