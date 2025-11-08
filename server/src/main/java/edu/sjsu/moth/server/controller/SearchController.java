@@ -75,8 +75,8 @@ public class SearchController {
 
                 // Validate domain (basic check)
                 if (!domain.matches("^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")) {
-                    // Invalid domain, return empty result instead of crashing
-                    return Mono.just(result);
+                    // Invalid domain, return empty Mono to indicate no response body
+                    return Mono.empty();
                 }
 
                 String baseUrl = "https://" + domain + "/api/v2/search";
