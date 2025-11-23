@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,7 +19,13 @@ public class RemoteOutboxFetcher {
     private final WebClient webClient;
 
     public RemoteOutboxFetcher(WebClient.Builder builder) {
-        this.webClient = builder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+        // increased memory limit to 5MB to handle large ActivityPub outbox pages
+        ExchangeStrategies strategies =
+                ExchangeStrategies.builder().codecs(cfg -> cfg.defaultCodecs().maxInMemorySize(5 * 1024 * 1024))
+                        .build();
+        this.webClient = builder.defaultHeader(HttpHeaders.ACCEPT, "application/activity+json")
+                .defaultHeader(HttpHeaders.USER_AGENT, "Moth-Backfill/0.1")  // Identify our req
+                .exchangeStrategies(strategies).build();
     }
 
     public Flux<JsonNode> fetchCreateActivities(String outboxUrl, Integer limit) {
@@ -40,7 +47,7 @@ public class RemoteOutboxFetcher {
     }
 
     private Mono<JsonNode> fetch(String url) {
-        return webClient.get().uri(url).retrieve().bodyToMono(JsonNode.class);
+        return webClient.get().uri(url).retrieve().bodyToMono(JsonNode.class).timeout(java.time.Duration.ofSeconds(20));
     }
 
     private Flux<JsonNode> fetchAllPages(String url) {
