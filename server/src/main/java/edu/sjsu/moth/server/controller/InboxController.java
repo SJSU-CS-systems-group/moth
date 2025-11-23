@@ -109,6 +109,49 @@ public class InboxController {
         //not sure how to get last_status_at. outbox doesn't give a time, only the last status
     }
 
+    // mapping media to img
+    private static String mapMediaTypeToMastoType(String mediaType, String asType) {
+        if (mediaType == null) mediaType = "";
+        String lower = mediaType.toLowerCase();
+        if (lower.startsWith("image/")) return "image";
+        if (lower.equals("image/gif")) return "gifv";
+        if (lower.startsWith("video/")) return "video";
+        if (lower.startsWith("audio/")) return "audio";
+        if ("Image".equalsIgnoreCase(asType)) return "image";
+        if ("Video".equalsIgnoreCase(asType)) return "video";
+        if ("Audio".equalsIgnoreCase(asType)) return "audio";
+        return "image";
+    }
+
+    // get the media url
+    private static String coalesceUrlFromAttachment(JsonNode a) {
+        if (a.has("url") && a.get("url").isTextual()) return a.get("url").asText();
+        if (a.has("href") && a.get("href").isTextual()) return a.get("href").asText();
+        if (a.has("url") && a.get("url").isArray()) {
+            for (JsonNode u : a.get("url")) {
+                if (u.has("href") && u.get("href").isTextual()) return u.get("href").asText();
+                if (u.isTextual()) return u.asText();
+            }
+        }
+        return null;
+    }
+
+    // preview url or thumbnail url
+    private static String coalescePreviewFromAttachment(JsonNode a) {
+        if (a.has("icon") && a.get("icon").has("url") && a.get("icon").get("url").isTextual()) {
+            return a.get("icon").get("url").asText();
+        }
+        if (a.has("url") && a.get("url").isArray()) {
+            for (JsonNode u : a.get("url")) {
+                String mediaType =
+                        u.has("mediaType") && u.get("mediaType").isTextual() ? u.get("mediaType").asText() : "";
+                String href = u.has("href") && u.get("href").isTextual() ? u.get("href").asText() : null;
+                if (mediaType.startsWith("image/") && href != null) return href;
+            }
+        }
+        return null;
+    }
+
     @PostMapping("/inbox")
     public Mono<ResponseEntity<Object>> inbox(@RequestBody JsonNode inboxNode) {
         String requestType = inboxNode.get("type").asText();
@@ -140,13 +183,59 @@ public class InboxController {
         String accountLink = node.get("actor").asText();
         return actorService.getActor(accountLink).switchIfEmpty(createActor(accountLink))
                 .flatMap(actor -> convertToAccount(actor)).flatMap(account -> {
-                    //not sure about spoiler text
-                    //haven't implemented media service yet, not sure about visibility
-                    //changed inreplyto to null
+                    // build media attachments
+                    var media = new java.util.ArrayList<edu.sjsu.moth.generated.MediaAttachment>();
+                    var attachments = objNode.get("attachment");
+                    if (attachments != null && attachments.isArray()) {
+                        int idx = 0;
+                        for (JsonNode a : attachments) {
+                            String attachId = a.has("id") && a.get("id").isTextual() ? a.get("id").asText() :
+                                    (id + ":att:" + idx);
+                            String mediaType =
+                                    a.has("mediaType") && a.get("mediaType").isTextual() ? a.get("mediaType").asText() :
+                                            "";
+                            String asType = a.has("type") && a.get("type").isTextual() ? a.get("type").asText() : null;
+                            String type = mapMediaTypeToMastoType(mediaType, asType);
+
+                            String url = coalesceUrlFromAttachment(a);
+                            String previewUrl = coalescePreviewFromAttachment(a);
+                            if (previewUrl == null) previewUrl = url;
+
+                            String description = a.has("name") && a.get("name").isTextual() ? a.get("name").asText() :
+                                    (a.has("summary") && a.get("summary").isTextual() ? a.get("summary").asText() :
+                                            null);
+
+                            java.util.Map<String, Object> meta = java.util.Map.of();
+                            if (a.has("width") && a.has("height") && a.get("width").canConvertToInt() &&
+                                    a.get("height").canConvertToInt()) {
+                                int width = a.get("width").asInt();
+                                int height = a.get("height").asInt();
+                                double aspect = height == 0 ? 0.0 : (double) width / (double) height;
+                                java.util.Map<String, Object> original = new java.util.HashMap<>();
+                                original.put("width", width);
+                                original.put("height", height);
+                                original.put("size", width + "x" + height);
+                                original.put("aspect", aspect);
+                                java.util.Map<String, Object> m = new java.util.HashMap<>();
+                                m.put("original", original);
+                                meta = m;
+                            }
+
+                            String blurhash =
+                                    a.has("blurhash") && a.get("blurhash").isTextual() ? a.get("blurhash").asText() :
+                                            null;
+
+                            media.add(new edu.sjsu.moth.generated.MediaAttachment(attachId, type, url, previewUrl, url,
+                                                                                  null, meta, description, blurhash));
+                            idx++;
+                        }
+                    }
+
+                    // saving it to ExternalStatuses db
                     ExternalStatus status =
                             new ExternalStatus(null, createdAt, null, null, sensitive, "", "direct", language, null,
                                                null, 0, 0, 0, false, false, false, false, content, null, null, account,
-                                               List.of(), List.of(), List.of(), List.of(), null, null, content,
+                                               media, List.of(), List.of(), List.of(), null, null, content,
                                                node.get("published").asText());
                     return statusService.saveExternal(status).map(ResponseEntity::ok);
                 });
@@ -165,13 +254,13 @@ public class InboxController {
         // follow or unfollow requests from other or same instances
         switch (requestType) {
             case "Follow" -> {
-                return accountService.followerHandler(id, inboxNode,false);
+                return accountService.followerHandler(id, inboxNode, false);
             }
-            case "Undo"->{
-                return accountService.followerHandler(id, inboxNode,true);
+            case "Undo" -> {
+                return accountService.followerHandler(id, inboxNode, true);
             }
             case "Accept" -> {
-                return accountService.acceptHandler(id,inboxNode);
+                return accountService.acceptHandler(id, inboxNode);
             }
             default -> {
                 return Mono.empty();

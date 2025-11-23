@@ -241,7 +241,8 @@ public class StatusService {
     public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id,
                                                String min_id, Boolean only_media, Boolean exclude_replies,
                                                Boolean exclude_reblogs, Boolean pinned, String tagged, Integer limit) {
-        // If remote user (username contains '@'), ingest remote outbox first page then return external statuses
+        // If remote user (username contains '@'), ingest remote outbox (first page) for initial requests,
+        // and use DB-only pagination for anchored requests
         if (username.contains("@")) {
             int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
             String[] parts = username.split("@", 2);
@@ -249,15 +250,61 @@ public class StatusService {
             String host = parts.length == 2 ? parts[1] : null;
             String actorId = host != null ? ("https://" + host + "/users/" + remoteUser) : username;
 
-            return actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(actor -> {
-                return remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
-                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
-                                                                                 a -> InboxController.convertToAccount(
-                                                                                         a)))
-                        .then(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
-                                      .map(s -> (Status) s).collectList());
-            }).switchIfEmpty(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
-                                     .map(s -> (Status) s).collectList());
+            // find if request is anchored (requesting statuses before/after specific ID)
+            // client is paginating through already known data
+            boolean anchored = max_id != null || min_id != null || since_id != null;
+            // perform backfill of recent statuses
+            Mono<Void> ensureRecentIngest = anchored ? Mono.empty() :
+                    actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(
+                            actor -> remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
+                                    .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
+                                                                                             a -> InboxController.convertToAccount(
+                                                                                                     a))).then());
+            // TODO pagination from db
+            Mono<List<Status>> pageFromDb = Mono.defer(() -> {
+                // fetch statuses older than max_id
+                if (max_id != null) {
+                    return externalStatusRepository.findById(max_id).flatMapMany(
+                                    // querying statuses relative to anchor
+                                    anchor -> externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username)
+                                            // ilter for statuses created before the anchor and take 'count'
+                                            .filter(s -> isBefore(s.createdAt, anchor.createdAt)).take(count))
+                            .map(s -> (Status) s).collectList().switchIfEmpty(
+                                    // if anchor not found or no items before it just get the latest
+                                    externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username)
+                                            .take(count).map(s -> (Status) s).collectList());
+                }
+
+                // fetch statuses newer than min_id
+                if (min_id != null) {
+                    return externalStatusRepository.findById(min_id).flatMapMany(
+                            anchor -> externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username)
+                                    // statuses created after the anchor
+                                    .filter(s -> isAfter(s.createdAt, anchor.createdAt))
+                                    .sort((a, b) -> Instant.parse(a.createdAt).compareTo(Instant.parse(b.createdAt)))
+                                    .take(count)).map(s -> (Status) s).collectList().switchIfEmpty(
+                            externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
+                                    .map(s -> (Status) s).collectList());
+                }
+
+                // fetch statuses newer than since_id
+                if (since_id != null) {
+                    return externalStatusRepository.findById(since_id).flatMapMany(
+                            anchor -> externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username)
+                                    .filter(s -> isAfter(s.createdAt, anchor.createdAt))
+                                    .sort((a, b) -> Instant.parse(a.createdAt).compareTo(Instant.parse(b.createdAt)))
+                                    .take(count)).map(s -> (Status) s).collectList().switchIfEmpty(
+                            externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
+                                    .map(s -> (Status) s).collectList());
+                }
+
+                // most recent count statuses
+                return externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
+                        .map(s -> (Status) s).collectList();
+            });
+
+            // ensures that `ensureRecentIngest` completes before `pageFromDb` is subscribed to
+            return ensureRecentIngest.then(pageFromDb);
         }
 
         var acct = new QStatus("account.acct");
@@ -358,5 +405,15 @@ public class StatusService {
         return activityPubService.sendSignedActivity(createJson, actorName, inboxUrl);
     }
 
-}
+    private boolean isBefore(String a, String b) {
+        try {
+            return Instant.parse(a).isBefore(Instant.parse(b));
+        } catch (Exception e) {return false;}
+    }
 
+    private boolean isAfter(String a, String b) {
+        try {
+            return Instant.parse(a).isAfter(Instant.parse(b));
+        } catch (Exception e) {return false;}
+    }
+}
