@@ -63,6 +63,9 @@ public class AccountService {
     @Autowired
     private ActivityPubService activityPubService;
 
+    @Autowired
+    private BackfillService backfillService;
+
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
         return new PubKeyPair(acct, pair.pubKey(), pair.privKey());
@@ -144,6 +147,11 @@ public class AccountService {
                     Account followedAccount = tuple.getT2();
                     Mono<String> saveAndRecount =
                             followService.saveOutgoingRemoteFollow(followerAccount, followedAccount.id);
+                    // fire-and-forget backfill for the newly followed remote account
+                    String remoteAcctKey = followedAccount.acct != null ? followedAccount.acct : followedAccount.id;
+                    if (remoteAcctKey != null && remoteAcctKey.contains("@")) {
+                        backfillService.backfillRemoteAcctAsync(remoteAcctKey, BackfillService.BackfillType.FOLLOW);
+                    }
                     return saveAndRecount.thenReturn("Accept received");
                 });
     }

@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.controller;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
+import edu.sjsu.moth.server.service.BackfillService;
 import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,9 @@ public class SearchController {
 
     @Autowired
     ActorService actorService;
+
+    @Autowired
+    BackfillService backfillService;
 
     @GetMapping("api/v2/search")
     // DOCS FOR SPECS --> https://docs.joinmastodon.org/methods/search/
@@ -54,6 +58,9 @@ public class SearchController {
             return actorService.resolveRemoteAccount(query).flatMap(account -> {
                 // ensure remote account id can be used as a key in profile routes
                 account.id = account.acct;
+                if (account.acct != null && account.acct.contains("@")) {
+                    backfillService.backfillRemoteAcctAsync(account.acct, BackfillService.BackfillType.SEARCH);
+                }
                 return statusService.getStatusesForId(user, account.acct, null, null, null, false, false, false, null,
                                                       null, count).map(statuses -> {
                     result.accounts.add(account);
