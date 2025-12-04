@@ -6,36 +6,90 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.sjsu.moth.server.db.FederatedActivity;
 import edu.sjsu.moth.server.db.FederatedActivityRepository;
 import lombok.extern.apachecommons.CommonsLog;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.time.Instant;
-
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 // orchestrating the sending of signed ActivityPub activities.
-@CommonsLog
 @Configuration
-public class ActivityPubService {
+@CommonsLog
+public class ActivityPubService implements AutoCloseable {
 
-    @Autowired
     HttpSignatureService httpSignatureService;
 
-    @Autowired
     FederatedActivityRepository federatedActivityRepository;
 
+    ScheduledThreadPoolExecutor threadPool;
+
+    final int MAX_ATTEMPTS = 3;
+    ActivityPubService(HttpSignatureService httpSignatureService, FederatedActivityRepository federatedActivityRepository) {
+        this.httpSignatureService = httpSignatureService;
+        this.federatedActivityRepository = federatedActivityRepository;
+        this.threadPool = new ScheduledThreadPoolExecutor(1);
+        this.threadPool.scheduleWithFixedDelay(this::scheduled_send, 30, 30, TimeUnit.SECONDS);
+    }
+
     private Mono<Void> asyncSendActivityPubMessage(JsonNode content, String senderActorId, String targetInbox) {
-        FederatedActivity activity = new FederatedActivity(targetInbox, senderActorId, content, Instant.now());;
+        String contentStr = serializeContent(content);
+        FederatedActivity activity = new FederatedActivity(targetInbox, senderActorId, contentStr, Instant.now());;
         return federatedActivityRepository.save(activity).then();
     }
 
+    private boolean isValidFederatedActivity(FederatedActivity activity) {
+        return (activity.id != null && activity.content != null && activity.senderActorId != null
+                && activity.inboxUrl != null && activity.attempts < MAX_ATTEMPTS);
+    }
+
+    private String serializeContent(JsonNode content) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.writeValueAsString(content);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize content: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private JsonNode deserializeContent(String content)  {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            return objectMapper.readTree(content);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize content: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private void scheduled_send() {
+        federatedActivityRepository.findAll().filter(this::isValidFederatedActivity).parallel().runOn(Schedulers.boundedElastic()).doOnNext(activity -> {
+            JsonNode content = deserializeContent(activity.content);
+            sendSignedActivity(activity.id, content, activity.senderActorId, activity.inboxUrl).publishOn(
+                            Schedulers.boundedElastic())
+                    .doOnSuccess(v -> {
+                        log.info("delete the activity " + activity.id + " after successful send");
+                        federatedActivityRepository.deleteById(activity.id).subscribe();
+                    })
+                    .doOnError(e -> {
+                        log.error("Error sending activity to " + activity.inboxUrl + ": " + e.getMessage());
+                        activity.attempts = activity.attempts + 1;
+                        federatedActivityRepository.save(activity).subscribe();
+                    }).subscribe();
+        }).subscribe();
+    }
+
     public Mono<Void> sendSignedActivity(JsonNode message, String sendingActorId, String targetInbox) {
+       return asyncSendActivityPubMessage(message, sendingActorId, targetInbox);
+    }
+
+    private Mono<Void> sendSignedActivity(String DocId, JsonNode message, String sendingActorId, String targetInbox) {
         URI targetUri;
         try {
             targetUri = URI.create(targetInbox);
@@ -61,7 +115,7 @@ public class ActivityPubService {
                             WebClient.builder().defaultHeaders(httpHeaders -> httpHeaders.addAll(headers)).build();
                     log.info("Sending signed activity from " + sendingActorId + " to " + targetInbox);
 
-                    return asyncSendActivityPubMessage(message, sendingActorId, targetInbox).then(client.post().uri(targetUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message)
+                    return client.post().uri(targetUri).contentType(MediaType.APPLICATION_JSON).bodyValue(message)
                             .retrieve().onStatus(HttpStatusCode::is4xxClientError,
                                                  res -> res.bodyToMono(String.class).flatMap(body -> {
                                                      log.error("4xx error sending activity to " + targetInbox + ": " +
@@ -74,11 +128,16 @@ public class ActivityPubService {
                                                                   return Mono.error(new RuntimeException(
                                                                           "Server error: " + body));
                                                               })).bodyToMono(String.class)
-                            .doOnSuccess(response -> log.info("Successfully sent activity to " + targetInbox)).then());
+                            .doOnSuccess(response -> log.info("Successfully sent activity to " + targetInbox)).then();
                 }).onErrorResume(e -> {
                     log.error("Failed pipeline before/during sending signed activity to " + targetInbox + ": " +
                                       e.getMessage(), e);
                     return Mono.error(e);
                 });
+    }
+
+    @Override
+    public void close() {
+        this.threadPool.shutdownNow();
     }
 }
