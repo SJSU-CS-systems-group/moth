@@ -17,7 +17,7 @@ import reactor.core.scheduler.Schedulers;
 import java.net.URI;
 import java.time.Instant;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-
+import java.util.concurrent.TimeUnit;
 // orchestrating the sending of signed ActivityPub activities.
 @Configuration
 @CommonsLog
@@ -34,7 +34,7 @@ public class ActivityPubService implements AutoCloseable {
         this.httpSignatureService = httpSignatureService;
         this.federatedActivityRepository = federatedActivityRepository;
         this.threadPool = new ScheduledThreadPoolExecutor(1);
-        this.threadPool.scheduleWithFixedDelay(this::scheduled_send, 30, 30, java.util.concurrent.TimeUnit.SECONDS);
+        this.threadPool.scheduleWithFixedDelay(this::scheduled_send, 30, 30, TimeUnit.SECONDS);
     }
 
     private Mono<Void> asyncSendActivityPubMessage(JsonNode content, String senderActorId, String targetInbox) {
