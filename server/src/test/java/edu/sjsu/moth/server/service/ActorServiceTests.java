@@ -6,6 +6,7 @@ import edu.sjsu.moth.server.db.ExternalActorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -22,7 +23,16 @@ public class ActorServiceTests {
         WebfingerService webfingerService = new WebfingerService(webClientBuilder);
         ExternalActorRepository externalActorRepository = Mockito.mock(ExternalActorRepository.class);
         when(externalActorRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+
+        AccountService mockAccountService = Mockito.mock(AccountService.class);
+        Account account = new Account();
+        account.username = "gargron";
+        account.acct = "gargron@mastodon.social";
+        account.url = "https://mastodon.social/@gargron";
+        when(mockAccountService.convertToAccount(any())).thenReturn(Mono.just(account));
+
         actorService = new ActorService(externalActorRepository, webfingerService, webClientBuilder);
+        ReflectionTestUtils.setField(actorService, "accountService", mockAccountService);
     }
 
     @Test

@@ -266,7 +266,8 @@ public class StatusService {
 
             return actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(actor -> {
                 return remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
-                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor, InboxService::convertToAccount))
+                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
+                                                                                 accountService::convertToAccount))
                         .then(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
                                       .map(s -> (Status) s).collectList());
             }).switchIfEmpty(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
