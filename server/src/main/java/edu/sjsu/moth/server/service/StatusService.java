@@ -68,6 +68,12 @@ public class StatusService {
     OutboxRepository outboxRepository;
     @Autowired
     private ActivityPubService activityPubService;
+    @Autowired
+    private ActorService actorService;
+    @Autowired
+    private RemoteOutboxFetcher remoteOutboxFetcher;
+    @Autowired
+    private RemoteStatusIngestService remoteStatusIngestService;
 
     public Mono<ArrayList<StatusEdit>> findHistory(String id) {
         return statusHistoryRepository.findById(id).map(edits -> edits.collection);
@@ -250,6 +256,24 @@ public class StatusService {
     public Mono<List<Status>> getStatusesForId(Principal user, String username, String max_id, String since_id,
                                                String min_id, Boolean only_media, Boolean exclude_replies,
                                                Boolean exclude_reblogs, Boolean pinned, String tagged, Integer limit) {
+        // If remote user (username contains '@'), ingest remote outbox first page then return external statuses
+        if (username.contains("@")) {
+            int count = limit == null || limit > 40 || limit < 1 ? 40 : limit;
+            String[] parts = username.split("@", 2);
+            String remoteUser = parts[0];
+            String host = parts.length == 2 ? parts[1] : null;
+            String actorId = host != null ? ("https://" + host + "/users/" + remoteUser) : username;
+
+            return actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(actor -> {
+                return remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
+                        .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
+                                                                                 accountService::convertToAccount))
+                        .then(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
+                                      .map(s -> (Status) s).collectList());
+            }).switchIfEmpty(externalStatusRepository.findAllByAccount_AcctOrderByCreatedAtDesc(username).take(count)
+                                     .map(s -> (Status) s).collectList());
+        }
+
         var acct = new QStatus("account.acct");
         var predicate = acct.account.acct.eq(username);
         predicate = addRangeQueries(predicate, max_id, since_id, min_id);
