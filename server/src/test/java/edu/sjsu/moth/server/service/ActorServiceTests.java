@@ -23,6 +23,7 @@ public class ActorServiceTests {
         WebfingerService webfingerService = new WebfingerService(webClientBuilder);
         ExternalActorRepository externalActorRepository = Mockito.mock(ExternalActorRepository.class);
         when(externalActorRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(externalActorRepository.findItemById(any())).thenReturn(Mono.empty());
 
         AccountService mockAccountService = Mockito.mock(AccountService.class);
         Account account = new Account();

@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.util.ReflectionTestUtils.setField;
 
 public class BackfillServiceTest {
 
@@ -54,7 +55,10 @@ public class BackfillServiceTest {
 
         outboxFetcher = Mockito.mock(RemoteOutboxFetcher.class);
         ingestService = Mockito.mock(RemoteStatusIngestService.class);
+        AccountService accountService = Mockito.mock(AccountService.class);
+
         backfillService = new BackfillService(actorService, outboxFetcher, ingestService);
+        setField(backfillService, "accountService", accountService);
     }
 
     @Test

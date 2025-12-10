@@ -7,6 +7,7 @@ import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.ExternalActorRepository;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ActorService {
     private final WebfingerService webfingerService;
     private final WebClient webClient;
     @Autowired
+    @Lazy
     AccountService accountService;
 
     public ActorService(ExternalActorRepository externalActorRepository, WebfingerService webfingerService,

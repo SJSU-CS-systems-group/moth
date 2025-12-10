@@ -24,6 +24,7 @@ import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -67,6 +68,7 @@ public class AccountService {
     FollowService followService;
 
     @Autowired
+    @Lazy
     ActorService actorService;
 
     @Autowired
