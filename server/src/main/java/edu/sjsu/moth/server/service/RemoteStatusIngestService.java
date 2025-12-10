@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 @Service
 public class RemoteStatusIngestService {
@@ -26,9 +27,9 @@ public class RemoteStatusIngestService {
         this.externalStatusRepository = repo;
     }
 
-    public Mono<List<ExternalStatus>> ingestCreateNotes(Flux<JsonNode> createActivities, Actor actor,
-                                                        AccountSnapshotProvider accountSnapshotProvider) {
-        return accountSnapshotProvider.getAccountSnapshot(actor).flatMap(account -> createActivities.flatMap(item -> {
+    public Mono<List<ExternalStatus>> ingestCreateNotes(Flux<JsonNode> createActivities, Actor actor, Function<Actor,
+            Mono<Account>> accountProvider) {
+        return accountProvider.apply(actor).flatMap(account -> createActivities.flatMap(item -> {
             JsonNode obj = item.path("object");
             String id = text(obj.path("id"));
             if (id == null || id.isBlank()) return Mono.empty();
@@ -168,9 +169,5 @@ public class RemoteStatusIngestService {
 
     private String text(JsonNode node) {
         return node != null && node.isTextual() ? node.asText() : null;
-    }
-
-    public interface AccountSnapshotProvider {
-        Mono<edu.sjsu.moth.server.db.Account> getAccountSnapshot(Actor actor);
     }
 }

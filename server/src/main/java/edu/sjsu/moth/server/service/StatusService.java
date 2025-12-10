@@ -13,7 +13,6 @@ import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
 import edu.sjsu.moth.server.activitypub.message.CreateMessage;
 import edu.sjsu.moth.server.activitypub.service.OutboxService;
-import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
@@ -193,9 +192,8 @@ public class StatusService {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
         predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        Mono<List<ExternalStatus>> external =
-                externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id")).take(limit)
-                        .collectList();
+        Mono<List<Status>> external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit).collectList();
         Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
                 .flatMap(status -> visibilityService.homefeedViewable(user, status)).take(limit).collectList();
 
@@ -205,23 +203,40 @@ public class StatusService {
         });
     }
 
-    private Stream<Status> mergeByCreatedAtDesc(List<ExternalStatus> externalStatus, List<Status> internalStatus) {
+    private Stream<Status> mergeByCreatedAtDesc(List<Status> externalStatus, List<Status> internalStatus) {
         return Stream.concat(externalStatus.stream().map(e -> (Status) e), internalStatus.stream())
                 .sorted((a, b) -> Instant.parse(b.createdAt).compareTo(Instant.parse(a.createdAt)));
     }
 
     public Mono<List<Status>> getPublicTimeline(Principal user, String max_id, String since_id, String min_id,
-                                                int limit) {
+                                                int limit, boolean local) {
+        return local ? getLocalPublicTimeline(user, max_id, since_id, min_id, limit) :
+                getAllPublicTimeline(user, max_id, since_id, min_id, limit);
+    }
+
+    public Mono<List<Status>> getLocalPublicTimeline(Principal user, String max_id, String since_id, String min_id,
+                                                     int limit) {
         var qStatus = QStatus.status;
         var predicate = qStatus.content.isNotNull();
-        predicate = addRangeQueries(predicate, max_id, since_id, max_id);
-        var external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
-        var internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
-                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit);
+        predicate = addRangeQueries(predicate, max_id, since_id, min_id);
+        return statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).take(limit).collectList();
+    }
 
-        //TODO: we may want to merge sort them, unsure if merge does that
-        return Flux.merge(external, internal).collectList();
+    public Mono<List<Status>> getAllPublicTimeline(Principal user, String max_id, String since_id, String min_id,
+                                                   int limit) {
+        var qStatus = QStatus.status;
+        var predicate = qStatus.content.isNotNull();
+        predicate = addRangeQueries(predicate, max_id, since_id, min_id);
+        Mono<List<Status>> external = externalStatusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).collectList();
+        Mono<List<Status>> internal = statusRepository.findAll(predicate, Sort.by(Sort.Direction.DESC, "id"))
+                .flatMap(status -> visibilityService.publicTimelinesViewable(status)).collectList();
+
+        return Mono.zip(external, internal).map(tuple -> {
+            Stream<Status> merged = mergeByCreatedAtDesc(tuple.getT1(), tuple.getT2());
+            return merged.limit(limit).toList();
+        });
     }
 
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,
@@ -258,7 +273,7 @@ public class StatusService {
                     actorService.getActor(actorId).switchIfEmpty(Mono.empty()).flatMap(
                             actor -> remoteOutboxFetcher.fetchCreateActivities(actor.outbox, count)
                                     .as(items -> remoteStatusIngestService.ingestCreateNotes(items, actor,
-                                                                                             a -> InboxController.convertToAccount(
+                                                                                             a -> accountService.convertToAccount(
                                                                                                      a))).then());
             // TODO pagination from db
             Mono<List<Status>> pageFromDb = Mono.defer(() -> {

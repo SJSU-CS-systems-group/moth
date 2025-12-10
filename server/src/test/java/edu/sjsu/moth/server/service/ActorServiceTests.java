@@ -2,11 +2,16 @@ package edu.sjsu.moth.server.service;
 
 import edu.sjsu.moth.server.activitypub.service.WebfingerService;
 import edu.sjsu.moth.server.db.Account;
+import edu.sjsu.moth.server.db.ExternalActorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 public class ActorServiceTests {
 
@@ -16,7 +21,18 @@ public class ActorServiceTests {
     public void setUp() {
         WebClient.Builder webClientBuilder = WebClient.builder();
         WebfingerService webfingerService = new WebfingerService(webClientBuilder);
-        actorService = new ActorService(null, webfingerService, webClientBuilder);
+        ExternalActorRepository externalActorRepository = Mockito.mock(ExternalActorRepository.class);
+        when(externalActorRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+
+        AccountService mockAccountService = Mockito.mock(AccountService.class);
+        Account account = new Account();
+        account.username = "gargron";
+        account.acct = "gargron@mastodon.social";
+        account.url = "https://mastodon.social/@gargron";
+        when(mockAccountService.convertToAccount(any())).thenReturn(Mono.just(account));
+
+        actorService = new ActorService(externalActorRepository, webfingerService, webClientBuilder);
+        ReflectionTestUtils.setField(actorService, "accountService", mockAccountService);
     }
 
     @Test

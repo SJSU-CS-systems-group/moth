@@ -2,6 +2,9 @@ package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.sjsu.moth.generated.Actor;
+import edu.sjsu.moth.generated.Attachment;
+import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.activitypub.ActivityPubUtil;
@@ -9,20 +12,26 @@ import edu.sjsu.moth.server.activitypub.message.AcceptMessage;
 import edu.sjsu.moth.server.controller.InboxController;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
+import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
 import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import javax.security.auth.login.AccountNotFoundException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,6 +67,9 @@ public class AccountService {
     FollowService followService;
 
     @Autowired
+    ActorService actorService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -81,8 +93,8 @@ public class AccountService {
                 .then(pubKeyPairRepository.save(genPubKeyPair(username))).then();
     }
 
-    public Mono<Account> getAccount(String username) {
-        return accountRepository.findItemByAcct(username);
+    public Mono<Account> getAccount(String acct) {
+        return accountRepository.findItemByAcct(acct);
     }
 
     public Mono<Account> getAccountById(String id) {
@@ -221,6 +233,87 @@ public class AccountService {
             return Collections.emptyList();
         }
         return followers.subList(startIndex, endIndex);
+    }
+
+    public Mono<Account> convertToAccount(Actor actor) {
+        String serverName = "";
+        try {
+            serverName = new URL(actor.url).getHost();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+
+        if (serverName.equalsIgnoreCase(MothConfiguration.mothConfiguration.getServerName())) {
+            return getAccount(actor.preferredUsername);
+        }
+
+        ArrayList<AccountField> accountFields = new ArrayList<>();
+        for (Attachment attachment : actor.attachment) {
+            AccountField accountField = new AccountField(attachment.name, attachment.value, null);
+            accountFields.add(accountField);
+        }
+
+        String iconLink = actor.icon != null ? actor.icon.url : "";
+        String imageLink = actor.image != null ? actor.image.url : "";
+
+        WebClient webClient =
+                WebClient.builder().defaultHeader(HttpHeaders.ACCEPT, "application/activity+json").build();
+        Mono<JsonNode> outboxResponse = webClient.get().uri(actor.outbox).retrieve().bodyToMono(JsonNode.class);
+        Mono<JsonNode> followersResponse = webClient.get().uri(actor.followers).retrieve().bodyToMono(JsonNode.class);
+        Mono<JsonNode> followingResponse = webClient.get().uri(actor.following).retrieve().bodyToMono(JsonNode.class);
+        String finalServerName = serverName;
+        return outboxResponse.flatMap(jsonNodeOutbox -> {
+            int totalItems = jsonNodeOutbox.get("totalItems").asInt();
+            return followersResponse.flatMap(jsonNodeFollowers -> {
+                int totalItemFollowers = jsonNodeFollowers.get("totalItems").asInt();
+                return followingResponse.map(jsonNodeFollowing -> {
+                    int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
+                    //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
+                    //change from String.valueOf(generateUniqueId()) to just their name
+                    //changed last status from null to actor.published
+                    return new Account(actor.preferredUsername, actor.preferredUsername,
+                                       actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
+                                       actor.summary, iconLink, iconLink, imageLink, imageLink,
+                                       actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
+                                       actor.discoverable, false, false, false, false, actor.published, actor.published,
+                                       totalItems, totalItemFollowers, totalItemFollowing);
+                });
+            });
+        });
+        //don't know about custom emojis, bot, and group
+        //noindex, moved, suspended, and limited are optional?
+        //icon, image, tag, attachment might be null
+        //not sure how to get last_status_at. outbox doesn't give a time, only the last status
+    }
+
+    public Mono<Account> fetchAccount(String actorUri) {
+        return actorService.fetchActor(actorUri).flatMap(this::convertToAccount)
+                .flatMap(account -> accountRepository.findItemByAcct(account.acct).flatMap(existing -> {
+                    existing.username = account.username;
+                    existing.acct = account.acct;
+                    existing.url = account.url;
+                    existing.display_name = account.display_name;
+                    existing.note = account.note;
+                    existing.avatar = account.avatar;
+                    existing.avatar_static = account.avatar_static;
+                    existing.header = account.header;
+                    existing.header_static = account.header_static;
+                    existing.locked = account.locked;
+                    existing.fields = account.fields;
+                    existing.emojis = account.emojis;
+                    existing.bot = account.bot;
+                    existing.group = account.group;
+                    existing.discoverable = account.discoverable;
+                    existing.noindex = account.noindex;
+                    existing.suspended = account.suspended;
+                    existing.limited = account.limited;
+                    existing.created_at = account.created_at;
+                    existing.last_status_at = account.last_status_at;
+                    existing.statuses_count = account.statuses_count;
+                    existing.followers_count = account.followers_count;
+                    existing.following_count = account.following_count;
+                    return accountRepository.save(existing);
+                }).switchIfEmpty(Mono.defer(() -> accountRepository.save(account))));
     }
 
     public Mono<Account> updateAccount(Account a) {

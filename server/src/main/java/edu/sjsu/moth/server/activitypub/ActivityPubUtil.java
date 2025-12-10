@@ -61,4 +61,8 @@ public class ActivityPubUtil {
         return baseUrl + "/users/" + username;
     }
 
+    //Todo:Fetch actor URL using web finger protocol from username and domain.
+    public static String getWebFingerActorUrl(String username, String domain) {
+        return String.format("https://%s/users/%s", domain, username);
+    }
 }

@@ -2,8 +2,8 @@ package edu.sjsu.moth.server.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import edu.sjsu.moth.generated.Actor;
-import edu.sjsu.moth.server.controller.InboxController;
 import lombok.extern.apachecommons.CommonsLog;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,6 +30,9 @@ public class BackfillService {
     private final int cooldownMinutes;
     private final Semaphore semaphore;
     private final Map<String, Instant> lastRunByAcct = new ConcurrentHashMap<>();
+
+    @Autowired
+    AccountService accountService;
 
     public BackfillService(ActorService actorService, RemoteOutboxFetcher remoteOutboxFetcher,
                            RemoteStatusIngestService remoteStatusIngestService) {
@@ -92,7 +95,7 @@ public class BackfillService {
             }
 
             // pass activities to ingest service to save them to db
-            return remoteStatusIngestService.ingestCreateNotes(activities, actor, InboxController::convertToAccount)
+            return remoteStatusIngestService.ingestCreateNotes(activities, actor, accountService::convertToAccount)
                     .map(list -> list != null ? list.size() : 0);
 
         }).doFinally(s -> release()); // release semaphore permit
