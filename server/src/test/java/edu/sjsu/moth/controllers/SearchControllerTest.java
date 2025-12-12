@@ -16,7 +16,10 @@ import edu.sjsu.moth.server.util.MothConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataMongo;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
@@ -26,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.Random;
 
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
@@ -57,7 +61,8 @@ public class SearchControllerTest {
     @Autowired
     public SearchControllerTest(WebTestClient webTestClient, AccountRepository accountRepository,
                                 ExternalActorRepository externalActorRepository) {
-        this.webTestClient = webTestClient;
+        // Increase the timeout to prevent flaky tests when hitting live servers.
+        this.webTestClient = webTestClient.mutate().responseTimeout(Duration.ofSeconds(30)).build();
         this.accountRepository = accountRepository;
         this.externalActorRepository = externalActorRepository;
     }
@@ -75,10 +80,13 @@ public class SearchControllerTest {
         eMongod.close();
     }
 
-    @Test
-    public void checkAutoWires() {
-        Assertions.assertNotNull(webTestClient);
-        Assertions.assertNotNull(accountRepository);
+    @BeforeEach
+    public void setupTest() {
+        // clear repositories before each test
+        accountRepository.deleteAll().block();
+        externalActorRepository.deleteAll().block();
+        // for the mock authentication to work
+        accountRepository.save(new Account("test-user")).block();
     }
 
     @Test
@@ -103,43 +111,43 @@ public class SearchControllerTest {
     @Test
     public void testRemoteSearchWithInvalidDomainReturnsEmpty() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@user@invalid_domain").build())
-                .exchange().expectStatus().isOk().expectHeader().contentType(MediaType.APPLICATION_JSON).expectBody()
-                .jsonPath("$.accounts").isEmpty().jsonPath("$.statuses").isEmpty().jsonPath("$.hashtags").isEmpty();
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@user@invalid_domain")
+                        .queryParam("resolve", "true") // IMPORTANT: resolve must be true
+                        .build()).exchange().expectStatus().isOk().expectHeader()
+                .contentType(MediaType.APPLICATION_JSON).expectBody().jsonPath("$.accounts").isEmpty()
+                .jsonPath("$.statuses").isEmpty().jsonPath("$.hashtags").isEmpty();
     }
 
-    // Optional: For remote test with real Mastodon instance (only for manual testing)
-    @Test
-    public void testRemoteSearchValidDomain() {
+    @ParameterizedTest
+    @ValueSource(strings = { "@Gargron@mastodon.social", // resolve by handle
+            "https://mastodon.social/@Gargron" // resolve by user-facing URL
+    })
+    public void testRemoteSearch(String query) {
+        // make a remote search
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
-                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@Gargron@mastodon.social").build())
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", query)
+                        .queryParam("resolve", "true") // IMPORTANT
+                        .build()).exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts[0].acct")
+                .isEqualTo("Gargron@mastodon.social");
 
-                .exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts")
-                .exists(); // Will vary depending on actual Mastodon availability
+        // Step 2: Assert only the authenticated user is in the local AccountRepository
+        var allAccounts = accountRepository.findAll().collectList().block();
+        Assertions.assertEquals(1, allAccounts.size(), "Only the test-user should be in the AccountRepository");
+
+        // Step 3: Assert the remote Actor was saved
+        String expectedCanonicalActorId = "https://mastodon.social/users/Gargron";
+        var savedActor = externalActorRepository.findItemById(expectedCanonicalActorId).block();
+        Assertions.assertNotNull(savedActor, "Expected actor to be saved with ID: " + expectedCanonicalActorId);
+        Assertions.assertEquals(expectedCanonicalActorId, savedActor.id);
     }
 
     @Test
-    public void testOnlyRemoteUsersAreSaved() {
-        // Step 1: Clear DB
-        accountRepository.deleteAll().block();
-
-        // Step 2: Make a remote search request (simulate via real domain, or mock if isolated)
+    public void testInvalidProfileUrlReturnsEmpty() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
                 .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT)
-                        .queryParam("q", "@divyamonmastodon@mastodon.social") // Example remote user
-                        .queryParam("type", "accounts").build()).exchange().expectStatus().isOk().expectBody()
-                .jsonPath("$.accounts").exists();
-
-        // Step 3: Assert no local Account entities are persisted for remote users
-        var allAccounts = accountRepository.findAll().collectList().block();
-        Assertions.assertTrue(allAccounts == null || allAccounts.isEmpty(),
-                              "Remote users must not be saved to AccountRepository");
-
-        // Step 4: Assert specific remote Actor persisted in ExternalActorRepository
-        String expectedActorId = "https://mastodon.social/users/divyamonmastodon";
-        var savedActor = externalActorRepository.findItemById(expectedActorId).block();
-        System.out.println(savedActor);
-        Assertions.assertNotNull(savedActor, "Expected actor to be saved: " + expectedActorId);
+                        .queryParam("q", "https://invalid.example/@doesnotexist")
+                        .queryParam("resolve", "true") // IMPORTANT
+                        .build()).exchange().expectStatus().isOk().expectBody().jsonPath("$.accounts.length()")
+                .isEqualTo(0);
     }
-
 }

@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.controller;
 import edu.sjsu.moth.generated.SearchResult;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.ActorService;
+import edu.sjsu.moth.server.service.BackfillService;
 import edu.sjsu.moth.server.service.StatusService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,9 @@ public class SearchController {
     @Autowired
     ActorService actorService;
 
+    @Autowired
+    BackfillService backfillService;
+
     @GetMapping("api/v2/search")
     // DOCS FOR SPECS --> https://docs.joinmastodon.org/methods/search/
     public Mono<SearchResult> doSearch(@RequestParam("q") String query, Principal user, // user sending request, must
@@ -38,7 +42,6 @@ public class SearchController {
                                        @RequestParam(required = false) Integer limit,
                                        @RequestParam(required = false) Integer offset) {
         SearchResult result = new SearchResult();
-        // return empty SearchResult obj. , until query.length() >= 3
         if (query.length() < 3) {
             return Mono.just(result);
         }
@@ -46,22 +49,25 @@ public class SearchController {
             limit = 20;
         }
 
-        if (query.contains("@")) {
-            String userHandle = query.startsWith("@") ? query.substring(1) : query;
+        // according to the spec, we should only resolve remote accounts if resolve is true
+        // and the query is URL or user handle.
+        boolean isRemote = resolve != null && resolve && (query.startsWith("http") || query.contains("@"));
+
+        if (isRemote) {
             Integer count = limit;
-            return actorService.resolveRemoteAccount(userHandle).flatMap(account ->
-                                                                                 // ensure remote account id can be
-                                                                                 // used as a key in profile routes
-                                                                                 Mono.just(account).map(a -> {
-                                                                                     a.id = a.acct;
-                                                                                     return a;
-                                                                                 })).flatMap(
-                    account -> statusService.getStatusesForId(user, account.acct, null, null, null, false, false, false,
-                                                              null, null, count).map(statuses -> {
-                        result.accounts.add(account);
-                        result.statuses.addAll(statuses);
-                        return result;
-                    })).switchIfEmpty(Mono.just(new SearchResult())).onErrorResume(e -> Mono.just(new SearchResult()));
+            return actorService.resolveRemoteAccount(query).flatMap(account -> {
+                // ensure remote account id can be used as a key in profile routes
+                account.id = account.acct;
+                if (account.acct != null && account.acct.contains("@")) {
+                    backfillService.backfillRemoteAcctAsync(account.acct, BackfillService.BackfillType.SEARCH);
+                }
+                return statusService.getStatusesForId(user, account.acct, null, null, null, false, false, false, null,
+                                                      null, count).map(statuses -> {
+                    result.accounts.add(account);
+                    result.statuses.addAll(statuses);
+                    return result;
+                });
+            }).switchIfEmpty(Mono.just(new SearchResult())).onErrorResume(e -> Mono.just(new SearchResult()));
         } else {
             // normal search (of local instance)
             String searchType = type == null ? "" : type;

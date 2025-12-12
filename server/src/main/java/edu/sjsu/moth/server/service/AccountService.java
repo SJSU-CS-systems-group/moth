@@ -24,6 +24,7 @@ import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -67,6 +68,7 @@ public class AccountService {
     FollowService followService;
 
     @Autowired
+    @Lazy
     ActorService actorService;
 
     @Autowired
@@ -74,6 +76,9 @@ public class AccountService {
 
     @Autowired
     private ActivityPubService activityPubService;
+
+    @Autowired
+    private BackfillService backfillService;
 
     static PubKeyPair genPubKeyPair(String acct) {
         var pair = WebFingerUtils.genPubPrivKeyPem();
@@ -156,6 +161,11 @@ public class AccountService {
                     Account followedAccount = tuple.getT2();
                     Mono<String> saveAndRecount =
                             followService.saveOutgoingRemoteFollow(followerAccount, followedAccount.id);
+                    // fire-and-forget backfill for the newly followed remote account
+                    String remoteAcctKey = followedAccount.acct != null ? followedAccount.acct : followedAccount.id;
+                    if (remoteAcctKey != null && remoteAcctKey.contains("@")) {
+                        backfillService.backfillRemoteAcctAsync(remoteAcctKey, BackfillService.BackfillType.FOLLOW);
+                    }
                     return saveAndRecount.thenReturn("Accept received");
                 });
     }

@@ -9,6 +9,8 @@ import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Poll;
 import edu.sjsu.moth.generated.Status;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
@@ -16,6 +18,9 @@ import java.util.List;
 @Document("ExternalStatus")
 @QueryEntity
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@CompoundIndexes({
+		@CompoundIndex(name = "acct_createdAt_desc", def = "{ 'account.acct': 1, 'createdAt': -1 }")
+})
 public class ExternalStatus extends Status {
     @JsonProperty("uri")
     public String uri;
