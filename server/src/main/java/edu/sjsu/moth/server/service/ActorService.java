@@ -44,7 +44,6 @@ public class ActorService {
     }
 
     public Mono<Account> resolveRemoteAccount(String handleOrUrl) {
-        System.out.println("resolveRemoteAccount");
         if (handleOrUrl.startsWith("http://") || handleOrUrl.startsWith("https://")) {
             return resolveRemoteAccountFromProfileUrl(handleOrUrl);
         } else if (handleOrUrl.contains("@")) {
@@ -69,8 +68,8 @@ public class ActorService {
     private Mono<Actor> fetchRemoteActor(URI actorUri) {
         WebClient client = WebClient.builder().defaultHeaders(httpHeaders -> {
             httpHeaders.setAccept(List.of(MediaType.valueOf("application/activity+json"), MediaType.valueOf(
-                                                  "application/ld+json; profile=\"https://www.w3" + ".org/ns" +
-                                                          "/activitystreams\""),
+                                                  "application/ld+json; profile=\"https://www.w3" +
+                                                          ".org/ns/activitystreams\""),
                                           MediaType.APPLICATION_JSON));
         }).build();
 
