@@ -44,16 +44,23 @@ public class FollowService {
                     Account followedAccount = tuple.getT2();
 
                     boolean isRemote = ActivityPubUtil.isRemoteUser(followedAccount.url);
-                    Mono<Follow> checkFollows = followRepository.findIfFollows(followedAccount.id, followerAccount.id);
+                    // Check if follower follows followed (correct direction)
+                    Mono<Follow> checkFollows = followRepository.findIfFollows(followerAccount.id, followedAccount.id);
+                    // Check if followed follows follower (for followed_by status)
+                    Mono<Follow> checkFollowedBy = followRepository.findIfFollows(followedAccount.id, followerAccount.id);
 
                     if (!isRemote) {
                         Mono<String> saveAndRecount = saveFollow(followerAccount, followedAccount);
-                        return saveAndRecount.then(checkFollows.map(
-                                follow -> new Relationship(followerAccount.id, true, false, false, true, false, false,
-                                                           false, false, false, false, false, false, "")).switchIfEmpty(
-                                Mono.just(new Relationship(followerAccount.id, true, false, false, false, false, false,
-                                                           false, false, false, false, false, false, ""))));
+                        return saveAndRecount.then(Mono.zip(checkFollows.hasElement(), checkFollowedBy.hasElement()))
+                                .map(t -> {
+                                    boolean isFollowedBy = t.getT2();
+                                    // After saving, we are following (following=true)
+                                    return new Relationship(followerAccount.id, true, false, false, isFollowedBy, false, false,
+                                                           false, false, false, false, false, false, "");
+                                });
                     } else {
+                        // For remote users, save the outgoing follow request locally
+                        Mono<String> saveOutgoingFollow = saveOutgoingRemoteFollow(followerAccount, followedAccount.id);
                         String actorUrl = ActivityPubUtil.getActorUrl(followerAccount.id);
                         FollowMessage followMessage =
                                 new FollowMessage(actorUrl, ActivityPubUtil.toActivityPubUserUrl(followedAccount.url));
@@ -63,11 +70,16 @@ public class FollowService {
                                                                                       message.get("object").asText() +
                                                                                               "/inbox");
 
-                        return sendFollow.then(checkFollows.map(
-                                follow -> new Relationship(followerAccount.id, false, false, false, true, false, false,
-                                                           false, false, true, false, false, false, "")).switchIfEmpty(
-                                Mono.just(new Relationship(followerAccount.id, false, false, false, false, false, false,
-                                                           false, false, true, false, false, false, ""))));
+                        return saveOutgoingFollow.then(sendFollow).then(Mono.zip(checkFollows.hasElement(), checkFollowedBy.hasElement()))
+                                .map(t -> {
+                                    boolean isFollowing = t.getT1();
+                                    boolean isFollowedBy = t.getT2();
+                                    // For remote follows: if follow exists locally, we've sent it
+                                    // Set requested=true if account is locked (requires approval), otherwise following=true
+                                    boolean requested = followedAccount.locked && isFollowing;
+                                    return new Relationship(followerAccount.id, isFollowing && !requested, false, false, isFollowedBy, false, false,
+                                                           false, false, requested, false, false, false, "");
+                                });
                     }
                 }).onErrorMap(e -> {
                     if (e instanceof ResponseStatusException) {
