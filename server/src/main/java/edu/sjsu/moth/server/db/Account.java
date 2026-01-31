@@ -5,6 +5,7 @@ import com.querydsl.core.annotations.QueryEntity;
 import edu.sjsu.moth.generated.CustomEmoji;
 import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.util.EmailCodeUtils;
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -78,7 +79,7 @@ public class Account {
     }
 
     public Account(String username) {
-        this(username, username, username, MothController.BASE_URL + "/@" + username, "", "", "", "", "", "", false,
+        this(new ObjectId().toHexString(), username, username, MothController.BASE_URL + "/@" + username, "", "", "", "", "", "", false,
              new ArrayList<AccountField>(), new CustomEmoji[0], false, false, false, false, false, false, false,
              EmailCodeUtils.now(), EmailCodeUtils.now(), 0, 0, 0);
     }

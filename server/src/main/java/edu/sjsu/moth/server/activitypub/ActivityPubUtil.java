@@ -27,8 +27,13 @@ public class ActivityPubUtil {
         }
     }
 
-    public static String getActorUrl(String id) {
-        return String.format("https://%s/users/%s", MothConfiguration.mothConfiguration.getServerName(), id);
+    /**
+     * Build an ActivityPub actor URL for a local user.
+     * @param username the username (not the internal account ID)
+     * @return the actor URL in the format https://server/users/username
+     */
+    public static String getActorUrl(String username) {
+        return String.format("https://%s/users/%s", MothConfiguration.mothConfiguration.getServerName(), username);
     }
 
     public static String getRemoteDomain(String uri) {

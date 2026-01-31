@@ -138,7 +138,7 @@ public class StatusService {
                 continue;
             }
             String username = tokens[1];
-            mono = mono.then(accountService.getAccountById(username).switchIfEmpty(
+            mono = mono.then(accountService.getAccount(username).switchIfEmpty(
                     Mono.error(new UsernameNotFoundException("Mentioned account not found: " + username))).map(acc -> {
                 log.debug("Adding mention: " + acc.username);
                 status.mentions.add(new StatusMention(acc.id, acc.username, acc.url, acc.acct));

@@ -375,7 +375,7 @@ public class StatusController {
                                                   exclude_reblogs, pinned, tagged, limit).map(ResponseEntity::ok);
         }
 
-        return accountService.getAccountById(id)
+        return accountService.getAccountByIdOrAcct(id)
                 .flatMap(acct -> statusService.getStatusesForId(user, acct.username, max_id, since_id, min_id,
                                                                 only_media, exclude_replies, exclude_reblogs, pinned,
                                                                 tagged, limit))

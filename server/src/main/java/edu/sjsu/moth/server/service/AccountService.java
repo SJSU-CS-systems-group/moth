@@ -33,6 +33,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import javax.security.auth.login.AccountNotFoundException;
+import org.bson.types.ObjectId;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.Principal;
@@ -111,6 +113,18 @@ public class AccountService {
         return accountRepository.findById(id);
     }
 
+    /**
+     * Find an account by ID first, falling back to acct/username lookup.
+     * This supports both new ObjectId-based IDs and legacy username-based lookups.
+     */
+    public Mono<Account> getAccountByIdOrAcct(String idOrAcct) {
+        Mono<Account> byId = accountRepository.findById(idOrAcct);
+        if (byId == null) {
+            byId = Mono.empty();
+        }
+        return byId.switchIfEmpty(Mono.defer(() -> accountRepository.findItemByAcct(idOrAcct)));
+    }
+
     public Mono<String> getPublicKey(String id, boolean addIfMissing) {
         var mono = pubKeyPairRepository.findItemByAcct(id).map(pair -> pair.publicKeyPEM);
         if (addIfMissing) {
@@ -159,12 +173,12 @@ public class AccountService {
                                                                    e.getMessage()))).thenReturn("done");
     }
 
-    public Mono<String> acceptHandler(String id, JsonNode inboxNode) {
+    public Mono<String> acceptHandler(String username, JsonNode inboxNode) {
         //The Undo code has to be completed, when we receive an unfollow request
         String actorUrl = inboxNode.path("actor").asText();
         String followerAcct = ActivityPubUtil.inboxUrlToAcct(actorUrl);
-        return Mono.zip(accountRepository.findById(id), accountRepository.findItemByAcct(followerAcct))
-                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + id))).flatMap(tuple -> {
+        return Mono.zip(getAccountByIdOrAcct(username), accountRepository.findItemByAcct(followerAcct))
+                .switchIfEmpty(Mono.error(new AccountNotFoundException("Account not found: " + username))).flatMap(tuple -> {
                     Account followerAccount = tuple.getT1();
                     Account followedAccount = tuple.getT2();
                     Mono<String> saveAndRecount =
@@ -279,9 +293,8 @@ public class AccountService {
                 return followingResponse.map(jsonNodeFollowing -> {
                     int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
                     //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
-                    //change from String.valueOf(generateUniqueId()) to just their name
                     //changed last status from null to actor.published
-                    return new Account(actor.preferredUsername, actor.preferredUsername,
+                    return new Account(new ObjectId().toHexString(), actor.preferredUsername,
                                        actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
                                        actor.summary, iconLink, iconLink, imageLink, imageLink,
                                        actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
@@ -338,11 +351,7 @@ public class AccountService {
                                 .filter(account -> following == null || !following || followers.contains(account.id))
                                 .take(limit).collectList().map(accounts -> {
                                     result.accounts.addAll(accounts);
-                                    if (max_id != null) result.accounts.stream()
-                                            .filter(c -> Integer.parseInt(c.id) < Integer.parseInt(max_id));
-                                    if (min_id != null) result.accounts.stream()
-                                            .filter(c -> Integer.parseInt(c.id) > Integer.parseInt(min_id));
-                                    if (offset != null) result.accounts.subList(offset, result.accounts.size());
+                                    // TODO: Implement proper pagination using max_id, min_id, offset with ObjectId comparison
                                     return result;
                                 })));
     }

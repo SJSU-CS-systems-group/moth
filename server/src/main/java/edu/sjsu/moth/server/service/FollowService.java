@@ -35,8 +35,16 @@ public class FollowService {
     @Autowired
     private ActivityPubService activityPubService;
 
+    private Mono<Account> findAccountByIdOrAcct(String idOrAcct) {
+        Mono<Account> byId = accountRepository.findById(idOrAcct);
+        if (byId == null) {
+            byId = Mono.empty();
+        }
+        return byId.switchIfEmpty(Mono.defer(() -> accountRepository.findItemByAcct(idOrAcct)));
+    }
+
     public Mono<Relationship> followUser(String followerId, String followedId) {
-        return Mono.zip(accountRepository.findById(followerId), accountRepository.findById(followedId)).switchIfEmpty(
+        return Mono.zip(findAccountByIdOrAcct(followerId), findAccountByIdOrAcct(followedId)).switchIfEmpty(
                         Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                                "Follower or Followed account " + "not found")))
                 .flatMap(tuple -> {
@@ -61,12 +69,12 @@ public class FollowService {
                     } else {
                         // For remote users, save the outgoing follow request locally
                         Mono<String> saveOutgoingFollow = saveOutgoingRemoteFollow(followerAccount, followedAccount.id);
-                        String actorUrl = ActivityPubUtil.getActorUrl(followerAccount.id);
+                        String actorUrl = ActivityPubUtil.getActorUrl(followerAccount.username);
                         FollowMessage followMessage =
                                 new FollowMessage(actorUrl, ActivityPubUtil.toActivityPubUserUrl(followedAccount.url));
                         JsonNode message = objectMapper.valueToTree(followMessage);
 
-                        Mono<Void> sendFollow = activityPubService.sendSignedActivity(message, followerAccount.id,
+                        Mono<Void> sendFollow = activityPubService.sendSignedActivity(message, followerAccount.username,
                                                                                       message.get("object").asText() +
                                                                                               "/inbox");
 
@@ -93,14 +101,14 @@ public class FollowService {
     }
 
     public Mono<Relationship> unfollowUser(String followerId, String followedId) {
-        return Mono.zip(accountRepository.findById(followerId), accountRepository.findById(followedId)).switchIfEmpty(
+        return Mono.zip(findAccountByIdOrAcct(followerId), findAccountByIdOrAcct(followedId)).switchIfEmpty(
                         Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                                "Follower or Followed account " + "not found")))
                 .flatMap(tuple -> {
                     Account followerAccount = tuple.getT1();
                     Account followedAccount = tuple.getT2();
 
-                    String actorUrl = ActivityPubUtil.getActorUrl(followerAccount.id);
+                    String actorUrl = ActivityPubUtil.getActorUrl(followerAccount.username);
                     boolean isRemote = ActivityPubUtil.isRemoteUser(followedAccount.url);
                     Mono<Relationship> postUnfollow =
                             followRepository.findIfFollows(followedAccount.id, followerAccount.id)
@@ -117,7 +125,7 @@ public class FollowService {
                         JsonNode fMsg = objectMapper.valueToTree(followMessage);
                         UndoMessage undoMessage = new UndoMessage(fMsg);
                         JsonNode message = objectMapper.valueToTree(undoMessage);
-                        Mono<Void> sendUnFollow = activityPubService.sendSignedActivity(message, followerAccount.id,
+                        Mono<Void> sendUnFollow = activityPubService.sendSignedActivity(message, followerAccount.username,
                                                                                         fMsg.get("object").asText() +
                                                                                                 "/inbox");
                         return sendUnFollow.then(saveAndRecount).flatMap(follow -> postUnfollow);

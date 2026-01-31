@@ -50,7 +50,7 @@ public class VisibilityService {
         return accountService.getAccount(user.getName())
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found")))
                 .flatMapMany(userAccount -> followRepository.findAllByFollowerId(userAccount.id).flatMap(follow -> {
-                    if ((follow.id.followed_id.equals(status.account.acct) &&
+                    if ((follow.id.followed_id.equals(status.account.id) &&
                             validHomeFeedVisibility(status.visibility)) ||
                             (user.getName().equals(status.account.username))) {
                         return Flux.just(status);

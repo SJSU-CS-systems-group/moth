@@ -66,7 +66,7 @@ public class AccountController {
             @RequestBody Mono<MultiValueMap<String, Part>> parts) {
 
         return parts.flatMap(map -> {
-            return accountService.getAccountById(user.getName()).flatMap(a -> {
+            return accountService.getAccountByIdOrAcct(user.getName()).flatMap(a -> {
                 ArrayList<AccountField> fields = null;
                 for (var entry : map.entrySet()) {
                     for (var p : entry.getValue()) {
@@ -161,7 +161,9 @@ public class AccountController {
     @GetMapping("/api/v1/accounts/{id}")
     public Mono<ResponseEntity<Account>> getApiV1AccountsById(Principal user, @PathVariable String id) {
         // it's not clear what we need to do with the user...
-        return accountService.getAccount(id)
+        // Try lookup by ID first, then fall back to username lookup for backwards compatibility
+        return accountService.getAccountById(id)
+                .switchIfEmpty(accountService.getAccount(id))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
