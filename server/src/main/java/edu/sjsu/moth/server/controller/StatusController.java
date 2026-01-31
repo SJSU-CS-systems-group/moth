@@ -340,54 +340,78 @@ public class StatusController {
                 });
     }
 
-    @PostMapping(value = "/api/v1/statuses", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    // Handle form-urlencoded and empty content-type (madonctl sends empty content-type)
+    @PostMapping(value = "/api/v1/statuses", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.ALL_VALUE })
     Mono<ResponseEntity<Object>> postApiV1StatusesFormUrlEncoded(Principal user, ServerWebExchange exchange) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new AppController.ErrorResponse("The access token is invalid")));
         }
 
-        return exchange.getFormData().flatMap(form -> {
-            String status = form.getFirst("status");
-            String in_reply_to_id = form.getFirst("in_reply_to_id");
-            String sensitive = form.getFirst("sensitive");
-            String spoiler_text = form.getFirst("spoiler_text");
-            String visibility = form.getFirst("visibility");
-            String language = form.getFirst("language");
-            String scheduled_at = form.getFirst("scheduled_at");
-            List<String> media_ids = form.get("media_ids[]");
-            if (media_ids == null) {
-                media_ids = form.get("media_ids");
-            }
-
-            if (status == null || status.isEmpty()) {
-                return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                        .body(new AppController.ErrorResponse("Validation failed: Text can't be blank")));
-            }
-            if (scheduled_at != null) {
-                return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                        .body(new AppController.ErrorResponse("scheduled posts are not supported")));
-            }
-
-            List<String> finalMediaIds = media_ids;
-            return accountService.getAccount(user.getName())
-                    .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
-                        var mediaAttachments = new ArrayList<MediaAttachment>();
-                        if (finalMediaIds != null) for (var id : finalMediaIds) {
-                            var attachment = mediaService.lookupCachedAttachment(id);
-                            if (attachment != null) mediaAttachments.add(attachment);
+        // For empty or missing content-type, manually parse body as form data
+        MediaType contentType = exchange.getRequest().getHeaders().getContentType();
+        if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_FORM_URLENCODED)) {
+            return exchange.getRequest().getBody()
+                    .next()
+                    .flatMap(buffer -> {
+                        byte[] bytes = new byte[buffer.readableByteCount()];
+                        buffer.read(bytes);
+                        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                        // Parse as form data manually
+                        java.util.Map<String, String> params = new java.util.HashMap<>();
+                        for (String pair : body.split("&")) {
+                            String[] kv = pair.split("=", 2);
+                            if (kv.length == 2) {
+                                try {
+                                    params.put(java.net.URLDecoder.decode(kv[0], "UTF-8"),
+                                              java.net.URLDecoder.decode(kv[1], "UTF-8"));
+                                } catch (Exception e) {
+                                    params.put(kv[0], kv[1]);
+                                }
+                            }
                         }
-                        // generate a numeric ID for the status
-                        var s = new Status(Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), in_reply_to_id, null,
-                                sensitive != null && sensitive.equals("true"),
-                                spoiler_text == null ? "" : spoiler_text,
-                                visibility != null ? visibility : "public",
-                                language, null, null, 0, 0, 0, false, false, false, false, status, null, null, acct,
-                                mediaAttachments, new ArrayList<>(), List.of(), List.of(), null, null, status,
-                                EmailCodeUtils.now());
-                        return statusService.save(s).map(s2 -> ResponseEntity.ok((Object) s2));
+                        return processStatusForm(user, params);
                     });
+        }
+
+        return exchange.getFormData().flatMap(form -> {
+            java.util.Map<String, String> params = new java.util.HashMap<>();
+            form.forEach((k, v) -> { if (!v.isEmpty()) params.put(k, v.get(0)); });
+            return processStatusForm(user, params);
         });
+    }
+
+    private Mono<ResponseEntity<Object>> processStatusForm(Principal user, java.util.Map<String, String> params) {
+        String status = params.get("status");
+        String in_reply_to_id = params.get("in_reply_to_id");
+        String sensitive = params.get("sensitive");
+        String spoiler_text = params.get("spoiler_text");
+        String visibility = params.get("visibility");
+        String language = params.get("language");
+        String scheduled_at = params.get("scheduled_at");
+
+        if (status == null || status.isEmpty()) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(new AppController.ErrorResponse("Validation failed: Text can't be blank")));
+        }
+        if (scheduled_at != null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(new AppController.ErrorResponse("scheduled posts are not supported")));
+        }
+
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
+                    var mediaAttachments = new ArrayList<MediaAttachment>();
+                    // generate a numeric ID for the status
+                    var s = new Status(Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), in_reply_to_id, null,
+                            sensitive != null && sensitive.equals("true"),
+                            spoiler_text == null ? "" : spoiler_text,
+                            visibility != null ? visibility : "public",
+                            language, null, null, 0, 0, 0, false, false, false, false, status, null, null, acct,
+                            mediaAttachments, new ArrayList<>(), List.of(), List.of(), null, null, status,
+                            EmailCodeUtils.now());
+                    return statusService.save(s).map(s2 -> ResponseEntity.ok((Object) s2));
+                });
     }
 
     @DeleteMapping("/api/v1/statuses/{id}")

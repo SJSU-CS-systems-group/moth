@@ -159,8 +159,34 @@ public class AppController {
      * This method will return a bearer token for subsequent requests.
      */
     @PostMapping("/oauth/token")
-    Mono<ResponseEntity<AuthService.TokenResponse>> postOauthToken(@RequestBody TokenRequest req) {
-        return authService.generateToken(req.client_id, req.client_secret, req.code, req.scope).map(ResponseEntity::ok);
+    Mono<ResponseEntity<AuthService.TokenResponse>> postOauthToken(ServerWebExchange exchange) {
+        MediaType contentType = exchange.getRequest().getHeaders().getContentType();
+        if (contentType != null && contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+            // Handle JSON body
+            return exchange.getRequest().getBody()
+                    .next()
+                    .flatMap(buffer -> {
+                        try {
+                            byte[] bytes = new byte[buffer.readableByteCount()];
+                            buffer.read(bytes);
+                            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                            TokenRequest req = mapper.readValue(bytes, TokenRequest.class);
+                            return authService.generateToken(req.client_id, req.client_secret, req.code, req.scope);
+                        } catch (Exception e) {
+                            return Mono.error(e);
+                        }
+                    })
+                    .map(ResponseEntity::ok);
+        } else {
+            // Handle form data (including empty content-type)
+            return exchange.getFormData().flatMap(form -> {
+                String clientId = form.getFirst("client_id");
+                String clientSecret = form.getFirst("client_secret");
+                String code = form.getFirst("code");
+                String scope = form.getFirst("scope");
+                return authService.generateToken(clientId, clientSecret, code, scope);
+            }).map(ResponseEntity::ok);
+        }
     }
 
     public record ExceptionMessageFormat(Class<? extends Throwable> exception, String code, List<String> args) {
