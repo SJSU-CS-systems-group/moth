@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
@@ -337,6 +338,56 @@ public class StatusController {
                                        EmailCodeUtils.now());
                     return statusService.save(s).map(ResponseEntity::ok);
                 });
+    }
+
+    @PostMapping(value = "/api/v1/statuses", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    Mono<ResponseEntity<Object>> postApiV1StatusesFormUrlEncoded(Principal user, ServerWebExchange exchange) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AppController.ErrorResponse("The access token is invalid")));
+        }
+
+        return exchange.getFormData().flatMap(form -> {
+            String status = form.getFirst("status");
+            String in_reply_to_id = form.getFirst("in_reply_to_id");
+            String sensitive = form.getFirst("sensitive");
+            String spoiler_text = form.getFirst("spoiler_text");
+            String visibility = form.getFirst("visibility");
+            String language = form.getFirst("language");
+            String scheduled_at = form.getFirst("scheduled_at");
+            List<String> media_ids = form.get("media_ids[]");
+            if (media_ids == null) {
+                media_ids = form.get("media_ids");
+            }
+
+            if (status == null || status.isEmpty()) {
+                return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .body(new AppController.ErrorResponse("Validation failed: Text can't be blank")));
+            }
+            if (scheduled_at != null) {
+                return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .body(new AppController.ErrorResponse("scheduled posts are not supported")));
+            }
+
+            List<String> finalMediaIds = media_ids;
+            return accountService.getAccount(user.getName())
+                    .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName()))).flatMap(acct -> {
+                        var mediaAttachments = new ArrayList<MediaAttachment>();
+                        if (finalMediaIds != null) for (var id : finalMediaIds) {
+                            var attachment = mediaService.lookupCachedAttachment(id);
+                            if (attachment != null) mediaAttachments.add(attachment);
+                        }
+                        // generate a numeric ID for the status
+                        var s = new Status(Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), in_reply_to_id, null,
+                                sensitive != null && sensitive.equals("true"),
+                                spoiler_text == null ? "" : spoiler_text,
+                                visibility != null ? visibility : "public",
+                                language, null, null, 0, 0, 0, false, false, false, false, status, null, null, acct,
+                                mediaAttachments, new ArrayList<>(), List.of(), List.of(), null, null, status,
+                                EmailCodeUtils.now());
+                        return statusService.save(s).map(s2 -> ResponseEntity.ok((Object) s2));
+                    });
+        });
     }
 
     @DeleteMapping("/api/v1/statuses/{id}")

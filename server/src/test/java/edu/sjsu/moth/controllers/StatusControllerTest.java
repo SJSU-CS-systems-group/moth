@@ -307,6 +307,22 @@ public class StatusControllerTest {
     }
 
     @Test
+    public void testPostStatusFormUrlEncoded() {
+        String testUser = "test-formurlencoded-" + System.currentTimeMillis();
+        accountRepository.save(new Account(testUser)).block();
+
+        // Post using application/x-www-form-urlencoded
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).post()
+                .uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("status=Test+form+urlencoded+post&visibility=public")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content").isNotEmpty();
+    }
+
+    @Test
     public void testAccountSearch() {
         // Create test accounts for search
         String searchPrefix = "searchtest-" + System.currentTimeMillis();
