@@ -68,7 +68,7 @@ public class AuthService {
 
     public Mono<AppRegistration> registerApp(String clientName, String redirectUris, String scopes, String website) {
         var registration =
-                new AppRegistration(appCounter.getAndIncrement(), clientName, redirectUris, website, genNonce(33),
+                new AppRegistration(String.valueOf(appCounter.getAndIncrement()), clientName, redirectUris, website, genNonce(33),
                                     genNonce(33), VAPID_KEY);
         // we should have a scheduled thread to clean up expired registrations, but for now we will do it on the fly
         registrations.put(registration.client_id, new AppRegistrationEntry(registration, LocalDateTime.now(), scopes));
@@ -113,7 +113,7 @@ public class AuthService {
         String getCreatedAt() {return Long.toString(System.currentTimeMillis() / 1000);}
     }
 
-    public record AppRegistration(int id, String name, String redirect_uri, String website, String client_id,
+    public record AppRegistration(String id, String name, String redirect_uri, String website, String client_id,
                                   String client_secret, String vapid_key) {}
 
     public record AppRegistrationEntry(AppRegistration registration, LocalDateTime createDate, String scopes) {}

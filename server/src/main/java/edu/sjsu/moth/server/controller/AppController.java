@@ -11,12 +11,15 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring5.SpringTemplateEngine;
 import reactor.core.publisher.Mono;
@@ -95,9 +98,34 @@ public class AppController {
     }
 
     @PostMapping("/api/v1/apps")
-    Mono<ResponseEntity<AuthService.AppRegistration>> postApps(@RequestBody AppsRequest req) {
-        return authService.registerApp(req.client_name, req.redirect_uris, req.scopes, req.website)
-                .map(ResponseEntity::ok);
+    Mono<ResponseEntity<AuthService.AppRegistration>> postApps(ServerWebExchange exchange) {
+        MediaType contentType = exchange.getRequest().getHeaders().getContentType();
+        if (contentType != null && contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+            // Handle JSON body
+            return exchange.getRequest().getBody()
+                    .next()
+                    .flatMap(buffer -> {
+                        try {
+                            byte[] bytes = new byte[buffer.readableByteCount()];
+                            buffer.read(bytes);
+                            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                            AppsRequest req = mapper.readValue(bytes, AppsRequest.class);
+                            return authService.registerApp(req.client_name, req.redirect_uris, req.scopes, req.website);
+                        } catch (Exception e) {
+                            return Mono.error(e);
+                        }
+                    })
+                    .map(ResponseEntity::ok);
+        } else {
+            // Handle form data (including empty content-type)
+            return exchange.getFormData().flatMap(form -> {
+                String clientName = form.getFirst("client_name");
+                String redirectUris = form.getFirst("redirect_uris");
+                String scopes = form.getFirst("scopes");
+                String website = form.getFirst("website");
+                return authService.registerApp(clientName, redirectUris, scopes, website);
+            }).map(ResponseEntity::ok);
+        }
     }
 
     @GetMapping("/oauth/authorize")
