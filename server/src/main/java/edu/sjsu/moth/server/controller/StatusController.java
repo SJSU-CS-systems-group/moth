@@ -360,16 +360,15 @@ public class StatusController {
     // spec: https://docs.joinmastodon.org/methods/accounts/#statuses
     @GetMapping("/api/v1/accounts/{id}/statuses")
     Mono<ResponseEntity<List<Status>>> getApiV1AccountsStatuses(Principal user, @PathVariable String id,
-            /* String. Return results older than this ID */ String max_id,
-            /* String. Return results newer than this ID */ String since_id,
-            /* String. Return results immediately newer than this ID */ String min_id,
-            /* Integer. Maximum number of results to return. Defaults to 20 statuses. Max 40 statuses. */ Integer limit,
-            /* Boolean. Filter out statuses without attachments. */ Boolean only_media,
-            /* Boolean. Filter out statuses in reply to a different account. */ Boolean exclude_replies,
-            /* Boolean. Filter out boosts from the response. */ Boolean exclude_reblogs,
-            /* Boolean. Filter for pinned statuses only. Defaults to false, which includes all statuses. Pinned
-            statuses do not receive special priority in the order of the returned results. */ Boolean pinned,
-            /* String. Filter for statuses using a specific hashtag */ String tagged) {
+            @RequestParam(required = false) String max_id,
+            @RequestParam(required = false) String since_id,
+            @RequestParam(required = false) String min_id,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Boolean only_media,
+            @RequestParam(required = false) Boolean exclude_replies,
+            @RequestParam(required = false) Boolean exclude_reblogs,
+            @RequestParam(required = false) Boolean pinned,
+            @RequestParam(required = false) String tagged) {
         // If the id already looks like a remote handle, go through the remote path
         if (id.contains("@")) {
             return statusService.getStatusesForId(user, id, max_id, since_id, min_id, only_media, exclude_replies,
@@ -380,7 +379,8 @@ public class StatusController {
                 .flatMap(acct -> statusService.getStatusesForId(user, acct.username, max_id, since_id, min_id,
                                                                 only_media, exclude_replies, exclude_reblogs, pinned,
                                                                 tagged, limit))
-                .map(ResponseEntity::ok);
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/api/v1/trends/statuses")

@@ -294,4 +294,16 @@ public class StatusControllerTest {
         }
     }
 
+    @Test
+    public void testAccountStatusesNotFound() {
+        // Request statuses for a non-existent account ID
+        String nonExistentId = "99999999999999999";
+        String requester = "status-requester-" + System.currentTimeMillis();
+        accountRepository.save(new Account(requester)).block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", requester))).get()
+                .uri("/api/v1/accounts/" + nonExistentId + "/statuses")
+                .exchange().expectStatus().isNotFound();
+    }
+
 }
