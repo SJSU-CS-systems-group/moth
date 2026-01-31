@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import javax.security.auth.login.AccountNotFoundException;
@@ -341,6 +342,13 @@ public class AccountService {
 
     public Mono<Account> updateAccount(Account a) {
         return accountRepository.save(a);
+    }
+
+    /**
+     * Search for accounts matching the query string (case-insensitive partial match on acct).
+     */
+    public Flux<Account> searchAccounts(String query, int limit, int offset) {
+        return accountRepository.findByAcctLike(query).skip(offset).take(limit);
     }
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,

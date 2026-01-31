@@ -306,4 +306,37 @@ public class StatusControllerTest {
                 .exchange().expectStatus().isNotFound();
     }
 
+    @Test
+    public void testAccountSearch() {
+        // Create test accounts for search
+        String searchPrefix = "searchtest-" + System.currentTimeMillis();
+        String searcher = searchPrefix + "-searcher";
+        String target1 = searchPrefix + "-target1";
+        String target2 = searchPrefix + "-target2";
+
+        accountRepository.save(new Account(searcher)).block();
+        accountRepository.save(new Account(target1)).block();
+        accountRepository.save(new Account(target2)).block();
+
+        // Search should find accounts matching the query
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", searcher))).get()
+                .uri(uriBuilder -> uriBuilder.path("/api/v1/accounts/search")
+                        .queryParam("q", searchPrefix + "-target")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2);
+
+        // Search with no results
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", searcher))).get()
+                .uri(uriBuilder -> uriBuilder.path("/api/v1/accounts/search")
+                        .queryParam("q", "nonexistent-user-xyz-123")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
+
 }

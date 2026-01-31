@@ -121,6 +121,27 @@ public class AccountController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
+    // Search for accounts
+    // spec: https://docs.joinmastodon.org/methods/accounts/#search
+    @GetMapping("/api/v1/accounts/search")
+    public Mono<ResponseEntity<List<Account>>> searchAccounts(
+            Principal user,
+            @RequestParam String q,
+            @RequestParam(required = false, defaultValue = "40") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset,
+            @RequestParam(required = false) Boolean resolve,
+            @RequestParam(required = false) Boolean following) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Limit capped at 80 per spec
+        int cappedLimit = Math.min(limit, 80);
+        return accountService.searchAccounts(q, cappedLimit, offset)
+                .collectList()
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+    }
+
     private CredentialAccount convertAccount2CredentialAccount(Account a) {
         var source = new Source("public", false, "", a.note, a.fields, 0);
         return new CredentialAccount(a.id, a.username, a.acct, a.display_name, a.locked, a.bot, a.created_at, a.note,
