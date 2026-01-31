@@ -100,6 +100,18 @@ public class AppController {
     @PostMapping("/api/v1/apps")
     Mono<ResponseEntity<AuthService.AppRegistration>> postApps(ServerWebExchange exchange) {
         MediaType contentType = exchange.getRequest().getHeaders().getContentType();
+
+        // Check for query parameters first (madonctl sends params in URL with empty body)
+        var queryParams = exchange.getRequest().getQueryParams();
+        if (!queryParams.isEmpty() && queryParams.getFirst("client_name") != null) {
+            String clientName = queryParams.getFirst("client_name");
+            String redirectUris = queryParams.getFirst("redirect_uris");
+            String scopes = queryParams.getFirst("scopes");
+            String website = queryParams.getFirst("website");
+            return authService.registerApp(clientName, redirectUris, scopes, website)
+                    .map(ResponseEntity::ok);
+        }
+
         if (contentType != null && contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
             // Handle JSON body
             return exchange.getRequest().getBody()
@@ -179,6 +191,34 @@ public class AppController {
                     .map(ResponseEntity::ok);
         } else {
             // Handle form data (including empty content-type)
+            // When content-type is empty, getFormData() may not work, so parse manually
+            if (contentType == null) {
+                return exchange.getRequest().getBody()
+                        .next()
+                        .flatMap(buffer -> {
+                            byte[] bytes = new byte[buffer.readableByteCount()];
+                            buffer.read(bytes);
+                            String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                            java.util.Map<String, String> params = new java.util.HashMap<>();
+                            for (String pair : body.split("&")) {
+                                String[] kv = pair.split("=", 2);
+                                if (kv.length == 2) {
+                                    try {
+                                        params.put(java.net.URLDecoder.decode(kv[0], "UTF-8"),
+                                                  java.net.URLDecoder.decode(kv[1], "UTF-8"));
+                                    } catch (Exception e) {
+                                        params.put(kv[0], kv[1]);
+                                    }
+                                }
+                            }
+                            return authService.generateToken(
+                                    params.get("client_id"),
+                                    params.get("client_secret"),
+                                    params.get("code"),
+                                    params.get("scope"));
+                        })
+                        .map(ResponseEntity::ok);
+            }
             return exchange.getFormData().flatMap(form -> {
                 String clientId = form.getFirst("client_id");
                 String clientSecret = form.getFirst("client_secret");

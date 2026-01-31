@@ -340,12 +340,21 @@ public class StatusController {
                 });
     }
 
-    // Handle form-urlencoded and empty content-type (madonctl sends empty content-type)
+    // Handle form-urlencoded, query params, and empty content-type
+    // madonctl sends POST with params in URL query string and empty body
     @PostMapping(value = "/api/v1/statuses", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.ALL_VALUE })
     Mono<ResponseEntity<Object>> postApiV1StatusesFormUrlEncoded(Principal user, ServerWebExchange exchange) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new AppController.ErrorResponse("The access token is invalid")));
+        }
+
+        // Check for query parameters first (madonctl sends params in URL with empty body)
+        var queryParams = exchange.getRequest().getQueryParams();
+        if (!queryParams.isEmpty() && queryParams.getFirst("status") != null) {
+            java.util.Map<String, String> params = new java.util.HashMap<>();
+            queryParams.forEach((k, v) -> { if (!v.isEmpty()) params.put(k, v.get(0)); });
+            return processStatusForm(user, params);
         }
 
         // For empty or missing content-type, manually parse body as form data
