@@ -8,6 +8,7 @@ import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
+import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -281,8 +282,8 @@ public class StatusController {
                         var attachment = mediaService.lookupCachedAttachment(id);
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
-                    // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var status = new Status(null, EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
+                    // generate a numeric ID for the status
+                    var status = new Status(Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), body.in_reply_to_id, null, body.sensitive,
                                             body.spoiler_text == null ? "" : body.spoiler_text, body.visibility,
                                             body.language, null, null, 0, 0, 0, false, false, false, false, body.status,
                                             null, null, acct, mediaAttachments, new ArrayList<>(), List.of(), List.of(),
@@ -327,8 +328,8 @@ public class StatusController {
                         var attachment = mediaService.lookupCachedAttachment(id);
                         if (attachment != null) mediaAttachments.add(attachment);
                     }
-                    // if i pass a null id to status it gets filled in by the repo with the objectid
-                    var s = new Status(null, EmailCodeUtils.now(), in_reply_to_id, null,
+                    // generate a numeric ID for the status
+                    var s = new Status(Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), in_reply_to_id, null,
                                        sensitive != null && sensitive.equals("true"),
                                        spoiler_text == null ? "" : spoiler_text, visibility, language, null, null, 0, 0,
                                        0, false, false, false, false, status, null, null, acct, mediaAttachments,

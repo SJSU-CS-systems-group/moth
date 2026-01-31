@@ -35,9 +35,9 @@ import edu.sjsu.moth.server.db.BookmarkRepository;
 import edu.sjsu.moth.server.db.Pin;
 import edu.sjsu.moth.server.db.PinRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.EmailCodeUtils;
 import lombok.extern.apachecommons.CommonsLog;
-import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -262,15 +262,15 @@ public class StatusService {
 
     private BooleanExpression addRangeQueries(BooleanExpression predicate, String max_id, String since_id,
                                               String min_id) {
-        Path<ObjectId> statusIdPath = Expressions.path(ObjectId.class, QStatus.status.id.getMetadata());
+        // Use String comparison for numeric IDs (padded for correct ordering)
+        Path<String> statusIdPath = Expressions.path(String.class, QStatus.status.id.getMetadata());
         if (max_id != null) predicate = predicate.and(
-                Expressions.predicate(Ops.LT, statusIdPath, Expressions.constant(new ObjectId(convertToHex(max_id)))));
+                Expressions.predicate(Ops.LT, statusIdPath, Expressions.constant(padNumericId(max_id))));
         if (since_id != null) predicate = predicate.and(Expressions.predicate(Ops.GT, statusIdPath,
-                                                                              Expressions.constant(new ObjectId(
-                                                                                      convertToHex(since_id)))));
+                                                                              Expressions.constant(padNumericId(since_id))));
         // this isn't right. i'm not sure how to express close
         if (min_id != null) predicate = predicate.and(
-                Expressions.predicate(Ops.GT, statusIdPath, Expressions.constant(new ObjectId(convertToHex(min_id)))));
+                Expressions.predicate(Ops.GT, statusIdPath, Expressions.constant(padNumericId(min_id))));
         return predicate;
     }
 
@@ -399,8 +399,12 @@ public class StatusService {
                 });
     }
 
-    private String convertToHex(String payload) {
-        return String.format("%1$24s", payload).replace(' ', '0');
+    /**
+     * Pad numeric IDs to 20 characters for correct string comparison ordering.
+     * Our IDs are 15-17 digit numbers, so padding to 20 ensures correct ordering.
+     */
+    private String padNumericId(String id) {
+        return String.format("%1$20s", id).replace(' ', '0');
     }
 
     private Mono<List<String>> getRemoteFollowerInboxes(String accountId) {
@@ -497,7 +501,7 @@ public class StatusService {
                                         .switchIfEmpty(Mono.just(originalStatus)))
                                 .switchIfEmpty(Mono.defer(() -> {
                                     var reblogStatus = new Status(
-                                            null, EmailCodeUtils.now(), null, null,
+                                            Long.toString(Util.generateUniqueId()), EmailCodeUtils.now(), null, null,
                                             originalStatus.sensitive, originalStatus.spoilerText,
                                             visibility != null ? visibility : "public",
                                             originalStatus.language, null, null,

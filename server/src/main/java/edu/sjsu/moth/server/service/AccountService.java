@@ -33,7 +33,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import javax.security.auth.login.AccountNotFoundException;
-import org.bson.types.ObjectId;
+import edu.sjsu.moth.server.util.Util;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -294,7 +294,7 @@ public class AccountService {
                     int totalItemFollowing = jsonNodeFollowing.get("totalItems").asInt();
                     //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
                     //changed last status from null to actor.published
-                    return new Account(new ObjectId().toHexString(), actor.preferredUsername,
+                    return new Account(Long.toString(Util.generateUniqueId()), actor.preferredUsername,
                                        actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
                                        actor.summary, iconLink, iconLink, imageLink, imageLink,
                                        actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,

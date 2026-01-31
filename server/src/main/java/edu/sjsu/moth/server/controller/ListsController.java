@@ -7,8 +7,8 @@ import edu.sjsu.moth.server.db.StatusRepository;
 import edu.sjsu.moth.server.db.UserList;
 import edu.sjsu.moth.server.db.UserListRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.EmailCodeUtils;
-import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -69,7 +69,7 @@ public class ListsController {
         return accountService.getAccount(user.getName())
                 .flatMap(acct -> {
                     var list = new UserList(
-                            new ObjectId().toHexString(),
+                            Long.toString(Util.generateUniqueId()),
                             acct.id,
                             request.title(),
                             request.replies_policy(),
