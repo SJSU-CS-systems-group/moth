@@ -1,38 +1,37 @@
 package edu.sjsu.moth.server.controller;
 
 import edu.sjsu.moth.generated.Notification;
-import edu.sjsu.moth.generated.CredentialAccount;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.data.mongodb.core.query.Query;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class NotificationsController {
 
     private final ReactiveMongoTemplate reactiveMongoTemplate;
 
-    @Autowired
     public NotificationsController(ReactiveMongoTemplate reactiveMongoTemplate) {
         this.reactiveMongoTemplate = reactiveMongoTemplate;
     }
 
-    // NotificationWithUser class that extends Notification to include user info
     @Document(collection = "notificationwithuser")
     public static class NotificationWithUser {
         Notification notification;
@@ -64,7 +63,6 @@ public class NotificationsController {
                                                                                 String[] exclude_types,
                                                                                 @RequestParam(required = false)
                                                                                 String account_id) {
-        //if user is not authenticated, return 401
         if (principal == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
@@ -74,9 +72,11 @@ public class NotificationsController {
 
         Query query = new Query();
 
-        // criteria to filter notifs for the authenticated user and account_id
-        query.addCriteria(Criteria.where("account.id").is(account_id));
         query.addCriteria(Criteria.where("user").is(principal.getName()));
+
+        if (account_id != null) {
+            query.addCriteria(Criteria.where("account.id").is(account_id));
+        }
 
         if (max_id != null) {
             query.addCriteria(Criteria.where("id").lt(max_id));
@@ -92,14 +92,11 @@ public class NotificationsController {
 
         query.with(pageable);
 
-        //execute query with reactiveMongoTemplate and create NotificationWithUser instances
         return reactiveMongoTemplate.find(query, Notification.class)
                 .map(notification -> new NotificationWithUser(notification, principal.getName())).collectList()
                 .flatMap(notifications -> {
                     HttpHeaders headers = new HttpHeaders();
-                    HttpStatus statusCode = HttpStatus.OK;
 
-                    //link headers for pagination
                     String nextLink = createNextLink(notifications, limit, max_id);
                     String prevLink = createPrevLink(notifications, limit, since_id);
 
@@ -111,9 +108,50 @@ public class NotificationsController {
                         headers.add(HttpHeaders.LINK, prevLink);
                     }
 
-                    //return notifications list with appropriate headers
                     return Mono.just(ResponseEntity.ok().headers(headers).body(notifications));
                 }).defaultIfEmpty(ResponseEntity.ok().body(Collections.emptyList()));
+    }
+
+    @GetMapping("/api/v1/notifications/{id}")
+    public Mono<ResponseEntity<Notification>> getNotification(Principal principal, @PathVariable String id) {
+        if (principal == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+
+        Query query = new Query();
+        query.addCriteria(Criteria.where("id").is(id));
+        query.addCriteria(Criteria.where("user").is(principal.getName()));
+
+        return reactiveMongoTemplate.findOne(query, Notification.class)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/api/v1/notifications/{id}/dismiss")
+    public Mono<ResponseEntity<Object>> dismissNotification(Principal principal, @PathVariable String id) {
+        if (principal == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+
+        Query query = new Query();
+        query.addCriteria(Criteria.where("id").is(id));
+        query.addCriteria(Criteria.where("user").is(principal.getName()));
+
+        return reactiveMongoTemplate.remove(query, Notification.class)
+                .map(result -> ResponseEntity.ok().build());
+    }
+
+    @PostMapping("/api/v1/notifications/clear")
+    public Mono<ResponseEntity<Object>> clearNotifications(Principal principal) {
+        if (principal == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+
+        Query query = new Query();
+        query.addCriteria(Criteria.where("user").is(principal.getName()));
+
+        return reactiveMongoTemplate.remove(query, Notification.class)
+                .map(result -> ResponseEntity.ok().build());
     }
 
     private String createNextLink(List<NotificationWithUser> notifications, int limit, String max_id) {

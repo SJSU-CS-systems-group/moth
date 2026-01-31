@@ -3,14 +3,17 @@ package edu.sjsu.moth.server.controller;
 import edu.sjsu.moth.generated.CredentialAccount;
 import edu.sjsu.moth.generated.Relationship;
 import edu.sjsu.moth.generated.Source;
+import edu.sjsu.moth.generated.Status;
+import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.annotations.RequestObject;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.BlockService;
 import edu.sjsu.moth.server.service.FollowService;
+import edu.sjsu.moth.server.service.MuteService;
 import lombok.extern.apachecommons.CommonsLog;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,15 +45,19 @@ import java.util.stream.Collectors;
 @RestController
 public class AccountController {
 
-    @Autowired
     private final AccountService accountService;
-
-    @Autowired
     private final FollowService followService;
+    private final StatusService statusService;
+    private final BlockService blockService;
+    private final MuteService muteService;
 
-    public AccountController(AccountService accountService, FollowService followService) {
+    public AccountController(AccountService accountService, FollowService followService, StatusService statusService,
+                             BlockService blockService, MuteService muteService) {
         this.accountService = accountService;
         this.followService = followService;
+        this.statusService = statusService;
+        this.blockService = blockService;
+        this.muteService = muteService;
     }
 
     @PatchMapping(value = "/api/v1/accounts/update_credentials", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
@@ -159,18 +166,67 @@ public class AccountController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
-    // TODO: placeholder for testing
-    @GetMapping("/api/v1/mutes")
-    public Mono<ArrayList<Account>> getMutes(Integer max_id, Integer since_id, Integer limit) {
-
-        return Mono.just(new ArrayList<Account>());
+    // Get user's favourited statuses
+    @GetMapping("/api/v1/favourites")
+    public Mono<ResponseEntity<List<Status>>> getFavourites(Principal user,
+                                                             @RequestParam(required = false) String max_id,
+                                                             @RequestParam(required = false) String since_id,
+                                                             @RequestParam(required = false) String min_id,
+                                                             @RequestParam(required = false, defaultValue = "20") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> statusService.getFavouritedStatuses(acct.id, max_id, since_id, min_id, limit))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
     }
 
-    // TODO: placeholder for testing
-    @GetMapping("/api/v1/blocks")
-    public Mono<ArrayList<Account>> getBlocks(Integer max_id, Integer since_id, Integer min_id, Integer limit) {
+    // Get user's bookmarked statuses
+    @GetMapping("/api/v1/bookmarks")
+    public Mono<ResponseEntity<List<Status>>> getBookmarks(Principal user,
+                                                            @RequestParam(required = false) String max_id,
+                                                            @RequestParam(required = false) String since_id,
+                                                            @RequestParam(required = false) String min_id,
+                                                            @RequestParam(required = false, defaultValue = "20") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> statusService.getBookmarkedStatuses(acct.id, max_id, since_id, min_id, limit))
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+    }
 
-        return Mono.just(new ArrayList<Account>());
+    // Get muted accounts
+    @GetMapping("/api/v1/mutes")
+    public Mono<ResponseEntity<List<Account>>> getMutes(Principal user,
+                                                         @RequestParam(required = false) String max_id,
+                                                         @RequestParam(required = false) String since_id,
+                                                         @RequestParam(required = false, defaultValue = "40") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> muteService.getMutedAccounts(acct.id).take(limit).collectList())
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+    }
+
+    // Get blocked accounts
+    @GetMapping("/api/v1/blocks")
+    public Mono<ResponseEntity<List<Account>>> getBlocks(Principal user,
+                                                          @RequestParam(required = false) String max_id,
+                                                          @RequestParam(required = false) String since_id,
+                                                          @RequestParam(required = false) String min_id,
+                                                          @RequestParam(required = false, defaultValue = "40") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> blockService.getBlockedAccounts(acct.id).take(limit).collectList())
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
     }
 
     //Follow request sent out to other instances/ other users
@@ -197,6 +253,56 @@ public class AccountController {
                     return Mono.just(ResponseEntity.status(ex.getStatusCode()).contentType(MediaType.APPLICATION_JSON)
                                              .body((Object) errorBody));
                 });
+    }
+
+    // Block an account
+    @PostMapping("/api/v1/accounts/{id}/block")
+    public Mono<ResponseEntity<Relationship>> blockAccount(@PathVariable("id") String blockedId, Principal user) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> blockService.block(acct.id, blockedId))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unblock an account
+    @PostMapping("/api/v1/accounts/{id}/unblock")
+    public Mono<ResponseEntity<Relationship>> unblockAccount(@PathVariable("id") String blockedId, Principal user) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> blockService.unblock(acct.id, blockedId))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Mute an account
+    @PostMapping("/api/v1/accounts/{id}/mute")
+    public Mono<ResponseEntity<Relationship>> muteAccount(@PathVariable("id") String mutedId, Principal user,
+                                                           @RequestParam(required = false, defaultValue = "true") boolean notifications,
+                                                           @RequestParam(required = false, defaultValue = "0") long duration) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> muteService.mute(acct.id, mutedId, notifications, duration > 0 ? duration : null))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unmute an account
+    @PostMapping("/api/v1/accounts/{id}/unmute")
+    public Mono<ResponseEntity<Relationship>> unmuteAccount(@PathVariable("id") String mutedId, Principal user) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> muteService.unmute(acct.id, mutedId))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
     }
 
 //    @GetMapping("/api/v1/accounts/{id}/following")

@@ -83,4 +83,40 @@ smtp.localPort=2525
 
 ## Integration Testing
 
-Use `madonctl` (Linux CLI client) for manual integration testing against a running server.
+Use `madonctl` (Linux CLI client) for integration testing against a running server.
+
+### Automated madonctl Compatibility Tests
+
+Run the compatibility test script to verify all madonctl commands work:
+
+```bash
+# Start the server first
+java -jar server/target/moth-server.jar path/to/config.properties
+
+# In another terminal, run the test suite
+./bin/test-madonctl-compatibility.sh http://localhost:3333
+
+# Optional: Set a test account ID for relationship tests
+TEST_ACCOUNT_ID=someaccountid ./bin/test-madonctl-compatibility.sh
+```
+
+The script tests:
+- **Phase 1**: Status operations (show, favourite, boost, context, bookmark, pin, mute)
+- **Phase 2**: Account relationships (block, mute, lists)
+- **Phase 3**: Timelines (hashtag, lists)
+- **Phase 4**: Notifications
+
+### Manual madonctl Testing
+
+```bash
+# Configure madonctl for your server
+madonctl config
+
+# Test individual commands
+madonctl status show <status_id>
+madonctl status favourite <status_id>
+madonctl status boost <status_id>
+madonctl timeline --hashtag test
+madonctl lists
+madonctl notifications
+```

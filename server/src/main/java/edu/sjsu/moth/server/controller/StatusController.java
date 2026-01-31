@@ -4,11 +4,11 @@ import edu.sjsu.moth.generated.MediaAttachment;
 import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.generated.StatusEdit;
 import edu.sjsu.moth.generated.StatusSource;
+import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.MediaService;
 import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.util.EmailCodeUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -32,16 +32,16 @@ import java.util.logging.Logger;
 
 @RestController
 public class StatusController {
-    @Autowired
-    StatusService statusService;
+    private final StatusService statusService;
+    private final AccountService accountService;
+    private final MediaService mediaService;
+    private final Logger LOG = Logger.getLogger(StatusController.class.getName());
 
-    @Autowired
-    AccountService accountService;
-
-    @Autowired
-    MediaService mediaService;
-
-    Logger LOG = Logger.getLogger(StatusController.class.getName());
+    public StatusController(StatusService statusService, AccountService accountService, MediaService mediaService) {
+        this.statusService = statusService;
+        this.accountService = accountService;
+        this.mediaService = mediaService;
+    }
 
     // Status Editing:
     // Edit a status
@@ -62,10 +62,191 @@ public class StatusController {
         return statusService.findHistory(id);
     }
 
+    // Get a single status by ID
+    @GetMapping("/api/v1/statuses/{id}")
+    Mono<ResponseEntity<Status>> getApiV1StatusById(Principal user, @PathVariable String id) {
+        return statusService.findStatusById(id)
+                .flatMap(status -> {
+                    if (user != null) {
+                        return accountService.getAccount(user.getName())
+                                .flatMap(acct -> statusService.hasUserFavourited(acct.id, id)
+                                        .flatMap(favourited -> statusService.hasUserReblogged(acct.id, id)
+                                                .map(reblogged -> {
+                                                    status.favourited = favourited;
+                                                    status.reblogged = reblogged;
+                                                    return status;
+                                                })))
+                                .switchIfEmpty(Mono.just(status));
+                    }
+                    return Mono.just(status);
+                })
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
     // Get previous and after statuses in thread
     @GetMapping("/api/v1/statuses/{id}/context")
-    ResponseEntity<Object> getApiV1StatusContext(@PathVariable String id) {
-        return ResponseEntity.ok(Map.of("ancestors", List.of(), "descendants", List.of()));
+    Mono<ResponseEntity<Object>> getApiV1StatusContext(@PathVariable String id) {
+        return statusService.getStatusContext(id)
+                .map(context -> ResponseEntity.ok((Object) Map.of(
+                        "ancestors", context.ancestors(),
+                        "descendants", context.descendants())))
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Favourite a status
+    @PostMapping("/api/v1/statuses/{id}/favourite")
+    Mono<ResponseEntity<Status>> favouriteStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.favourite(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unfavourite a status
+    @PostMapping("/api/v1/statuses/{id}/unfavourite")
+    Mono<ResponseEntity<Status>> unfavouriteStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.unfavourite(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Reblog (boost) a status
+    @PostMapping("/api/v1/statuses/{id}/reblog")
+    Mono<ResponseEntity<Status>> reblogStatus(Principal user, @PathVariable String id,
+                                               @RequestParam(required = false) String visibility) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.reblog(acct.id, id, visibility))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unreblog (unboost) a status
+    @PostMapping("/api/v1/statuses/{id}/unreblog")
+    Mono<ResponseEntity<Status>> unreblogStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.unreblog(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Get accounts who favourited a status
+    @GetMapping("/api/v1/statuses/{id}/favourited_by")
+    Mono<ResponseEntity<List<Account>>> getFavouritedBy(Principal user, @PathVariable String id,
+                                                         @RequestParam(required = false, defaultValue = "40") int limit) {
+        return statusService.getAccountsWhoFavourited(id)
+                .flatMap(accountId -> accountService.getAccountById(accountId))
+                .take(limit)
+                .collectList()
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+    }
+
+    // Get accounts who reblogged a status
+    @GetMapping("/api/v1/statuses/{id}/reblogged_by")
+    Mono<ResponseEntity<List<Account>>> getRebloggedBy(Principal user, @PathVariable String id,
+                                                        @RequestParam(required = false, defaultValue = "40") int limit) {
+        return statusService.getAccountsWhoReblogged(id)
+                .flatMap(accountId -> accountService.getAccountById(accountId))
+                .take(limit)
+                .collectList()
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+    }
+
+    // Bookmark a status
+    @PostMapping("/api/v1/statuses/{id}/bookmark")
+    Mono<ResponseEntity<Status>> bookmarkStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.bookmark(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unbookmark a status
+    @PostMapping("/api/v1/statuses/{id}/unbookmark")
+    Mono<ResponseEntity<Status>> unbookmarkStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.unbookmark(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Pin a status
+    @PostMapping("/api/v1/statuses/{id}/pin")
+    Mono<ResponseEntity<Status>> pinStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.pin(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.unprocessableEntity().build()));
+    }
+
+    // Unpin a status
+    @PostMapping("/api/v1/statuses/{id}/unpin")
+    Mono<ResponseEntity<Status>> unpinStatus(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.unpin(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Mute a conversation
+    @PostMapping("/api/v1/statuses/{id}/mute")
+    Mono<ResponseEntity<Status>> muteConversation(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.muteConversation(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    // Unmute a conversation
+    @PostMapping("/api/v1/statuses/{id}/unmute")
+    Mono<ResponseEntity<Status>> unmuteConversation(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.unmuteConversation(acct.id, id))
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
     }
 
     // defined in https://docs.joinmastodon.org/methods/statuses/

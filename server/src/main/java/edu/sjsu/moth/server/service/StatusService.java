@@ -17,14 +17,25 @@ import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
 import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
+import edu.sjsu.moth.server.db.Favourite;
+import edu.sjsu.moth.server.db.FavouriteRepository;
 import edu.sjsu.moth.server.db.Follow;
 import edu.sjsu.moth.server.db.FollowRepository;
 import edu.sjsu.moth.server.db.OutboxRepository;
+import edu.sjsu.moth.server.db.Reblog;
+import edu.sjsu.moth.server.db.ReblogRepository;
 import edu.sjsu.moth.server.db.StatusEditCollection;
 import edu.sjsu.moth.server.db.StatusHistoryRepository;
 import edu.sjsu.moth.server.db.StatusMention;
+import edu.sjsu.moth.server.db.StatusMute;
+import edu.sjsu.moth.server.db.StatusMuteRepository;
 import edu.sjsu.moth.server.db.StatusRepository;
+import edu.sjsu.moth.server.db.Bookmark;
+import edu.sjsu.moth.server.db.BookmarkRepository;
+import edu.sjsu.moth.server.db.Pin;
+import edu.sjsu.moth.server.db.PinRepository;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.util.EmailCodeUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +67,16 @@ public class StatusService {
     ExternalStatusRepository externalStatusRepository;
     @Autowired
     FollowRepository followRepository;
+    @Autowired
+    FavouriteRepository favouriteRepository;
+    @Autowired
+    ReblogRepository reblogRepository;
+    @Autowired
+    BookmarkRepository bookmarkRepository;
+    @Autowired
+    PinRepository pinRepository;
+    @Autowired
+    StatusMuteRepository statusMuteRepository;
     @Autowired
     AccountService accountService;
     @Autowired
@@ -430,5 +451,267 @@ public class StatusService {
         try {
             return Instant.parse(a).isAfter(Instant.parse(b));
         } catch (Exception e) {return false;}
+    }
+
+    public Mono<Status> favourite(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> favouriteRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(existing -> Mono.just(status))
+                        .switchIfEmpty(Mono.defer(() -> {
+                            var fav = new Favourite(accountId, statusId, EmailCodeUtils.now());
+                            return favouriteRepository.save(fav)
+                                    .then(favouriteRepository.countByStatusId(statusId))
+                                    .flatMap(count -> {
+                                        status.favouritesCount = count.intValue();
+                                        status.favourited = true;
+                                        return statusRepository.save(status);
+                                    });
+                        })));
+    }
+
+    public Mono<Status> unfavourite(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> favouriteRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(existing -> favouriteRepository.delete(existing)
+                                .then(favouriteRepository.countByStatusId(statusId))
+                                .flatMap(count -> {
+                                    status.favouritesCount = count.intValue();
+                                    status.favourited = false;
+                                    return statusRepository.save(status);
+                                }))
+                        .switchIfEmpty(Mono.defer(() -> {
+                            status.favourited = false;
+                            return Mono.just(status);
+                        })));
+    }
+
+    public Mono<Status> reblog(String accountId, String statusId, String visibility) {
+        return accountRepository.findById(accountId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Account not found: " + accountId)))
+                .flatMap(account -> statusRepository.findById(statusId)
+                        .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                        .flatMap(originalStatus -> reblogRepository.findByAccountIdAndStatusId(accountId, statusId)
+                                .flatMap(existing -> statusRepository.findById(existing.reblog_status_id)
+                                        .switchIfEmpty(Mono.just(originalStatus)))
+                                .switchIfEmpty(Mono.defer(() -> {
+                                    var reblogStatus = new Status(
+                                            null, EmailCodeUtils.now(), null, null,
+                                            originalStatus.sensitive, originalStatus.spoilerText,
+                                            visibility != null ? visibility : "public",
+                                            originalStatus.language, null, null,
+                                            0, 0, 0, false, false, false, false,
+                                            "", originalStatus, null, account,
+                                            new ArrayList<>(), new ArrayList<>(), List.of(), List.of(),
+                                            null, null, "", EmailCodeUtils.now()
+                                    );
+                                    return statusRepository.save(reblogStatus).flatMap(savedReblog -> {
+                                        var reblog = new Reblog(accountId, statusId, savedReblog.id, EmailCodeUtils.now());
+                                        return reblogRepository.save(reblog)
+                                                .then(reblogRepository.countByStatusId(statusId))
+                                                .flatMap(count -> {
+                                                    originalStatus.reblogsCount = count.intValue();
+                                                    originalStatus.reblogged = true;
+                                                    return statusRepository.save(originalStatus)
+                                                            .thenReturn(savedReblog);
+                                                });
+                                    });
+                                }))));
+    }
+
+    public Mono<Status> unreblog(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(originalStatus -> reblogRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(reblog -> statusRepository.findById(reblog.reblog_status_id)
+                                .flatMap(reblogStatus -> statusRepository.delete(reblogStatus)
+                                        .then(reblogRepository.delete(reblog))
+                                        .then(reblogRepository.countByStatusId(statusId))
+                                        .flatMap(count -> {
+                                            originalStatus.reblogsCount = count.intValue();
+                                            originalStatus.reblogged = false;
+                                            return statusRepository.save(originalStatus);
+                                        })))
+                        .switchIfEmpty(Mono.defer(() -> {
+                            originalStatus.reblogged = false;
+                            return Mono.just(originalStatus);
+                        })));
+    }
+
+    public record StatusContext(List<Status> ancestors, List<Status> descendants) {}
+
+    public Mono<StatusContext> getStatusContext(String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> {
+                    Mono<List<Status>> ancestorsMono = getAncestors(status, new ArrayList<>());
+                    Mono<List<Status>> descendantsMono = getDescendants(statusId);
+                    return Mono.zip(ancestorsMono, descendantsMono)
+                            .map(tuple -> new StatusContext(tuple.getT1(), tuple.getT2()));
+                });
+    }
+
+    private Mono<List<Status>> getAncestors(Status status, List<Status> ancestors) {
+        if (status.inReplyToId == null) {
+            return Mono.just(ancestors);
+        }
+        return statusRepository.findById(status.inReplyToId)
+                .flatMap(parent -> {
+                    ancestors.add(0, parent);
+                    return getAncestors(parent, ancestors);
+                })
+                .switchIfEmpty(Mono.just(ancestors));
+    }
+
+    private Mono<List<Status>> getDescendants(String statusId) {
+        return statusRepository.findByInReplyToId(statusId)
+                .flatMap(reply -> getDescendants(reply.id)
+                        .map(childDescendants -> {
+                            var result = new ArrayList<Status>();
+                            result.add(reply);
+                            result.addAll(childDescendants);
+                            return result;
+                        }))
+                .collectList()
+                .map(lists -> lists.stream().flatMap(List::stream).toList());
+    }
+
+    public Mono<List<Status>> getFavouritedStatuses(String accountId, String max_id, String since_id, String min_id, int limit) {
+        return favouriteRepository.findAllByAccountId(accountId)
+                .flatMap(fav -> statusRepository.findById(fav.id.status_id))
+                .take(limit)
+                .collectList();
+    }
+
+    public Flux<String> getAccountsWhoFavourited(String statusId) {
+        return favouriteRepository.findAllByStatusId(statusId)
+                .map(fav -> fav.id.account_id);
+    }
+
+    public Flux<String> getAccountsWhoReblogged(String statusId) {
+        return reblogRepository.findAllByStatusId(statusId)
+                .map(reblog -> reblog.id.account_id);
+    }
+
+    public Mono<Boolean> hasUserFavourited(String accountId, String statusId) {
+        return favouriteRepository.findByAccountIdAndStatusId(accountId, statusId).hasElement();
+    }
+
+    public Mono<Boolean> hasUserReblogged(String accountId, String statusId) {
+        return reblogRepository.findByAccountIdAndStatusId(accountId, statusId).hasElement();
+    }
+
+    public Mono<Status> bookmark(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> bookmarkRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(existing -> {
+                            status.bookmarked = true;
+                            return Mono.just(status);
+                        })
+                        .switchIfEmpty(Mono.defer(() -> {
+                            var bookmark = new Bookmark(accountId, statusId, EmailCodeUtils.now());
+                            return bookmarkRepository.save(bookmark)
+                                    .thenReturn(status)
+                                    .map(s -> {
+                                        s.bookmarked = true;
+                                        return s;
+                                    });
+                        })));
+    }
+
+    public Mono<Status> unbookmark(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> bookmarkRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(bookmark -> bookmarkRepository.delete(bookmark)
+                                .thenReturn(status)
+                                .map(s -> {
+                                    s.bookmarked = false;
+                                    return s;
+                                }))
+                        .switchIfEmpty(Mono.defer(() -> {
+                            status.bookmarked = false;
+                            return Mono.just(status);
+                        })));
+    }
+
+    public Mono<List<Status>> getBookmarkedStatuses(String accountId, String max_id, String since_id, String min_id, int limit) {
+        return bookmarkRepository.findAllByAccountId(accountId)
+                .flatMap(bookmark -> statusRepository.findById(bookmark.id.status_id))
+                .take(limit)
+                .collectList();
+    }
+
+    public Mono<Boolean> hasUserBookmarked(String accountId, String statusId) {
+        return bookmarkRepository.findByAccountIdAndStatusId(accountId, statusId).hasElement();
+    }
+
+    public Mono<Status> pin(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> {
+                    if (status.account == null || !status.account.id.equals(accountId)) {
+                        return Mono.error(new RuntimeException("You can only pin your own statuses"));
+                    }
+                    return pinRepository.findByAccountIdAndStatusId(accountId, statusId)
+                            .flatMap(existing -> Mono.just(status))
+                            .switchIfEmpty(Mono.defer(() -> {
+                                var pin = new Pin(accountId, statusId, EmailCodeUtils.now());
+                                return pinRepository.save(pin).thenReturn(status);
+                            }));
+                });
+    }
+
+    public Mono<Status> unpin(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> pinRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(pin -> pinRepository.delete(pin).thenReturn(status))
+                        .switchIfEmpty(Mono.just(status)));
+    }
+
+    public Mono<Boolean> isStatusPinned(String accountId, String statusId) {
+        return pinRepository.findByAccountIdAndStatusId(accountId, statusId).hasElement();
+    }
+
+    public Mono<Status> muteConversation(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> statusMuteRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(existing -> {
+                            status.muted = true;
+                            return Mono.just(status);
+                        })
+                        .switchIfEmpty(Mono.defer(() -> {
+                            var mute = new StatusMute(accountId, statusId, EmailCodeUtils.now());
+                            return statusMuteRepository.save(mute)
+                                    .thenReturn(status)
+                                    .map(s -> {
+                                        s.muted = true;
+                                        return s;
+                                    });
+                        })));
+    }
+
+    public Mono<Status> unmuteConversation(String accountId, String statusId) {
+        return statusRepository.findById(statusId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Status not found: " + statusId)))
+                .flatMap(status -> statusMuteRepository.findByAccountIdAndStatusId(accountId, statusId)
+                        .flatMap(mute -> statusMuteRepository.delete(mute)
+                                .thenReturn(status)
+                                .map(s -> {
+                                    s.muted = false;
+                                    return s;
+                                }))
+                        .switchIfEmpty(Mono.defer(() -> {
+                            status.muted = false;
+                            return Mono.just(status);
+                        })));
+    }
+
+    public Mono<Boolean> isConversationMuted(String accountId, String statusId) {
+        return statusMuteRepository.findByAccountIdAndStatusId(accountId, statusId).hasElement();
     }
 }

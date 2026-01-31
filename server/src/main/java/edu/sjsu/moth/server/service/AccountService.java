@@ -14,7 +14,9 @@ import edu.sjsu.moth.server.controller.MothController;
 import edu.sjsu.moth.server.db.Account;
 import edu.sjsu.moth.server.db.AccountField;
 import edu.sjsu.moth.server.db.AccountRepository;
+import edu.sjsu.moth.server.db.BlockRepository;
 import edu.sjsu.moth.server.db.FollowRepository;
+import edu.sjsu.moth.server.db.MuteRepository;
 import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
@@ -57,6 +59,12 @@ public class AccountService {
 
     @Autowired
     FollowRepository followRepository;
+
+    @Autowired
+    BlockRepository blockRepository;
+
+    @Autowired
+    MuteRepository muteRepository;
 
     @Autowired
     PubKeyPairRepository pubKeyPairRepository;
@@ -339,22 +347,32 @@ public class AccountService {
                                 })));
     }
 
-    public Mono<Relationship> checkRelationship(String followerId, String followedId) {
-        var followed = followRepository.findIfFollows(followerId, followedId).hasElement();
-        return followed.flatMap(isFollow -> {
-            if (isFollow) {
-                return followRepository.findIfFollows(followedId, followerId)
-                        .map(follow -> new Relationship(followerId, true, false, false, true, false, false, false,
-                                                        false, false, false, false, false, "")).switchIfEmpty(Mono.just(
-                                new Relationship(followerId, true, false, false, false, false, false, false, false,
-                                                 false, false, false, false, "")));
-            } else {
-                return followRepository.findIfFollows(followedId, followerId)
-                        .map(follow -> new Relationship(followerId, false, false, false, true, false, false, false,
-                                                        false, false, false, false, false, "")).switchIfEmpty(Mono.just(
-                                new Relationship(followerId, false, false, false, false, false, false, false, false,
-                                                 false, false, false, false, "")));
-            }
-        });
+    public Mono<Relationship> checkRelationship(String sourceId, String targetId) {
+        var following = followRepository.findIfFollows(sourceId, targetId).hasElement();
+        var followedBy = followRepository.findIfFollows(targetId, sourceId).hasElement();
+        var blocking = blockRepository.findByBlockerIdAndBlockedId(sourceId, targetId).hasElement();
+        var blockedBy = blockRepository.findByBlockerIdAndBlockedId(targetId, sourceId).hasElement();
+        var muting = muteRepository.findByMuterIdAndMutedId(sourceId, targetId).hasElement();
+        var mutingNotifications = muteRepository.findByMuterIdAndMutedId(sourceId, targetId)
+                .map(mute -> mute.mute_notifications)
+                .defaultIfEmpty(false);
+
+        return Mono.zip(following, followedBy, blocking, blockedBy, muting, mutingNotifications)
+                .map(tuple -> new Relationship(
+                        targetId,
+                        tuple.getT1(),
+                        true,
+                        false,
+                        tuple.getT2(),
+                        tuple.getT3(),
+                        tuple.getT4(),
+                        tuple.getT5(),
+                        tuple.getT6(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        ""
+                ));
     }
 }

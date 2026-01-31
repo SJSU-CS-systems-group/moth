@@ -16,4 +16,10 @@ public interface StatusRepository
     @Query("{ 'text': { $regex: '?0', $options: 'i' } }")
     Flux<Status> findByStatusLike(String status);
 
+    @Query("{ 'inReplyToId': ?0 }")
+    Flux<Status> findByInReplyToId(String inReplyToId);
+
+    @Query("{ 'tags.name': ?0 }")
+    Flux<Status> findByTagName(String tagName);
+
 }
