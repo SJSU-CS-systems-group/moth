@@ -3,8 +3,10 @@ package edu.sjsu.moth.server.controller;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import edu.sjsu.moth.generated.Icon;
+import edu.sjsu.moth.generated.Status;
 import edu.sjsu.moth.server.db.WebfingerRepository;
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.WebFingerUtils;
 import edu.sjsu.moth.util.WebFingerUtils.FingerLink;
@@ -13,6 +15,7 @@ import edu.sjsu.moth.util.WebFingerUtils.RelType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.data.util.Pair;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +47,8 @@ public class MothController {
     WebfingerRepository webfingerRepo;
     @Autowired
     AccountService accountService;
+    @Autowired
+    StatusService statusService;
 
     @GetMapping("/")
     public String index(Principal user) {return "hello sub %s".formatted(user == null ? null : user.getName());}
@@ -82,6 +87,79 @@ public class MothController {
             });
         }
         return null;
+    }
+
+    @GetMapping(value = "/@{username}.rss", produces = "application/rss+xml")
+    public Mono<ResponseEntity<String>> getUserRssFeed(@PathVariable String username) {
+        return accountService.getAccount(username).flatMap(account -> statusService.getStatusesForId(
+                        null, username, null, null, null, false, false, false, false, null, 20)
+                .map(statuses -> {
+                    // Filter to only public statuses
+                    var publicStatuses = statuses.stream()
+                            .filter(s -> "public".equals(s.visibility))
+                            .toList();
+                    String rss = generateRssFeed(account.username, account.display_name, account.note, publicStatuses);
+                    return ResponseEntity.ok().contentType(MediaType.valueOf("application/rss+xml")).body(rss);
+                })).switchIfEmpty(Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    private String generateRssFeed(String username, String displayName, String description, List<Status> statuses) {
+        var sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
+        sb.append("<channel>\n");
+        sb.append("  <title>").append(escapeXml(displayName != null ? displayName : username)).append("</title>\n");
+        sb.append("  <link>").append(BASE_URL).append("/@").append(username).append("</link>\n");
+        sb.append("  <description>").append(escapeXml(description != null ? description : "")).append("</description>\n");
+        sb.append("  <atom:link href=\"").append(BASE_URL).append("/@").append(username)
+                .append(".rss\" rel=\"self\" type=\"application/rss+xml\"/>\n");
+
+        for (Status status : statuses) {
+            sb.append("  <item>\n");
+            sb.append("    <guid>").append(status.getUrl()).append("</guid>\n");
+            sb.append("    <link>").append(status.getUrl()).append("</link>\n");
+            sb.append("    <pubDate>").append(toRfc822Date(status.createdAt)).append("</pubDate>\n");
+            String title = createTitle(status);
+            sb.append("    <title>").append(escapeXml(title)).append("</title>\n");
+            sb.append("    <description><![CDATA[").append(status.content).append("]]></description>\n");
+            sb.append("  </item>\n");
+        }
+
+        sb.append("</channel>\n");
+        sb.append("</rss>");
+        return sb.toString();
+    }
+
+    private String escapeXml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
+    }
+
+    private String createTitle(Status status) {
+        // Use spoiler text if present, otherwise strip HTML and truncate content
+        if (status.spoilerText != null && !status.spoilerText.isEmpty()) {
+            return status.spoilerText;
+        }
+        String text = status.content.replaceAll("<[^>]+>", "").trim();
+        if (text.length() > 100) {
+            text = text.substring(0, 100) + "...";
+        }
+        return text.isEmpty() ? "Post" : text;
+    }
+
+    private String toRfc822Date(String isoDate) {
+        try {
+            var instant = java.time.Instant.parse(isoDate);
+            var formatter = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+                    .withZone(java.time.ZoneId.of("GMT"));
+            return formatter.format(instant);
+        } catch (Exception e) {
+            return isoDate;
+        }
     }
 
     // based on https://www.w3.org/TR/activitypub/#actor-objects
