@@ -96,6 +96,21 @@ public class StatusController {
                 .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
     }
 
+    // Get preview card for status (for link previews)
+    // spec: https://docs.joinmastodon.org/methods/statuses/#card
+    @GetMapping("/api/v1/statuses/{id}/card")
+    Mono<ResponseEntity<PreviewCard>> getStatusCard(@PathVariable String id) {
+        // Card (link preview) functionality not implemented - return empty object
+        return statusService.findStatusById(id)
+                .map(status -> ResponseEntity.ok(new PreviewCard("", "", "", "", "", "", "", 0, 0, "", "", "")))
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
+    // Preview card for link previews
+    public record PreviewCard(String url, String title, String description, String type, String author_name,
+                              String author_url, String provider_name, int width, int height, String image,
+                              String embed_url, String blurhash) {}
+
     // Favourite a status
     @PostMapping("/api/v1/statuses/{id}/favourite")
     Mono<ResponseEntity<Status>> favouriteStatus(Principal user, @PathVariable String id) {

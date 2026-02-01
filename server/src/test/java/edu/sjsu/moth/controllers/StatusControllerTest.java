@@ -380,6 +380,48 @@ public class StatusControllerTest {
     }
 
     @Test
+    public void testGetStatusCard() {
+        // Create a test status
+        String testUser = "cardtest-" + System.currentTimeMillis();
+        accountRepository.save(new Account(testUser)).block();
+
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "Test status for card endpoint";
+        request.visibility = "public";
+
+        // Create the status and get its ID
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).post()
+                .uri(POST_STATUS_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(Status.class)
+                .consumeWith(response -> {
+                    Status status = response.getResponseBody();
+                    assertNotNull(status);
+
+                    // Get the card for this status - should return 200 with null/empty body
+                    webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).get()
+                            .uri("/api/v1/statuses/" + status.id + "/card")
+                            .exchange()
+                            .expectStatus().isOk();
+                });
+    }
+
+    @Test
+    public void testGetStatusCardNotFound() {
+        // Get card for non-existent status
+        String testUser = "cardtest-notfound-" + System.currentTimeMillis();
+        accountRepository.save(new Account(testUser)).block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).get()
+                .uri("/api/v1/statuses/99999999999999999/card")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
     public void testAccountStatusesWithNullVisibility() {
         // Test that account statuses endpoint handles statuses with null visibility
         String testUser = "nullvis-test-" + System.currentTimeMillis();
