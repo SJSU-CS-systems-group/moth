@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -61,19 +63,46 @@ public class ListsController {
                 .defaultIfEmpty(ResponseEntity.ok(List.of()));
     }
 
-    @PostMapping("/api/v1/lists")
+    @PostMapping(value = "/api/v1/lists", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ResponseEntity<ListResponse>> createList(Principal user, @RequestBody CreateListRequest request) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
+        return createListInternal(user, request.title(), request.replies_policy(), request.exclusive());
+    }
+
+    @PostMapping(value = "/api/v1/lists", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.ALL_VALUE })
+    public Mono<ResponseEntity<ListResponse>> createListFormUrlEncoded(Principal user, ServerWebExchange exchange) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Check for query parameters first (some clients send data in URL)
+        var queryParams = exchange.getRequest().getQueryParams();
+        if (queryParams.getFirst("title") != null) {
+            String title = queryParams.getFirst("title");
+            String repliesPolicy = queryParams.getFirst("replies_policy");
+            String exclusiveStr = queryParams.getFirst("exclusive");
+            Boolean exclusive = exclusiveStr != null ? Boolean.parseBoolean(exclusiveStr) : null;
+            return createListInternal(user, title, repliesPolicy, exclusive);
+        }
+        return exchange.getFormData().flatMap(form -> {
+            String title = form.getFirst("title");
+            String repliesPolicy = form.getFirst("replies_policy");
+            String exclusiveStr = form.getFirst("exclusive");
+            Boolean exclusive = exclusiveStr != null ? Boolean.parseBoolean(exclusiveStr) : null;
+            return createListInternal(user, title, repliesPolicy, exclusive);
+        });
+    }
+
+    private Mono<ResponseEntity<ListResponse>> createListInternal(Principal user, String title, String repliesPolicy, Boolean exclusive) {
         return accountService.getAccount(user.getName())
                 .flatMap(acct -> {
                     var list = new UserList(
                             Long.toString(Util.generateUniqueId()),
                             acct.id,
-                            request.title(),
-                            request.replies_policy(),
-                            request.exclusive() != null && request.exclusive(),
+                            title,
+                            repliesPolicy,
+                            exclusive != null && exclusive,
                             EmailCodeUtils.now()
                     );
                     return userListRepository.save(list);
@@ -91,24 +120,53 @@ public class ListsController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/api/v1/lists/{id}")
+    @PutMapping(value = "/api/v1/lists/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ResponseEntity<ListResponse>> updateList(Principal user, @PathVariable String id,
                                                           @RequestBody UpdateListRequest request) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
+        return updateListInternal(user, id, request.title(), request.replies_policy(), request.exclusive());
+    }
+
+    @PutMapping(value = "/api/v1/lists/{id}", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.ALL_VALUE })
+    public Mono<ResponseEntity<ListResponse>> updateListFormUrlEncoded(Principal user, @PathVariable String id,
+                                                                         ServerWebExchange exchange) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Check for query parameters first (some clients send data in URL)
+        var queryParams = exchange.getRequest().getQueryParams();
+        if (queryParams.getFirst("title") != null) {
+            String title = queryParams.getFirst("title");
+            String repliesPolicy = queryParams.getFirst("replies_policy");
+            String exclusiveStr = queryParams.getFirst("exclusive");
+            Boolean exclusive = exclusiveStr != null ? Boolean.parseBoolean(exclusiveStr) : null;
+            return updateListInternal(user, id, title, repliesPolicy, exclusive);
+        }
+        return exchange.getFormData().flatMap(form -> {
+            String title = form.getFirst("title");
+            String repliesPolicy = form.getFirst("replies_policy");
+            String exclusiveStr = form.getFirst("exclusive");
+            Boolean exclusive = exclusiveStr != null ? Boolean.parseBoolean(exclusiveStr) : null;
+            return updateListInternal(user, id, title, repliesPolicy, exclusive);
+        });
+    }
+
+    private Mono<ResponseEntity<ListResponse>> updateListInternal(Principal user, String id, String title,
+                                                                   String repliesPolicy, Boolean exclusive) {
         return accountService.getAccount(user.getName())
                 .flatMap(acct -> userListRepository.findById(id)
                         .filter(list -> list.owner_id.equals(acct.id))
                         .flatMap(list -> {
-                            if (request.title() != null) {
-                                list.title = request.title();
+                            if (title != null) {
+                                list.title = title;
                             }
-                            if (request.replies_policy() != null) {
-                                list.replies_policy = request.replies_policy();
+                            if (repliesPolicy != null) {
+                                list.replies_policy = repliesPolicy;
                             }
-                            if (request.exclusive() != null) {
-                                list.exclusive = request.exclusive();
+                            if (exclusive != null) {
+                                list.exclusive = exclusive;
                             }
                             return userListRepository.save(list);
                         }))
@@ -117,7 +175,7 @@ public class ListsController {
     }
 
     @DeleteMapping("/api/v1/lists/{id}")
-    public Mono<ResponseEntity<Object>> deleteList(Principal user, @PathVariable String id) {
+    public Mono<ResponseEntity<Map<String, Object>>> deleteList(Principal user, @PathVariable String id) {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
@@ -125,7 +183,7 @@ public class ListsController {
                 .flatMap(acct -> userListRepository.findById(id)
                         .filter(list -> list.owner_id.equals(acct.id))
                         .flatMap(list -> userListRepository.delete(list).thenReturn(list)))
-                .map(list -> ResponseEntity.ok().build())
+                .map(list -> ResponseEntity.ok(Map.<String, Object>of()))
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
