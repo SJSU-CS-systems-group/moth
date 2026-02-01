@@ -58,6 +58,21 @@ public class TimelineController {
         return statusService.getPublicTimeline(user, max_id, since_id, min_id, limit, local).map(ResponseEntity::ok);
     }
 
+    // Direct messages timeline (deprecated in Mastodon but still used by some clients)
+    @GetMapping("/api/v1/timelines/direct")
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesDirectMessages(Principal user,
+                                                            @RequestParam(required = false) String max_id,
+                                                            @RequestParam(required = false) String since_id,
+                                                            @RequestParam(required = false) String min_id,
+                                                            @RequestParam(required = false, defaultValue = "20")
+                                                            int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Direct timeline not fully implemented - return empty list
+        return Mono.just(ResponseEntity.ok(List.of()));
+    }
+
     @GetMapping("/api/v1/timelines/tag/{hashtag}")
     Mono<ResponseEntity<List<Status>>> getApiV1TimelinesTag(Principal user,
                                                              @PathVariable String hashtag,

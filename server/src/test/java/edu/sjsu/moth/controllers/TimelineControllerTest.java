@@ -113,4 +113,30 @@ public class TimelineControllerTest {
                 .jsonPath("$.length()").isEqualTo(1)
                 .jsonPath("$[0].visibility").isEqualTo("public");
     }
+
+    @Test
+    public void testDirectTimeline() {
+        String testUser = "direct-timeline-test";
+        accountRepository.save(new Account(testUser)).block();
+
+        // Direct timeline should return 200 with empty list
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser)))
+                .get()
+                .uri("/api/v1/timelines/direct")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
+
+    @Test
+    public void testDirectTimelineUnauthorized() {
+        // Direct timeline without auth should return 401
+        webTestClient
+                .get()
+                .uri("/api/v1/timelines/direct")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
 }
