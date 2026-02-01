@@ -88,6 +88,30 @@ public class AuthService {
     }
 
     public Mono<TokenResponse> generateToken(String clientId, String clientSecret, String code, String scope) {
+        return generateToken(clientId, clientSecret, code, scope, null, null, null);
+    }
+
+    public Mono<TokenResponse> generateToken(String clientId, String clientSecret, String code, String scope,
+                                              String grantType, String username, String password) {
+        // Handle password grant type (used by toot login_cli and similar CLI tools)
+        // Password grant can work without a registered app for backwards compatibility
+        if ("password".equals(grantType)) {
+            if (username == null || password == null) {
+                return Mono.error(new RuntimeException("username and password required for password grant type"));
+            }
+            // Determine app name from registration if available, otherwise use defaults
+            var registration = clientId != null ? registrations.get(clientId) : null;
+            var appname = registration != null ? registration.registration.name : "CLI Client";
+            var website = registration != null ? registration.registration.website : null;
+
+            // username is actually the email address in OAuth password grant
+            return emailService.checkEmailCode(username, password)
+                    .flatMap(validatedUsername -> generateAccessToken(validatedUsername, username, appname, website))
+                    .map(t -> new TokenResponse(t.token, scope))
+                    .switchIfEmpty(Mono.error(new RuntimeException("invalid username or password")));
+        }
+
+        // For other grant types, require a registered app
         var registration = registrations.get(clientId);
         if (registration == null) return Mono.error(new RuntimeException("bad client_id"));
         if (!registration.registration.client_secret.equals(clientSecret)) {
@@ -96,6 +120,7 @@ public class AuthService {
         var appname = registration.registration.name;
         var website = registration.registration.website;
 
+        // Handle authorization code grant type (original flow)
         // if code is null, we will fill it in the email later
         var email = code == null ? null : code2Email.get(code);
         var mono = email == null ? generateAccessToken("", "", appname, website) :

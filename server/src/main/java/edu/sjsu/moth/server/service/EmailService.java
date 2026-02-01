@@ -136,7 +136,7 @@ public class EmailService implements ApplicationRunner {
      * @return username
      */
     public Mono<String> checkEmailCode(String email, String password) {
-        if (MothConfiguration.mothConfiguration.getSMTPLocalPort() == -1) return Mono.empty();
+        // Password validation works regardless of SMTP configuration - we just need the database
         return emailRegistrationRepository.findById(EmailCodeUtils.normalizeEmail(email)).flatMap(reg -> {
             if (reg.username == null) return Mono.error(new RegistrationNotFound());
             if (EmailCodeUtils.checkPassword(password, reg.saltedPassword)) return Mono.just(reg.username);

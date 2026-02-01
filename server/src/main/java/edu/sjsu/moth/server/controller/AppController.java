@@ -171,7 +171,7 @@ public class AppController {
      * This method will return a bearer token for subsequent requests.
      */
     @PostMapping("/oauth/token")
-    Mono<ResponseEntity<AuthService.TokenResponse>> postOauthToken(ServerWebExchange exchange) {
+    Mono<ResponseEntity<Object>> postOauthToken(ServerWebExchange exchange) {
         MediaType contentType = exchange.getRequest().getHeaders().getContentType();
         if (contentType != null && contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
             // Handle JSON body
@@ -183,12 +183,15 @@ public class AppController {
                             buffer.read(bytes);
                             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                             TokenRequest req = mapper.readValue(bytes, TokenRequest.class);
-                            return authService.generateToken(req.client_id, req.client_secret, req.code, req.scope);
+                            return authService.generateToken(req.client_id, req.client_secret, req.code, req.scope,
+                                    req.grant_type, req.username, req.password);
                         } catch (Exception e) {
                             return Mono.error(e);
                         }
                     })
-                    .map(ResponseEntity::ok);
+                    .map(token -> ResponseEntity.ok((Object) token))
+                    .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                            .body(new ErrorResponse(e.getMessage()))));
         } else {
             // Handle form data (including empty content-type)
             // When content-type is empty, getFormData() may not work, so parse manually
@@ -215,17 +218,27 @@ public class AppController {
                                     params.get("client_id"),
                                     params.get("client_secret"),
                                     params.get("code"),
-                                    params.get("scope"));
+                                    params.get("scope"),
+                                    params.get("grant_type"),
+                                    params.get("username"),
+                                    params.get("password"));
                         })
-                        .map(ResponseEntity::ok);
+                        .map(token -> ResponseEntity.ok((Object) token))
+                        .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(new ErrorResponse(e.getMessage()))));
             }
             return exchange.getFormData().flatMap(form -> {
                 String clientId = form.getFirst("client_id");
                 String clientSecret = form.getFirst("client_secret");
                 String code = form.getFirst("code");
                 String scope = form.getFirst("scope");
-                return authService.generateToken(clientId, clientSecret, code, scope);
-            }).map(ResponseEntity::ok);
+                String grantType = form.getFirst("grant_type");
+                String username = form.getFirst("username");
+                String password = form.getFirst("password");
+                return authService.generateToken(clientId, clientSecret, code, scope, grantType, username, password);
+            }).map(token -> ResponseEntity.ok((Object) token))
+                    .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                            .body(new ErrorResponse(e.getMessage()))));
         }
     }
 
@@ -238,7 +251,8 @@ public class AppController {
 
     record AppsRequest(String client_name, String redirect_uris, String scopes, String website) {}
 
-    record TokenRequest(String client_id, String client_secret, String code, String scope) {}
+    record TokenRequest(String client_id, String client_secret, String code, String scope,
+                         String grant_type, String username, String password) {}
 
     @Getter
     public static class RegistrationException extends RuntimeException {
