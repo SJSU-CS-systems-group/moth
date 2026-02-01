@@ -364,6 +364,16 @@ public class AccountController {
         return Mono.just(new ArrayList<Account>());
     }
 
+    @GetMapping("/api/v1/suggestions")
+    public Mono<ResponseEntity<List<Account>>> getSuggestionsV1(Principal user,
+                                                                  @RequestParam(required = false, defaultValue = "40") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Suggestions not yet implemented - return empty list
+        return Mono.just(ResponseEntity.ok(List.of()));
+    }
+
     @GetMapping("/api/v2/suggestions")
     public Mono<ArrayList<String>> userSuggest() {
         return Mono.just(new ArrayList<>());

@@ -392,7 +392,9 @@ public class StatusService {
                     if (status.account.id.equals(acct.id)) {
                         return Flux.just(status);
                     }
-                    if (!isFollowingTimeline && status.visibility.equals("public")) return Flux.just(status);
+                    // Handle null visibility - treat as public for backwards compatibility
+                    if (!isFollowingTimeline && (status.visibility == null || "public".equals(status.visibility)))
+                        return Flux.just(status);
                     return followRepository.findAllByFollowerId(acct.id).flatMap(
                             following -> following.id.followed_id.equals(status.account.id) ? Flux.just(status) :
                                     Flux.empty());
