@@ -47,4 +47,22 @@ public class InstanceControllerTest {
                     //add more assertions if needed
                 });
     }
+
+    @Test
+    public void testGetInstanceActivity() {
+        webTestClient.get().uri("/api/v1/instance/activity").exchange().expectStatus().isOk()
+                .expectBodyList(InstanceController.Activity.class).consumeWith(response -> {
+                    List<InstanceController.Activity> activities = response.getResponseBody();
+                    assertNotNull(activities);
+                });
+    }
+
+    @Test
+    public void testGetInstancePeers() {
+        webTestClient.get().uri("/api/v1/instance/peers").exchange().expectStatus().isOk()
+                .expectBodyList(String.class).consumeWith(response -> {
+                    List<String> peers = response.getResponseBody();
+                    assertNotNull(peers);
+                });
+    }
 }

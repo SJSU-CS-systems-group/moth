@@ -56,6 +56,18 @@ public class InstanceController {
                                true, CONFIGURATIONV1, c, RULES)));
     }
 
+    @GetMapping("/api/v1/instance/activity")
+    public ResponseEntity<List<Activity>> getInstanceActivity() {
+        // Return empty activity list - this server doesn't track weekly activity stats
+        return ResponseEntity.ok(List.of());
+    }
+
+    @GetMapping("/api/v1/instance/peers")
+    public ResponseEntity<List<String>> getInstancePeers() {
+        // Return empty peers list - this could be populated from known federated instances
+        return ResponseEntity.ok(List.of());
+    }
+
     @GetMapping("/api/v2/instance")
     public Mono<ResponseEntity<InstanceV2>> getV2Instance() {
         return getContactAccountV2().map(c -> ResponseEntity.ok(
@@ -146,4 +158,6 @@ public class InstanceController {
     public record StatsV1(int user_count, int status_count, int domain_count) {}
 
     public record RegistrationsV2(boolean enabled, boolean approvalRequired, String message) {}
+
+    public record Activity(String week, String statuses, String logins, String registrations) {}
 }
