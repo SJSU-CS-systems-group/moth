@@ -139,4 +139,30 @@ public class TimelineControllerTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
+
+    @Test
+    public void testLinkTimeline() {
+        String testUser = "link-timeline-test";
+        accountRepository.save(new Account(testUser)).block();
+
+        // Link timeline should return 200 with empty list
+        webTestClient
+                .mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser)))
+                .get()
+                .uri("/api/v1/timelines/link?url=https://example.com")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
+
+    @Test
+    public void testLinkTimelineUnauthorized() {
+        // Link timeline without auth should return 401
+        webTestClient
+                .get()
+                .uri("/api/v1/timelines/link?url=https://example.com")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
 }

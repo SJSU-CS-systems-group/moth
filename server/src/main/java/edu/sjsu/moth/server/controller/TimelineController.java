@@ -73,6 +73,22 @@ public class TimelineController {
         return Mono.just(ResponseEntity.ok(List.of()));
     }
 
+    // Link timeline - returns statuses sharing a specific URL
+    @GetMapping("/api/v1/timelines/link")
+    Mono<ResponseEntity<List<Status>>> getApiV1TimelinesLink(Principal user,
+                                                              @RequestParam String url,
+                                                              @RequestParam(required = false) String max_id,
+                                                              @RequestParam(required = false) String since_id,
+                                                              @RequestParam(required = false) String min_id,
+                                                              @RequestParam(required = false, defaultValue = "20")
+                                                              int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Link timeline not yet implemented - return empty list
+        return Mono.just(ResponseEntity.ok(List.of()));
+    }
+
     @GetMapping("/api/v1/timelines/tag/{hashtag}")
     Mono<ResponseEntity<List<Status>>> getApiV1TimelinesTag(Principal user,
                                                              @PathVariable String hashtag,
