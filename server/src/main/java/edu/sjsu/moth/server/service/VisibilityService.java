@@ -42,7 +42,7 @@ public class VisibilityService {
     }
 
     public Flux<Status> publicTimelinesViewable(Status status) {
-        if (status.visibility.equals(PUBLIC_VISIBILITY)) return Flux.just(status);
+        if (PUBLIC_VISIBILITY.equals(status.visibility)) return Flux.just(status);
         return Flux.empty();
     }
 
@@ -60,6 +60,7 @@ public class VisibilityService {
     }
 
     private boolean validHomeFeedVisibility(String visibility) {
+        if (visibility == null) return true; // treat null as public
         return switch (visibility) {
             case PUBLIC_VISIBILITY, PRIVATE_VISIBILITY, QUITE_PUBLIC -> true;
             default -> false;
@@ -67,7 +68,8 @@ public class VisibilityService {
     }
 
     public Flux<Status> profileViewable(Principal user, Status status) {
-        if (status.visibility.equals(PUBLIC_VISIBILITY) || status.visibility.equals(QUITE_PUBLIC)) {
+        // Handle null visibility - treat as public for backwards compatibility
+        if (status.visibility == null || PUBLIC_VISIBILITY.equals(status.visibility) || QUITE_PUBLIC.equals(status.visibility)) {
             return Flux.just(status);
         }
 
@@ -77,7 +79,7 @@ public class VisibilityService {
                         return Flux.just(status);
                     }
 
-                    if (status.visibility.equals(DIRECT_VISIBILITY)) {
+                    if (DIRECT_VISIBILITY.equals(status.visibility)) {
                         for (StatusMention mention : status.mentions) {
                             if (mention.id.equals(account.id)) {
                                 return Flux.just(status);
@@ -86,7 +88,7 @@ public class VisibilityService {
                         return Flux.empty();
                     }
 
-                    if (status.visibility.equals(PRIVATE_VISIBILITY)) {
+                    if (PRIVATE_VISIBILITY.equals(status.visibility)) {
                         return followRepository.findAllByFollowerId(account.id).flatMap(follow -> {
                             if (follow.id.followed_id.equals(status.account.id)) {
                                 return Flux.just(status);

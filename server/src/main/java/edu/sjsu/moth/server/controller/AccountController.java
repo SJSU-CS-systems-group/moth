@@ -369,6 +369,18 @@ public class AccountController {
         return Mono.just(new ArrayList<>());
     }
 
+    // Get endorsed (pinned) accounts
+    // spec: https://docs.joinmastodon.org/methods/accounts/#featured_tags
+    @GetMapping("/api/v1/endorsements")
+    public Mono<ResponseEntity<List<Account>>> getEndorsements(Principal user,
+                                                                @RequestParam(required = false, defaultValue = "40") int limit) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        // Endorsements not yet implemented - return empty list
+        return Mono.just(ResponseEntity.ok(List.of()));
+    }
+
     private static class RelationshipRequest {
         public String[] id;
         public Boolean with_suspended;

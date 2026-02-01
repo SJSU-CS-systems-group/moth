@@ -355,4 +355,56 @@ public class StatusControllerTest {
                 .jsonPath("$.length()").isEqualTo(0);
     }
 
+    @Test
+    public void testGetEndorsements() {
+        // Create test user
+        String testUser = "endorsements-test-" + System.currentTimeMillis();
+        accountRepository.save(new Account(testUser)).block();
+
+        // Get endorsements - should return empty list
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).get()
+                .uri("/api/v1/endorsements")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
+
+    @Test
+    public void testGetEndorsementsUnauthorized() {
+        // Get endorsements without auth - should return 401
+        webTestClient.get()
+                .uri("/api/v1/endorsements")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    public void testAccountStatusesWithNullVisibility() {
+        // Test that account statuses endpoint handles statuses with null visibility
+        String testUser = "nullvis-test-" + System.currentTimeMillis();
+        Account account = accountRepository.save(new Account(testUser)).block();
+
+        // Create a status with null visibility directly in the database
+        Status statusWithNullVis = new Status(
+                Long.toString(System.currentTimeMillis()),
+                edu.sjsu.moth.util.EmailCodeUtils.now(),
+                null, null, false, "", null, // null visibility
+                "en", null, null, 0, 0, 0, false, false, false, false,
+                "Test null visibility", null, null, account,
+                new java.util.ArrayList<>(), new java.util.ArrayList<>(),
+                List.of(), List.of(), null, null, "Test null visibility",
+                edu.sjsu.moth.util.EmailCodeUtils.now()
+        );
+        statusRepository.save(statusWithNullVis).block();
+
+        // Get statuses - should not throw NPE
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", testUser))).get()
+                .uri("/api/v1/accounts/" + account.id + "/statuses")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(1);
+    }
+
 }
