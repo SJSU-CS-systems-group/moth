@@ -3,6 +3,7 @@ package edu.sjsu.moth.server.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import edu.sjsu.moth.generated.Actor;
 import edu.sjsu.moth.server.db.ExternalStatus;
+import edu.sjsu.moth.server.util.HtmlSanitizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -127,7 +128,7 @@ public class InboxService {
         String inReplyTo = objNode.get("inReplyTo").asText();
         Boolean sensitive = objNode.get("sensitive").asText().equals("true");
         String language = objNode.get("contentMap").fields().next().getKey();
-        String content = objNode.get("content").asText();
+        String content = HtmlSanitizer.sanitize(objNode.get("content").asText());
         String visibility = getVisibility(node);
 
         //Making an actor and then converting to account

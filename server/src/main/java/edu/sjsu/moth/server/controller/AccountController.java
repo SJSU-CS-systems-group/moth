@@ -13,6 +13,7 @@ import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.BlockService;
 import edu.sjsu.moth.server.service.FollowService;
 import edu.sjsu.moth.server.service.MuteService;
+import edu.sjsu.moth.server.util.HtmlSanitizer;
 import edu.sjsu.moth.server.util.Util;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.http.HttpStatus;
@@ -77,7 +78,7 @@ public class AccountController {
                             var v = ffp.value();
                             String n = ffp.name();
                             switch (n) {
-                                case "note" -> a.note = v;
+                                case "note" -> a.note = HtmlSanitizer.sanitize(v);
                                 case "header" -> a.header = v;
                                 case "avatar" -> a.avatar = v;
                                 case "locked" -> a.locked = v.equalsIgnoreCase("true");
@@ -101,8 +102,8 @@ public class AccountController {
                                             }
                                             var field = fields.get(i);
                                             switch (m.group(2)) {
-                                                case "name" -> field.name = v;
-                                                case "value" -> field.value = v;
+                                                case "name" -> field.name = HtmlSanitizer.stripHtml(v);
+                                                case "value" -> field.value = HtmlSanitizer.sanitize(v);
                                             }
                                         }
                                     }

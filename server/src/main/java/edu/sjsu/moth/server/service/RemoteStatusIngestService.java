@@ -8,6 +8,7 @@ import edu.sjsu.moth.server.db.ExternalStatus;
 import edu.sjsu.moth.server.db.ExternalStatusRepository;
 import edu.sjsu.moth.server.db.StatusMention;
 import edu.sjsu.moth.server.db.StatusTag;
+import edu.sjsu.moth.server.util.HtmlSanitizer;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,7 +44,7 @@ public class RemoteStatusIngestService {
         String id = text(note.path("id"));
         String published = text(create.path("published"));
         boolean sensitive = note.path("sensitive").asBoolean(false);
-        String content = text(note.path("content"));
+        String content = HtmlSanitizer.sanitize(text(note.path("content")));
         String language = null;
         JsonNode contentMap = note.path("contentMap");
         if (contentMap != null && contentMap.fieldNames().hasNext()) {

@@ -21,6 +21,7 @@ import edu.sjsu.moth.server.db.PubKeyPair;
 import edu.sjsu.moth.server.db.PubKeyPairRepository;
 import edu.sjsu.moth.server.db.WebfingerAlias;
 import edu.sjsu.moth.server.db.WebfingerRepository;
+import edu.sjsu.moth.server.util.HtmlSanitizer;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.util.WebFingerUtils;
 import lombok.extern.apachecommons.CommonsLog;
@@ -274,7 +275,9 @@ public class AccountService {
 
         ArrayList<AccountField> accountFields = new ArrayList<>();
         for (Attachment attachment : actor.attachment) {
-            AccountField accountField = new AccountField(attachment.name, attachment.value, null);
+            // field names are plain text, values may carry HTML (e.g. verified links)
+            AccountField accountField = new AccountField(HtmlSanitizer.stripHtml(attachment.name),
+                                                         HtmlSanitizer.sanitize(attachment.value), null);
             accountFields.add(accountField);
         }
 
@@ -296,8 +299,9 @@ public class AccountService {
                     //change avatar, avatar static, header, header static, last status to "" from iconLink and imageLink
                     //changed last status from null to actor.published
                     return new Account(Long.toString(Util.generateUniqueId()), actor.preferredUsername,
-                                       actor.preferredUsername + "@" + finalServerName, actor.url, actor.name,
-                                       actor.summary, iconLink, iconLink, imageLink, imageLink,
+                                       actor.preferredUsername + "@" + finalServerName, actor.url,
+                                       HtmlSanitizer.stripHtml(actor.name), HtmlSanitizer.sanitize(actor.summary),
+                                       iconLink, iconLink, imageLink, imageLink,
                                        actor.manuallyApprovesFollowers, accountFields, new CustomEmoji[0], false, false,
                                        actor.discoverable, false, false, false, false, actor.published, actor.published,
                                        totalItems, totalItemFollowers, totalItemFollowing);

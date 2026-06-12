@@ -124,6 +124,26 @@ public class AccountControllerTest {
     }
 
     @Test
+    public void testUpdateCredentialsSanitizesNote() {
+        String testUser = "note-xss-user";
+        String token = setupUserWithToken(testUser);
+
+        var builder = new MultipartBodyBuilder();
+        builder.part("note", "<p>my bio</p><script>alert(1)</script>");
+
+        webTestClient.patch()
+                .uri("/api/v1/accounts/update_credentials").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.MULTIPART_FORM_DATA).body(BodyInserters.fromMultipartData(builder.build()))
+                .exchange().expectStatus().isOk();
+
+        var account = accountRepository.findItemByAcct(testUser).block();
+        Assertions.assertNotNull(account);
+        Assertions.assertTrue(account.note.contains("<p>my bio</p>"),
+                              "benign markup should survive: " + account.note);
+        Assertions.assertFalse(account.note.contains("<script"), "script tags must be stripped: " + account.note);
+    }
+
+    @Test
     public void testFieldsAttributesNormalUpdate() {
         String testUser = "fields-normal-user";
         String token = setupUserWithToken(testUser);

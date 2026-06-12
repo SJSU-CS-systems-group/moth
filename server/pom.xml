@@ -15,6 +15,11 @@
     <url>http://maven.apache.org</url>
     <dependencies>
         <dependency>
+            <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+            <artifactId>owasp-java-html-sanitizer</artifactId>
+            <version>20240325.1</version>
+        </dependency>
+        <dependency>
             <groupId>org.thymeleaf</groupId>
             <artifactId>thymeleaf</artifactId>
             <version>3.1.1.RELEASE</version>

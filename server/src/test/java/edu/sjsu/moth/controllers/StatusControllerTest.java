@@ -454,6 +454,23 @@ public class StatusControllerTest {
     }
 
     @Test
+    public void testPostStatusSanitizesHtml() {
+        accountRepository.save(new Account("xss-poster")).block();
+
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "<b>bold</b><script>alert(1)</script><img src=x onerror=pwn()>";
+
+        var posted = webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "xss-poster"))).post()
+                .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange()
+                .expectStatus().isOk().expectBody(JsonNode.class).returnResult().getResponseBody();
+        assertNotNull(posted);
+        var content = posted.get("content").asText();
+        assertTrue(content.contains("<b>bold</b>"), "benign markup should survive: " + content);
+        assertTrue(!content.contains("<script"), "script tags must be stripped: " + content);
+        assertTrue(!content.contains("onerror"), "event handlers must be stripped: " + content);
+    }
+
+    @Test
     public void testTrendsStatusesNegativeParamsClamped() {
         // negative offset/limit used to throw inside Flux.skip/take and 500
         webTestClient.get().uri("/api/v1/trends/statuses?offset=-5&limit=-1").exchange().expectStatus().isOk();

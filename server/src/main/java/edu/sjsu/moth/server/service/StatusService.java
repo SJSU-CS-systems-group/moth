@@ -34,6 +34,7 @@ import edu.sjsu.moth.server.db.Bookmark;
 import edu.sjsu.moth.server.db.BookmarkRepository;
 import edu.sjsu.moth.server.db.Pin;
 import edu.sjsu.moth.server.db.PinRepository;
+import edu.sjsu.moth.server.util.HtmlSanitizer;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import edu.sjsu.moth.server.util.Util;
 import edu.sjsu.moth.util.EmailCodeUtils;
@@ -118,6 +119,9 @@ public class StatusService {
     }
 
     public Mono<Status> save(Status status) {
+        // single choke point for locally created statuses: strip anything executable
+        status.content = HtmlSanitizer.sanitize(status.content);
+        status.spoilerText = HtmlSanitizer.stripHtml(status.spoilerText);
         // create a Mono that we can tack onto
         var mono = Mono.empty();
         ArrayList<String> accountsmentioned = new ArrayList<>();
