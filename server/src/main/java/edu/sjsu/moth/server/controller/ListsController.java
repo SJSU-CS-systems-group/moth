@@ -115,7 +115,9 @@ public class ListsController {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
-        return userListRepository.findById(id)
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> userListRepository.findById(id)
+                        .filter(list -> list.owner_id.equals(acct.id)))
                 .map(list -> ResponseEntity.ok(ListResponse.from(list)))
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
@@ -193,13 +195,16 @@ public class ListsController {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
-        return userListRepository.findById(id)
+        int cappedLimit = Util.clamp(limit, 1, 80);
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> userListRepository.findById(id)
+                        .filter(list -> list.owner_id.equals(acct.id)))
                 .flatMap(list -> Flux.fromIterable(list.account_ids)
                         .flatMap(accountRepository::findById)
-                        .take(limit)
+                        .take(cappedLimit)
                         .collectList())
                 .map(ResponseEntity::ok)
-                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/api/v1/lists/{id}/accounts")
@@ -249,20 +254,20 @@ public class ListsController {
         if (user == null) {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
-        return userListRepository.findById(id)
+        int cappedLimit = Util.clamp(limit, 1, 40);
+        return accountService.getAccount(user.getName())
+                .flatMap(acct -> userListRepository.findById(id)
+                        .filter(list -> list.owner_id.equals(acct.id)))
                 .flatMap(list -> {
                     if (list.account_ids.isEmpty()) {
                         return Mono.just(List.<Status>of());
                     }
-                    return Flux.fromIterable(list.account_ids)
-                            .flatMap(accountId -> statusRepository.findAll()
-                                    .filter(status -> status.account != null &&
-                                            accountId.equals(status.account.id)))
-                            .take(limit)
+                    return statusRepository.findByAccountIdIn(list.account_ids)
+                            .take(cappedLimit)
                             .collectList();
                 })
                 .map(ResponseEntity::ok)
-                .defaultIfEmpty(ResponseEntity.ok(List.of()));
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     public record CreateListRequest(String title, String replies_policy, Boolean exclusive) {}

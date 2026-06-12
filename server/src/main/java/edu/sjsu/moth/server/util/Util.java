@@ -9,10 +9,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +28,7 @@ import java.util.stream.StreamSupport;
  */
 public class Util {
     public static ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
      * super gross code to convert and enumeration to a stream. (should be built into java!)
@@ -66,9 +67,26 @@ public class Util {
 
     public static String generatePassword() {
         var bytes = new byte[6];
-        new Random().nextBytes(bytes);
+        SECURE_RANDOM.nextBytes(bytes);
         // we need to exclude O, I, and l they are too similar to other letters and numbers
         return Base64.getUrlEncoder().encodeToString(bytes).replace('l', '@').replace('O', '^').replace('I', '$');
+    }
+
+    /**
+     * clamp value into [min, max]
+     */
+    public static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * escape regex metacharacters so the result matches the input literally (as a substring)
+     * when handed to a regex engine like MongoDB's $regex. user input must go through this
+     * before being passed to repository methods that interpolate into $regex.
+     */
+    public static String escapeRegex(String s) {
+        if (s == null) return "";
+        return s.replaceAll("[\\\\.\\[\\]{}()<>*+?^$|]", "\\\\$0");
     }
 
     //Print method, testing purposes

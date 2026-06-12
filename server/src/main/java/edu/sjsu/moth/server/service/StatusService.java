@@ -186,8 +186,9 @@ public class StatusService {
                     .thenMany(getRemoteFollowerInboxes(savedStatus.account.id).flatMapMany(Flux::fromIterable))
                     .flatMap(inboxUrl -> sendCreate(createMessage, inboxUrl));
 
-            // schedule it on boundedElastic, Invoke and forget
-            fanOut.subscribeOn(Schedulers.boundedElastic()).subscribe();
+            // schedule it on boundedElastic, Invoke and forget (but don't lose errors silently)
+            fanOut.subscribeOn(Schedulers.boundedElastic())
+                    .subscribe(null, e -> log.error("federation fan-out failed for status " + savedStatus.id, e));
 
             return Mono.just(savedStatus);  // immediately return savedStatus
         }).flatMap(savedStatus -> statusHistoryRepository.findById(savedStatus.id)
@@ -369,7 +370,7 @@ public class StatusService {
     @NotNull
     public Mono<SearchResult> filterStatusSearch(String query, Principal user, String account_id, String max_id,
                                                  String min_id, Integer limit, Integer offset, SearchResult result) {
-        return statusRepository.findByStatusLike(query)
+        return statusRepository.findByStatusLike(Util.escapeRegex(query))
                 .flatMap(statuses -> filterStatusByViewable(user, statuses, false)).take(limit).collectList()
                 .map(statuses -> {
                     // check RequestParams: account_id, max_id, min_id, offset

@@ -41,7 +41,7 @@ public class TagsController {
     @GetMapping("/api/v1/tags/{id}")
     public Mono<ResponseEntity<Tag>> getTag(@PathVariable String id) {
         // Return a basic tag object
-        return Mono.just(ResponseEntity.ok(new Tag(id, "https://localhost/tags/" + id, List.of(), false)));
+        return Mono.just(ResponseEntity.ok(new Tag(id, MothController.BASE_URL + "/tags/" + id, List.of(), false)));
     }
 
     @PostMapping("/api/v1/tags/{id}/follow")
@@ -50,7 +50,7 @@ public class TagsController {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
         // Tag following not yet implemented - return the tag as if followed
-        return Mono.just(ResponseEntity.ok(new Tag(id, "https://localhost/tags/" + id, List.of(), true)));
+        return Mono.just(ResponseEntity.ok(new Tag(id, MothController.BASE_URL + "/tags/" + id, List.of(), true)));
     }
 
     @PostMapping("/api/v1/tags/{id}/unfollow")
@@ -59,7 +59,7 @@ public class TagsController {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
         // Tag unfollowing not yet implemented - return the tag as if unfollowed
-        return Mono.just(ResponseEntity.ok(new Tag(id, "https://localhost/tags/" + id, List.of(), false)));
+        return Mono.just(ResponseEntity.ok(new Tag(id, MothController.BASE_URL + "/tags/" + id, List.of(), false)));
     }
 
     @PostMapping("/api/v1/featured_tags")

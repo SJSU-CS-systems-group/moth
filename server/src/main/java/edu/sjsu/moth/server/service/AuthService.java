@@ -99,8 +99,14 @@ public class AuthService {
             if (username == null || password == null) {
                 return Mono.error(new RuntimeException("username and password required for password grant type"));
             }
-            // Determine app name from registration if available, otherwise use defaults
+            // Determine app name from registration if available, otherwise use defaults.
+            // A client_id we don't know stays permissive (registrations are in-memory with a
+            // short TTL, so CLI clients re-logging in after a server restart present stale ids),
+            // but a known client_id must present its matching secret.
             var registration = clientId != null ? registrations.get(clientId) : null;
+            if (registration != null && !registration.registration.client_secret.equals(clientSecret)) {
+                return Mono.error(new RuntimeException("client_secret does not match client_id"));
+            }
             var appname = registration != null ? registration.registration.name : "CLI Client";
             var website = registration != null ? registration.registration.website : null;
 

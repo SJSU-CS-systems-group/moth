@@ -348,14 +348,14 @@ public class AccountService {
      * Search for accounts matching the query string (case-insensitive partial match on acct).
      */
     public Flux<Account> searchAccounts(String query, int limit, int offset) {
-        return accountRepository.findByAcctLike(query).skip(offset).take(limit);
+        return accountRepository.findByAcctLike(Util.escapeRegex(query)).skip(offset).take(limit);
     }
 
     public Mono<SearchResult> filterAccountSearch(String query, Principal user, Boolean following, String max_id,
                                                   String min_id, Integer limit, Integer offset, SearchResult result) {
         return getAccount(user.getName()).switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
                 .flatMap(acct -> followRepository.findAllByFollowerId(acct.id).collect(Collectors.toSet()).flatMap(
-                        followers -> accountRepository.findByAcctLike(query)
+                        followers -> accountRepository.findByAcctLike(Util.escapeRegex(query))
                                 .filter(account -> following == null || !following || followers.contains(account.id))
                                 .take(limit).collectList().map(accounts -> {
                                     result.accounts.addAll(accounts);

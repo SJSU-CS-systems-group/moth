@@ -439,8 +439,17 @@ public class StatusController {
     }
 
     @DeleteMapping("/api/v1/statuses/{id}")
-    Mono<ResponseEntity<Status>> postApiV1Statuses(Principal user, @PathVariable String id) {
-        return statusService.findStatusById(id).flatMap(s -> statusService.delete(s).thenReturn(ResponseEntity.ok(s)));
+    Mono<ResponseEntity<Status>> deleteApiV1Status(Principal user, @PathVariable String id) {
+        if (user == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
+        return accountService.getAccount(user.getName())
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException(user.getName())))
+                .flatMap(acct -> statusService.findStatusById(id)
+                        .flatMap(s -> s.account == null || !s.account.id.equals(acct.id) ?
+                                Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<Status>build()) :
+                                statusService.delete(s).thenReturn(ResponseEntity.ok(s))))
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     // spec: https://docs.joinmastodon.org/methods/timelines/#home
@@ -486,8 +495,9 @@ public class StatusController {
     Mono<ResponseEntity<List<Status>>> getApiV1TrendingStatuses(
             @RequestParam(required = false, defaultValue = "0") int offset,
             @RequestParam(required = false, defaultValue = "20") int limit) {
-
-        return statusService.getAllStatuses(offset, limit).collectList().map(ResponseEntity::ok);
+        // spec caps trends at 40; negative values would throw inside skip/take
+        return statusService.getAllStatuses(Math.max(0, offset), Util.clamp(limit, 1, 40)).collectList()
+                .map(ResponseEntity::ok);
     }
 
     public static class V1PostStatus {

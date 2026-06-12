@@ -422,6 +422,52 @@ public class StatusControllerTest {
     }
 
     @Test
+    public void testDeleteStatusRequiresOwnership() {
+        accountRepository.save(new Account("delete-owner")).block();
+        accountRepository.save(new Account("delete-intruder")).block();
+
+        StatusController.V1PostStatus request = new StatusController.V1PostStatus();
+        request.status = "my precious status";
+
+        var posted = webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "delete-owner"))).post()
+                .uri(POST_STATUS_ENDPOINT).contentType(MediaType.APPLICATION_JSON).bodyValue(request).exchange()
+                .expectStatus().isOk().expectBody(JsonNode.class).returnResult().getResponseBody();
+        assertNotNull(posted);
+        var statusId = posted.get("id").asText();
+
+        // unauthenticated callers must not be able to delete
+        webTestClient.delete().uri("/api/v1/statuses/" + statusId).exchange().expectStatus().isUnauthorized();
+
+        // another user must not be able to delete someone else's status
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "delete-intruder"))).delete()
+                .uri("/api/v1/statuses/" + statusId).exchange().expectStatus().isForbidden();
+        assertNotNull(statusRepository.findById(statusId).block(), "status must survive an intruder's delete");
+
+        // the owner can delete
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "delete-owner"))).delete()
+                .uri("/api/v1/statuses/" + statusId).exchange().expectStatus().isOk();
+        assertEquals(null, statusRepository.findById(statusId).block());
+
+        // deleting a nonexistent status is a 404
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "delete-owner"))).delete()
+                .uri("/api/v1/statuses/987654321987654321").exchange().expectStatus().isNotFound();
+    }
+
+    @Test
+    public void testTrendsStatusesNegativeParamsClamped() {
+        // negative offset/limit used to throw inside Flux.skip/take and 500
+        webTestClient.get().uri("/api/v1/trends/statuses?offset=-5&limit=-1").exchange().expectStatus().isOk();
+    }
+
+    @Test
+    public void testTrendsStatusesHugeLimitCapped() {
+        var body = webTestClient.get().uri("/api/v1/trends/statuses?limit=999999999").exchange().expectStatus().isOk()
+                .expectBody(JsonNode.class).returnResult().getResponseBody();
+        assertNotNull(body);
+        assertTrue(body.size() <= 40, "trends limit should be capped at 40, got " + body.size());
+    }
+
+    @Test
     public void testAccountStatusesWithNullVisibility() {
         // Test that account statuses endpoint handles statuses with null visibility
         String testUser = "nullvis-test-" + System.currentTimeMillis();

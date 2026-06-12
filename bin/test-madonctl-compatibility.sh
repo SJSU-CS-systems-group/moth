@@ -26,17 +26,19 @@ NC='\033[0m' # No Color
 
 log_pass() {
     echo -e "${GREEN}[PASS]${NC} $1"
-    ((PASSED++))
+    # NOTE: ((VAR++)) returns the pre-increment value, so with `set -e` the first
+    # increment from 0 would abort the script. Use arithmetic expansion instead.
+    PASSED=$((PASSED + 1))
 }
 
 log_fail() {
     echo -e "${RED}[FAIL]${NC} $1"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 }
 
 log_skip() {
     echo -e "${YELLOW}[SKIP]${NC} $1"
-    ((SKIPPED++))
+    SKIPPED=$((SKIPPED + 1))
 }
 
 log_info() {
@@ -94,20 +96,22 @@ check_madonctl
 echo ""
 echo "--- Phase 1: Critical Status Operations ---"
 
-# Create a test status first
-log_info "Creating test status..."
-if TEST_STATUS_OUTPUT=$(madonctl toot "Test status for madonctl compatibility $(date +%s)" 2>&1); then
-    # Extract status ID from output (format varies by madonctl version)
-    TEST_STATUS_ID=$(echo "$TEST_STATUS_OUTPUT" | grep -oE '[0-9a-f]{24}' | head -1)
-    if [ -n "$TEST_STATUS_ID" ]; then
-        log_pass "Created test status: $TEST_STATUS_ID"
+# Create a test status first (unless the caller provided TEST_STATUS_ID)
+if [ -z "$TEST_STATUS_ID" ]; then
+    log_info "Creating test status..."
+    if TEST_STATUS_OUTPUT=$(madonctl toot "Test status for madonctl compatibility $(date +%s)" 2>&1); then
+        # Extract status ID from output: either a 24-char hex ObjectId or a numeric snowflake id
+        TEST_STATUS_ID=$(echo "$TEST_STATUS_OUTPUT" | grep -oE 'Status ID: [0-9a-f]+' | grep -oE '[0-9a-f]+$' | head -1)
+        if [ -n "$TEST_STATUS_ID" ]; then
+            log_pass "Created test status: $TEST_STATUS_ID"
+        else
+            log_info "Could not extract status ID, using output as reference"
+            echo "$TEST_STATUS_OUTPUT"
+        fi
     else
-        log_info "Could not extract status ID, using output as reference"
+        log_fail "Failed to create test status"
         echo "$TEST_STATUS_OUTPUT"
     fi
-else
-    log_fail "Failed to create test status"
-    echo "$TEST_STATUS_OUTPUT"
 fi
 
 if [ -n "$TEST_STATUS_ID" ]; then
@@ -201,8 +205,9 @@ test_command "Get lists" "madonctl lists"
 
 # Create a test list
 log_info "Creating test list..."
-if LIST_OUTPUT=$(madonctl lists create "MadonctlTest$(date +%s)" 2>&1); then
-    TEST_LIST_ID=$(echo "$LIST_OUTPUT" | grep -oE '[0-9a-f]{24}' | head -1)
+if LIST_OUTPUT=$(madonctl lists create --title "MadonctlTest$(date +%s)" 2>&1); then
+    # match either a 24-char hex ObjectId or a numeric snowflake id
+    TEST_LIST_ID=$(echo "$LIST_OUTPUT" | grep -oE 'List ID: [0-9a-f]+' | grep -oE '[0-9a-f]+$' | head -1)
     if [ -n "$TEST_LIST_ID" ]; then
         log_pass "Created test list: $TEST_LIST_ID"
 

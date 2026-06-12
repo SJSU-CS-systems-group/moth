@@ -109,6 +109,26 @@ public class SearchControllerTest {
     }
 
     @Test
+    public void testSearchWithRegexMetacharsReturnsEmptyNotError() {
+        // unescaped, "((((" is an invalid regex and the Mongo $regex query blows up with a 5xx
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "((((").build()).exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.accounts.length()").isEqualTo(0)
+                .jsonPath("$.statuses.length()").isEqualTo(0);
+    }
+
+    @Test
+    public void testSearchDotMatchesLiterally() {
+        // unescaped, "." is a regex wildcard and would match "dotXuser"
+        accountRepository.save(new Account("dotXuser")).block();
+
+        webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
+                .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "dot.user")
+                        .queryParam("type", "accounts").build()).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.accounts.length()").isEqualTo(0);
+    }
+
+    @Test
     public void testRemoteSearchWithInvalidDomainReturnsEmpty() {
         webTestClient.mutateWith(mockJwt().jwt(jwt -> jwt.claim("sub", "test-user"))).get()
                 .uri(uriBuilder -> uriBuilder.path(SEARCH_ENDPOINT).queryParam("q", "@user@invalid_domain")

@@ -150,6 +150,74 @@ public class OAuthControllerTest {
     }
 
     @Test
+    public void testPasswordGrantWrongClientSecretRejected() {
+        String testUser = "oauth-secret-user";
+        String testEmail = "oauthsecret@localhost";
+        String testPassword = "testpassword123";
+
+        accountRepository.save(new Account(testUser)).block();
+        EmailRegistration reg = new EmailRegistration();
+        reg.id = EmailCodeUtils.normalizeEmail(testEmail);
+        reg.email = testEmail;
+        reg.username = testUser;
+        reg.saltedPassword = EmailCodeUtils.encodePassword(testPassword);
+        emailRegistrationRepository.save(reg).block();
+
+        var appResponse = webTestClient.post()
+                .uri("/api/v1/apps")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("client_name=TestApp&redirect_uris=urn:ietf:wg:oauth:2.0:oob&scopes=read")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String clientId;
+        try {
+            clientId = mapper.readTree(appResponse).get("client_id").asText();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        // valid user credentials but a wrong client_secret for a known client_id must be rejected
+        webTestClient.post()
+                .uri("/oauth/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("grant_type=password&username=" + testEmail + "&password=" + testPassword +
+                        "&client_id=" + clientId + "&client_secret=WRONG-SECRET&scope=read")
+                .exchange()
+                .expectStatus().is4xxClientError();
+    }
+
+    @Test
+    public void testPasswordGrantNoClientIdStillWorks() {
+        // toot login_cli after a server restart presents a client_id the server no longer knows;
+        // the permissive path (no registered client) must keep working
+        String testUser = "oauth-noclient-user";
+        String testEmail = "oauthnoclient@localhost";
+        String testPassword = "testpassword123";
+
+        accountRepository.save(new Account(testUser)).block();
+        EmailRegistration reg = new EmailRegistration();
+        reg.id = EmailCodeUtils.normalizeEmail(testEmail);
+        reg.email = testEmail;
+        reg.username = testUser;
+        reg.saltedPassword = EmailCodeUtils.encodePassword(testPassword);
+        emailRegistrationRepository.save(reg).block();
+
+        webTestClient.post()
+                .uri("/oauth/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("grant_type=password&username=" + testEmail + "&password=" + testPassword + "&scope=read")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.access_token").isNotEmpty();
+    }
+
+    @Test
     public void testPasswordGrantTypeInvalidCredentials() {
         String testEmail = "invalid@localhost";
         String testPassword = "wrongpassword";

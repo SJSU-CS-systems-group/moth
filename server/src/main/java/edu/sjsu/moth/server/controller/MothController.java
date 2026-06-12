@@ -72,21 +72,17 @@ public class MothController {
         if (match.find()) {
             var user = match.group(1);
             return webfingerRepo.findItemByName(user).map(foundUser -> {
-                if (foundUser != null) {
-                    var host = match.group(2);
-                    var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
-                    var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
-                    LOG.fine("finger directing " + user + " to " + activityLink);
-                    var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML_VALUE, textLink),
-                                        new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY_VALUE,
-                                                       activityLink));
-                    return ResponseEntity.ok(
-                            new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links));
-                }
-                return null;
-            });
+                var textLink = format("https://{1}/@{0}", foundUser.user, foundUser.host);
+                var activityLink = format("https://{1}/users/{0}", foundUser.user, foundUser.host);
+                LOG.fine("finger directing " + user + " to " + activityLink);
+                var links = List.of(new FingerLink(RelType.PROFILE, MimeTypeUtils.TEXT_HTML_VALUE, textLink),
+                                    new FingerLink(RelType.SELF, MothMimeType.APPLICATION_ACTIVITY_VALUE,
+                                                   activityLink));
+                return ResponseEntity.ok(
+                        new WebFingerUtils.WebFinger(resource, List.of(textLink, activityLink), links));
+            }).defaultIfEmpty(ResponseEntity.notFound().build());
         }
-        return null;
+        return Mono.just(ResponseEntity.badRequest().contentType(MothMimeType.APPLICATION_ACTIVITY).build());
     }
 
     @GetMapping(value = "/@{username}.rss", produces = "application/rss+xml")
@@ -116,12 +112,13 @@ public class MothController {
 
         for (Status status : statuses) {
             sb.append("  <item>\n");
-            sb.append("    <guid>").append(status.getUrl()).append("</guid>\n");
-            sb.append("    <link>").append(status.getUrl()).append("</link>\n");
-            sb.append("    <pubDate>").append(toRfc822Date(status.createdAt)).append("</pubDate>\n");
+            sb.append("    <guid>").append(escapeXml(status.getUrl())).append("</guid>\n");
+            sb.append("    <link>").append(escapeXml(status.getUrl())).append("</link>\n");
+            sb.append("    <pubDate>").append(escapeXml(toRfc822Date(status.createdAt))).append("</pubDate>\n");
             String title = createTitle(status);
             sb.append("    <title>").append(escapeXml(title)).append("</title>\n");
-            sb.append("    <description><![CDATA[").append(status.content).append("]]></description>\n");
+            // entity-escape instead of CDATA: content containing "]]>" would break out of a CDATA section
+            sb.append("    <description>").append(escapeXml(status.content)).append("</description>\n");
             sb.append("  </item>\n");
         }
 
@@ -144,7 +141,7 @@ public class MothController {
         if (status.spoilerText != null && !status.spoilerText.isEmpty()) {
             return status.spoilerText;
         }
-        String text = status.content.replaceAll("<[^>]+>", "").trim();
+        String text = status.content == null ? "" : status.content.replaceAll("<[^>]+>", "").trim();
         if (text.length() > 100) {
             text = text.substring(0, 100) + "...";
         }
@@ -152,6 +149,7 @@ public class MothController {
     }
 
     private String toRfc822Date(String isoDate) {
+        if (isoDate == null) return "";
         try {
             var instant = java.time.Instant.parse(isoDate);
             var formatter = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME

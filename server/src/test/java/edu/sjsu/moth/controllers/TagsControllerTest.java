@@ -115,7 +115,9 @@ public class TagsControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.name").isEqualTo("test")
-                .jsonPath("$.following").isEqualTo(false);
+                .jsonPath("$.following").isEqualTo(false)
+                // url must be built from the configured server name, not hardcoded
+                .jsonPath("$.url").isEqualTo(edu.sjsu.moth.server.controller.MothController.BASE_URL + "/tags/test");
     }
 
     @Test

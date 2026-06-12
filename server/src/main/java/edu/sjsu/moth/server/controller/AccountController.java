@@ -13,6 +13,7 @@ import edu.sjsu.moth.server.service.AccountService;
 import edu.sjsu.moth.server.service.BlockService;
 import edu.sjsu.moth.server.service.FollowService;
 import edu.sjsu.moth.server.service.MuteService;
+import edu.sjsu.moth.server.util.Util;
 import lombok.extern.apachecommons.CommonsLog;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -44,6 +45,8 @@ import java.util.stream.Collectors;
 @CommonsLog
 @RestController
 public class AccountController {
+
+    private static final int MAX_PROFILE_FIELDS = 16;
 
     private final AccountService accountService;
     private final FollowService followService;
@@ -86,7 +89,10 @@ public class AccountController {
                                             fields = new ArrayList<>();
                                         }
                                         var m = Pattern.compile("fields_attributes\\[(\\d+)\\]\\[(\\w+)\\]").matcher(n);
-                                        if (m.find()) {
+                                        // indexes above MAX_PROFILE_FIELDS are ignored to bound the
+                                        // allocation below (Mastodon itself allows only 4 fields)
+                                        if (m.find() && m.group(1).length() <= 2 &&
+                                                Integer.parseInt(m.group(1)) < MAX_PROFILE_FIELDS) {
                                             var i = Integer.parseInt(m.group(1));
                                             // fill in the fields array until we get the index we need.
                                             // we should eventually see the rest of the values
@@ -135,8 +141,8 @@ public class AccountController {
             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
         // Limit capped at 80 per spec
-        int cappedLimit = Math.min(limit, 80);
-        return accountService.searchAccounts(q, cappedLimit, offset)
+        int cappedLimit = Util.clamp(limit, 1, 80);
+        return accountService.searchAccounts(q, cappedLimit, Math.max(0, offset))
                 .collectList()
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.ok(List.of()));

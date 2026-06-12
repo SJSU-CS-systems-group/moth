@@ -1,6 +1,7 @@
 package edu.sjsu.moth.server.worker;
 
 import edu.sjsu.moth.server.service.AccountService;
+import edu.sjsu.moth.server.service.AuthService;
 import edu.sjsu.moth.server.service.EmailService;
 import edu.sjsu.moth.server.util.MothConfiguration;
 import lombok.extern.apachecommons.CommonsLog;
@@ -9,9 +10,6 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
-
-import java.util.Base64;
-import java.util.Random;
 
 /**
  * make sure the contact account is set up. it is used in some of
@@ -35,9 +33,7 @@ public class ContactAccountChecker implements ApplicationRunner {
         var contactAccount = accountService.getAccount(contact).block();
         if (contactAccount == null) {
             log.warn("❌ contact account %s not found. creating with defaults".formatted(contact));
-            var randomBytes = new byte[9];
-            new Random().nextBytes(randomBytes);
-            var randomPassword = Base64.getEncoder().encodeToString(randomBytes);
+            var randomPassword = AuthService.genNonce(9);
             var contactEmail = MothConfiguration.mothConfiguration.getContactEmail();
             emailService.registerEmail(contactEmail, randomPassword)
                     // we are going to push ahead even if the email is already registered

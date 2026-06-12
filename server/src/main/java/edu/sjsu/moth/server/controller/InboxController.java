@@ -16,6 +16,7 @@ import edu.sjsu.moth.server.service.ActorService;
 import edu.sjsu.moth.server.service.InboxService;
 import edu.sjsu.moth.server.service.StatusService;
 import edu.sjsu.moth.server.util.MothConfiguration;
+import edu.sjsu.moth.server.util.Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -90,7 +91,7 @@ public class InboxController {
             @PathVariable String id,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
-        return accountService.usersFollow(id, page, limit, "following");
+        return accountService.usersFollow(id, Math.max(1, page), Util.clamp(limit, 1, 80), "following");
     }
 
     @GetMapping("/users/{id}/followers")
@@ -98,7 +99,7 @@ public class InboxController {
             @PathVariable String id,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer limit) {
-        return accountService.usersFollow(id, page, limit, "followers");
+        return accountService.usersFollow(id, Math.max(1, page), Util.clamp(limit, 1, 80), "followers");
     }
 
     @GetMapping("/users/{id}/collections/featured")
